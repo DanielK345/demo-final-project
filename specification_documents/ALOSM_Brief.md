@@ -1,0 +1,186 @@
+﻿# PRODUCT BRIEF
+## AloSM Voice AI Agent
+**AI Voice Customer Service Agent for AloSM**
+Prepared by: Team T160
+
+---
+
+## Project Vision
+**Nói một câu, AloSM lo phần còn lại.**
+
+AloSM Voice AI Agent hướng đến việc trở thành cổng giao tiếp bằng hội thoại cho hệ sinh thái AloSM, giúp khách hàng tiếp cận dịch vụ một cách tự nhiên, thuận tiện và toàn diện thông qua giọng nói; đồng thời hỗ trợ doanh nghiệp tối ưu quy trình chăm sóc khách hàng và nâng cao hiệu quả vận hành.
+
+## 1. Project Overview
+
+### Background
+Ngành dịch vụ đang chuyển dịch mạnh từ các giao diện tương tác truyền thống sang các giải pháp Conversational AI. Thay vì yêu cầu người dùng thực hiện nhiều thao tác trên màn hình hoặc tuân theo các quy trình phức tạp, doanh nghiệp ngày càng hướng đến việc cho phép khách hàng giao tiếp bằng ngôn ngữ tự nhiên thông qua giọng nói.
+
+Xu hướng này đặc biệt phù hợp với các doanh nghiệp có quy mô khách hàng lớn và hệ thống chăm sóc khách hàng hoạt động liên tục như ngân hàng, hàng không, bảo hiểm và dịch vụ gọi xe. AI Voice có thể tiếp nhận các yêu cầu phổ biến, tự động hóa quy trình hỗ trợ và giảm tải cho tổng đài viên.
+
+Đối với AloSM, ứng dụng di động đã đáp ứng phần lớn nhu cầu đặt xe, nhưng tổng đài vẫn giữ vai trò quan trọng đối với nhiều nhóm khách hàng. Doanh nghiệp đồng thời phải xử lý nhiều yêu cầu lặp lại như đặt xe, tra cứu chuyến đi, thanh toán, khiếu nại và giải đáp thông tin dịch vụ. Đây là cơ hội để AloSM bổ sung một kênh tương tác bằng giọng nói, nâng cao khả năng tiếp cận dịch vụ và tối ưu hoạt động chăm sóc khách hàng.
+
+### Why Now?
+Việt Nam có tỷ lệ sử dụng smartphone cao, nhưng khả năng tiếp cận dịch vụ số giữa các nhóm người dùng vẫn chưa đồng đều. Tổng điều tra Dân số và Nhà ở 2019 ghi nhận Việt Nam có **11,41 triệu người từ 60 tuổi trở lên**, tương đương **11,86% dân số** [1]. Trong khi đó, nghiên cứu LSAHV do ERIA và PHAD công bố năm 2020, dựa trên mẫu 6.050 người từ 60 tuổi trở lên tại 10 tỉnh, cho thấy chỉ **12,7% người cao tuổi được khảo sát có khả năng truy cập Internet**; tỷ lệ này giảm từ 17,0% ở nhóm 60–69 tuổi xuống còn 2,8% ở nhóm từ 80 tuổi trở lên [2]. Những số liệu này cho thấy khả năng tiếp cận công nghệ giữa các nhóm tuổi vẫn có sự chênh lệch đáng kể và củng cố nhu cầu về những phương thức tương tác đơn giản, trực quan hơn.
+
+Song song đó, nhu cầu gọi xe qua nền tảng số đã phổ biến. Khảo sát Rakuten Insight năm 2025 ghi nhận **66% người trả lời từng đặt ô tô, 67% từng đặt xe máy** qua ứng dụng và AloSM là thương hiệu được sử dụng thường xuyên nhất bởi 32% người trả lời [3]. AloSM cũng công bố quy mô hơn **1 triệu chuyến mỗi ngày**, hơn 100 triệu lượt khách đã sử dụng dịch vụ và hotline 1555 [4]. Trong bối cảnh nhu cầu gọi xe số phát triển nhưng khả năng tiếp cận công nghệ chưa đồng đều, đây là thời điểm phù hợp để AloSM đánh giá AI Voice như một kênh bổ sung cho ứng dụng và tổng đài truyền thống.
+
+## 2. Business Problem
+
+AloSM đã xây dựng một hệ sinh thái dịch vụ hiện đại với ứng dụng di động là kênh tương tác chính. Tuy nhiên, vẫn còn khoảng trống trong trải nghiệm của một bộ phận khách hàng và trong cách doanh nghiệp vận hành tổng đài chăm sóc khách hàng.
+
+Từ góc độ người dùng, không phải tất cả khách hàng đều muốn hoặc có thể sử dụng ứng dụng di động. Người lớn tuổi, người ít thành thạo công nghệ hoặc người đang cần thao tác rảnh tay thường ưu tiên giao tiếp bằng giọng nói. Với họ, việc nói "Tôi muốn đặt một xe từ Vincom Đồng Khởi về Landmark 81" tự nhiên và thuận tiện hơn so với việc mở ứng dụng, nhập địa chỉ và thực hiện từng bước đặt xe.
+
+Từ góc độ doanh nghiệp, tổng đài phải tiếp nhận các yêu cầu như đặt xe, tra cứu trạng thái chuyến đi, thanh toán, hoàn tiền, khiếu nại và giải đáp thông tin dịch vụ. Nhiều nghiệp vụ có quy trình tương đối chuẩn hóa và là ứng viên phù hợp cho tự động hóa. Tuy nhiên, AloSM chưa công bố lưu lượng cuộc gọi, tỷ trọng từng loại yêu cầu hoặc chi phí vận hành tổng đài; các số liệu này cần được dùng làm baseline nội bộ trước khi đánh giá tác động kinh doanh của MVP.
+
+Tổng đài viên hiện phải xử lý mọi yêu cầu kể cả những nghiệp vụ có quy trình cố định. Với AI Voice, tổng đài viên có thể tập trung vào các tình huống cần đánh giá, xử lý linh hoạt hoặc ra quyết định của con người — đặc biệt là các trường hợp khẩn cấp, khiếu nại phức tạp và sự cố tài xế.
+
+**Problem Statement**
+Làm thế nào để AloSM mở rộng khả năng tiếp cận dịch vụ thông qua hội thoại bằng giọng nói, đồng thời tự động hóa các nghiệp vụ tiêu chuẩn (đặt xe, thanh toán, tra cứu, khiếu nại) nhằm giảm tải cho tổng đài viên, tối ưu nguồn lực vận hành và nâng cao trải nghiệm khách hàng, trong khi vẫn đảm bảo những tình huống phức tạp và khẩn cấp được xử lý đúng người, đúng quy trình?
+
+## 3. Target Users
+
+### Primary Users
+AloSM Voice AI Agent được thiết kế cho những khách hàng ưu tiên hoặc cần tương tác bằng giọng nói thay vì thao tác trên ứng dụng, bao gồm:
+* Người lớn tuổi chưa quen sử dụng ứng dụng đặt xe.
+* Người ít thành thạo công nghệ.
+* Người gặp khó khăn khi thao tác trên điện thoại.
+
+Đây là persona chính của MVP. Hội thoại cần sử dụng câu ngắn, tốc độ vừa phải và xác nhận rõ các thông tin quan trọng, thay vì yêu cầu người dùng ghi nhớ và thực hiện nhiều bước trên giao diện ứng dụng.
+
+### Secondary Users
+* **Khách hàng bận tay:** đang mang hành lý, bế trẻ nhỏ hoặc di chuyển — thành thạo công nghệ nhưng tạm thời không thuận tiện dùng màn hình.
+* **Tài xế đối tác:** cần xác nhận chuyến, hỏi thông tin khách, cập nhật trạng thái chuyến qua giọng nói khi đang lái xe.
+* **Tổng đài viên:** tiếp nhận các cuộc gọi phức tạp được chuyển từ AI; hưởng lợi từ context được chuyển đầy đủ.
+
+### Core Values
+
+**Accessibility**
+Giúp nhiều nhóm khách hàng tiếp cận dịch vụ dễ dàng hơn thông qua giọng nói.
+
+**Convenience**
+Đơn giản hóa quá trình sử dụng dịch vụ bằng hội thoại tự nhiên — từ đặt xe đến thanh toán đến khiếu nại.
+
+**Operational Efficiency**
+Tự động hóa các nghiệp vụ chuẩn hóa nhằm giảm tải tổng đài và tối ưu nguồn lực.
+
+**Human-Centered AI**
+AI hỗ trợ con người thay vì thay thế con người; các tình huống khẩn cấp và phức tạp được chuyển đến đúng người xử lý.
+
+## 4. Proposed Solution
+
+AloSM Voice AI Agent là một AI Voice Customer Service Agent cho phép khách hàng tương tác với các dịch vụ AloSM bằng tiếng Việt tự nhiên. Sản phẩm đóng vai trò là lớp giao tiếp thông minh giữa khách hàng và hệ thống nghiệp vụ, không phải một ứng dụng gọi xe mới hay một chatbot thay thế hoàn toàn con người.
+
+Người dùng chỉ cần trình bày nhu cầu bằng giọng nói. AI sẽ tiếp nhận yêu cầu, duy trì ngữ cảnh, thu thập và xác nhận thông tin cần thiết, thực hiện nghiệp vụ phù hợp và phản hồi kết quả. Khi yêu cầu vượt ngoài phạm vi xử lý hoặc cần đánh giá của con người, hệ thống sẽ chuyển tiếp cuộc hội thoại đến tổng đài viên theo mô hình Human-in-the-Loop.
+
+### Product Principles
+
+**Voice First**
+Giọng nói là phương thức tương tác chính, cho phép người dùng tiếp cận dịch vụ bằng hội thoại tự nhiên.
+
+**Human-Centered AI**
+AI xử lý các nghiệp vụ tiêu chuẩn; con người tiếp nhận những tình huống cần phán đoán, đặc biệt là khẩn cấp và khiếu nại phức tạp.
+
+**Reliable Automation**
+Hệ thống chỉ tự động hóa những nghiệp vụ có quy trình rõ ràng, có thể kiểm soát và xác nhận.
+
+**Continuous Conversation**
+AI duy trì ngữ cảnh trong nhiều lượt trao đổi, ghi nhớ thông tin trong phiên và phản hồi nhất quán.
+
+### Core Capabilities
+AloSM Voice AI Agent tập trung vào tám năng lực cốt lõi:
+
+* **Booking Services:** thu thập và xác nhận điểm đón, điểm đến, sau đó thực hiện quy trình đặt xe.
+* **Information Services:** tra cứu trạng thái chuyến đi, thông tin dịch vụ, giá tham khảo và các câu hỏi thường gặp.
+* **Payment Services:** hỗ trợ xem lịch sử thanh toán, chọn phương thức thanh toán và thực hiện giao dịch qua payment gateway tích hợp.
+* **Refund & Complaint Services:** tiếp nhận yêu cầu hoàn tiền và khiếu nại, phân loại mức ưu tiên, tạo ticket và theo dõi tiến trình xử lý.
+* **Driver Support Services:** hỗ trợ tài xế xác nhận chuyến, cập nhật trạng thái và tra cứu thông tin chuyến qua giọng nói.
+* **Emergency Response:** phát hiện và ghi nhận tình huống khẩn cấp, chuyển ngay đến tổng đài viên chuyên môn hoặc dịch vụ khẩn cấp.
+* **Conversation Management:** duy trì ngữ cảnh, xử lý hội thoại nhiều lượt và xác nhận thông tin quan trọng.
+* **Human Handoff:** chuyển tiếp cuộc hội thoại đến tổng đài viên khi người dùng yêu cầu trực tiếp, sau hai lần nhận diện hoặc xác nhận thất bại, khi độ tin cậy thấp, hoặc khi xuất hiện tình huống khẩn cấp. Tổng đài viên nhận được tóm tắt và các thông tin đã xác nhận để khách hàng không phải trình bày lại từ đầu.
+
+## 5. Project Scope
+
+MVP tập trung vào những nghiệp vụ có quy trình rõ ràng và khả năng tự động hóa cao, nhằm kiểm chứng giá trị cốt lõi của sản phẩm trong phạm vi khả thi.
+
+**In Scope**
+* Tiếp nhận và phản hồi hội thoại bằng giọng nói tiếng Việt.
+* Hiểu ý định và duy trì ngữ cảnh trong nhiều lượt trao đổi.
+* Đặt xe (thu thập thông tin, xác nhận, tạo booking).
+* Tra cứu trạng thái chuyến đi.
+* Giải đáp thông tin dịch vụ và câu hỏi thường gặp.
+* Thanh toán qua giọng nói (xem lịch sử, chọn phương thức, xác nhận giao dịch qua payment gateway).
+* Tiếp nhận yêu cầu hoàn tiền (thu thập thông tin, tạo ticket, theo dõi tiến trình).
+* Tiếp nhận khiếu nại (thu thập thông tin, phân loại mức ưu tiên, tạo ticket).
+* Hỗ trợ tài xế (xác nhận chuyến, cập nhật trạng thái, tra cứu thông tin chuyến).
+* Xử lý tình huống khẩn cấp / tai nạn (phát hiện, ghi nhận, kết nối ngay tổng đài viên và dịch vụ khẩn cấp).
+* Xác nhận thông tin quan trọng trước khi thực hiện nghiệp vụ.
+* Lưu lịch sử hội thoại trong phiên.
+* Chuyển tiếp tổng đài viên khi cần.
+
+**Out of Scope (MVP)**
+* Tích hợp kênh Zalo, Messenger, WhatsApp.
+* Đa ngôn ngữ (tiếng Anh, Khmer, v.v.).
+* Mobile app native (iOS/Android) — MVP chỉ hỗ trợ web.
+* Can thiệp vào thuật toán ghép chuyến của hệ thống dispatch.
+* Tự phê duyệt hoàn tiền không qua con người.
+
+AloSM Voice AI Agent không hướng đến việc thay thế tổng đài viên. MVP chứng minh rằng AI có thể tự động hóa hiệu quả các nghiệp vụ tiêu chuẩn, giúp con người tập trung vào những tình huống cần chuyên môn và khả năng đánh giá.
+
+## 6. Expected Outcome
+
+Sau khi hoàn thành MVP, dự án kỳ vọng chứng minh rằng AI Voice có thể trở thành một kênh tương tác toàn diện và hiệu quả trong hệ sinh thái AloSM.
+
+**Customer Value**
+Khách hàng có thêm phương thức tiếp cận dịch vụ đơn giản và tự nhiên cho toàn bộ hành trình — từ đặt xe, thanh toán đến khiếu nại — đặc biệt đối với người ít thành thạo công nghệ.
+
+**Business Value**
+AloSM có thể tự động hóa các nghiệp vụ tiêu chuẩn, giảm tải tổng đài, chuẩn hóa quy trình hỗ trợ và tăng khả năng phục vụ đồng thời.
+
+**Operational Value**
+Tổng đài viên được giảm bớt công việc lặp lại và có thể tập trung vào những trường hợp cần chuyên môn hoặc xử lý linh hoạt — khiếu nại phức tạp, tình huống khẩn cấp, sự cố đặc biệt.
+
+**Technical Validation**
+MVP đóng vai trò Proof of Concept, chứng minh khả năng hiểu hội thoại tiếng Việt, duy trì ngữ cảnh, thực hiện đa dạng nghiệp vụ và phối hợp với tổng đài viên theo mô hình Human-in-the-Loop.
+
+**Success Criteria**
+Trong pilot với đúng nhóm người dùng mục tiêu, MVP được xem là đạt mục tiêu ban đầu khi:
+* Tối thiểu 80% người tham gia hoàn tất đúng kịch bản đặt xe bằng giọng nói.
+* Tối thiểu 65% yêu cầu đặt xe hợp lệ được hoàn tất không cần tổng đài viên và không xảy ra lỗi ở điểm đón, điểm đến.
+* 100% tình huống khẩn cấp được phát hiện và chuyển tổng đài viên trong vòng 30 giây.
+* 100% yêu cầu hoàn tiền và khiếu nại được tiếp nhận có ticket với thông tin đầy đủ.
+
+Đây là ngưỡng mục tiêu cần kiểm chứng trong pilot, không phải kết quả đã đạt. Tác động giảm tải hoặc giảm chi phí chỉ được đánh giá sau khi có baseline vận hành thực tế của AloSM.
+
+## 7. Risks and Open Questions
+
+* Độ chính xác ASR tiếng Việt với người lớn tuổi, giọng vùng miền và tiếng ồn ngoài đường.
+* Độ trễ hội thoại và khả năng nhận diện, xác nhận chính xác địa chỉ.
+* Khả năng tích hợp với hệ thống đặt xe và chuyển tổng đài mà không đặt trùng hoặc báo thành công sai.
+* Tích hợp payment gateway: AloSM dùng provider nào? API có sẵn không? Yêu cầu PCI-DSS cụ thể ra sao?
+* Quy trình phê duyệt hoàn tiền: ai phê duyệt, thời gian xử lý, điều kiện tự động hoàn?
+* Khiếu nại: tiêu chí phân loại mức ưu tiên là gì? Ticket đi vào hệ thống nào (CRM hiện tại)?
+* Điều phối tài xế: API tài xế có endpoint cho xác nhận chuyến và cập nhật trạng thái không?
+* Tình huống khẩn cấp: quy trình leo thang nội bộ và kết nối với dịch vụ khẩn cấp (112) cụ thể như thế nào?
+* Lưu lượng, cơ cấu yêu cầu và chi phí tổng đài hiện tại của AloSM chưa có dữ liệu công khai.
+* Chính sách ghi âm, lưu transcript và bảo vệ số điện thoại, địa chỉ của khách hàng.
+
+## 8. Future Direction
+
+Nếu MVP chứng minh được tính khả thi, AloSM Voice AI Agent có thể được mở rộng theo các hướng sau:
+* Triển khai trên nhiều kênh như tổng đài điện thoại (SIP/VoIP), ứng dụng AloSM và kiosk tự phục vụ.
+* Cá nhân hóa trải nghiệm, ghi nhớ lịch sử tương tác và đề xuất thông minh dựa trên thói quen.
+* Hỗ trợ đa ngôn ngữ và cải thiện khả năng hiểu hội thoại tự nhiên với nhiều giọng địa phương hơn.
+* Phát triển thành lớp giao tiếp bằng hội thoại thống nhất cho nhiều dịch vụ trong hệ sinh thái AloSM.
+* Tích hợp kênh Zalo, Messenger và các nền tảng nhắn tin phổ biến.
+
+AloSM Voice AI Agent được định vị là một AI Voice Customer Service Agent toàn diện, đóng vai trò như lớp giao tiếp thông minh giữa khách hàng và hệ thống dịch vụ AloSM. Sản phẩm kết hợp tự động hóa với Human-in-the-Loop nhằm mở rộng khả năng tiếp cận dịch vụ, nâng cao trải nghiệm khách hàng và tối ưu hiệu quả vận hành.
+
+## Tài liệu tham khảo
+
+[1] Tổng cục Thống kê và UNFPA Việt Nam (2021), *Population Ageing and Older Persons in Viet Nam*. https://vietnam.unfpa.org/sites/default/files/pub-pdf/ageing_report_from_census_2019_eng_final27082021.pdf
+
+[2] Vu, N.C., Tran, M.T., Dang, L.T., Chei, C.L. và Saito, Y. (chủ biên) (2020), *Ageing and Health in Viet Nam*. Jakarta: Economic Research Institute for ASEAN and East Asia (ERIA); Hà Nội: Institute of Population, Health and Development (PHAD). https://www.eria.org/uploads/media/Books/2020-Ageing-and-Health-VietNam/Ageing-and-Health-in-Viet-Nam-new.pdf
+
+[3] Rakuten Insight Global (2025), *2025 Ride-Hailing App Landscape in Vietnam*. https://insight.rakuten.com/2025-ride-hailing-app-landscape-in-vietnam/
+
+[4] AloSM, số liệu doanh nghiệp công bố, truy cập ngày 02/08/2026. https://www.greensm.com/vn-vi
