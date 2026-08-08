@@ -1,13 +1,13 @@
 from fastapi import APIRouter, HTTPException
 
-from src.agents.graph import agent
-from src.api.routes.bookings import router as bookings_router
-from src.api.routes.calls import router as calls_router
-from src.api.routes.handoffs import router as handoffs_router
-from src.api.routes.health import router as health_router
-from src.api.routes.sessions import router as sessions_router
-from src.api.routes.trips import router as trips_router
-from src.models.schemas import ChatRequest, ChatResponse
+from src.backend.agents.graph import agent
+from src.backend.api.routes.bookings import router as bookings_router
+from src.backend.api.routes.calls import router as calls_router
+from src.backend.api.routes.handoffs import router as handoffs_router
+from src.backend.api.routes.health import router as health_router
+from src.backend.api.routes.sessions import router as sessions_router
+from src.backend.api.routes.trips import router as trips_router
+from src.backend.models.schemas import ChatRequest, ChatResponse
 
 
 router = APIRouter()

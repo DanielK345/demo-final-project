@@ -1,5 +1,5 @@
-from src.schemas.handoff import HandoffAcceptanceDTO, HandoffDTO, HandoffResponseDTO
-from src.services.handoff_service import HandoffService
+from src.backend.schemas.handoff import HandoffAcceptanceDTO, HandoffDTO, HandoffResponseDTO
+from src.backend.services.handoff_service import HandoffService
 
 
 class HandoffController:

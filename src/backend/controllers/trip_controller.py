@@ -1,5 +1,5 @@
-from src.schemas.trip import TripStatusDTO
-from src.services.trip_service import TripService
+from src.backend.schemas.trip import TripStatusDTO
+from src.backend.services.trip_service import TripService
 
 
 class TripController:

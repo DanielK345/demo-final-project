@@ -1,4 +1,4 @@
-from src.repositories.base import BaseRepository
+from src.backend.repositories.base import BaseRepository
 
 
 class EventRepository(BaseRepository):

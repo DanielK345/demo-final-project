@@ -1,10 +1,17 @@
+from pathlib import Path
+import sys
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from src.api.routes import health_router, router
-from src.config import get_settings
+# Ensure project root is available for absolute imports (src.backend.*)
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+from src.backend.api.routes import health_router, router
+from src.backend.config import get_settings
 
 
 @asynccontextmanager

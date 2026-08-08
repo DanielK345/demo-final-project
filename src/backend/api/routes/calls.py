@@ -1,7 +1,7 @@
 from fastapi import APIRouter, WebSocket
 
-from src.controllers.call_controller import CallController
-from src.schemas.call import CallResponseDTO, CreateCallDTO
+from src.backend.controllers.call_controller import CallController
+from src.backend.schemas.call import CallResponseDTO, CreateCallDTO
 
 
 router = APIRouter(prefix="/calls", tags=["calls"])

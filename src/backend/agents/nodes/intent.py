@@ -1,4 +1,4 @@
-from src.agents.state import AgentState
+from src.backend.agents.state import AgentState
 
 
 async def intent_node(state: AgentState) -> dict:

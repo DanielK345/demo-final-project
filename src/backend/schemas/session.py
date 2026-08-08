@@ -1,6 +1,6 @@
 from pydantic import BaseModel, Field
 
-from src.schemas.common import LocationDTO
+from src.backend.schemas.common import LocationDTO
 
 
 class SessionDTO(BaseModel):

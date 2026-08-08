@@ -1,5 +1,5 @@
-from src.schemas.session import SessionDTO, SessionResumeResponseDTO, SessionUpdateDTO
-from src.services.session_service import SessionService
+from src.backend.schemas.session import SessionDTO, SessionResumeResponseDTO, SessionUpdateDTO
+from src.backend.services.session_service import SessionService
 
 
 class SessionController:

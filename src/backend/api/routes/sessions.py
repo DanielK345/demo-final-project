@@ -1,7 +1,7 @@
 from fastapi import APIRouter
 
-from src.controllers.session_controller import SessionController
-from src.schemas.session import SessionDTO, SessionResumeResponseDTO, SessionUpdateDTO
+from src.backend.controllers.session_controller import SessionController
+from src.backend.schemas.session import SessionDTO, SessionResumeResponseDTO, SessionUpdateDTO
 
 
 router = APIRouter(prefix="/sessions", tags=["sessions"])

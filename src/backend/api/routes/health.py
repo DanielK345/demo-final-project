@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 
-from src.api.deps import get_app_settings
+from src.backend.api.deps import get_app_settings
 
 
 router = APIRouter(tags=["health"])

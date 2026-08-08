@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Query
 
-from src.controllers.handoff_controller import HandoffController
-from src.schemas.handoff import HandoffAcceptanceDTO, HandoffDTO, HandoffResponseDTO
+from src.backend.controllers.handoff_controller import HandoffController
+from src.backend.schemas.handoff import HandoffAcceptanceDTO, HandoffDTO, HandoffResponseDTO
 
 
 router = APIRouter(prefix="/handoffs", tags=["handoffs"])

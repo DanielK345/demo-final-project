@@ -1,5 +1,5 @@
-from src.schemas.call import CallResponseDTO, CreateCallDTO
-from src.services.call_service import CallService
+from src.backend.schemas.call import CallResponseDTO, CreateCallDTO
+from src.backend.services.call_service import CallService
 
 
 class CallController:

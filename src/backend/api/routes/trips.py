@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Query
 
-from src.controllers.trip_controller import TripController
-from src.schemas.trip import TripStatusDTO
+from src.backend.controllers.trip_controller import TripController
+from src.backend.schemas.trip import TripStatusDTO
 
 
 router = APIRouter(prefix="/trips", tags=["trips"])

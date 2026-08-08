@@ -1,6 +1,6 @@
 from pydantic import BaseModel
 
-from src.schemas.common import LocationDTO
+from src.backend.schemas.common import LocationDTO
 
 
 class BookingRequestDTO(BaseModel):

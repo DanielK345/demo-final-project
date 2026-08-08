@@ -1,5 +1,5 @@
-from src.schemas.booking import BookingRequestDTO, BookingResponseDTO
-from src.services.booking_service import BookingService
+from src.backend.schemas.booking import BookingRequestDTO, BookingResponseDTO
+from src.backend.services.booking_service import BookingService
 
 
 class BookingController:
