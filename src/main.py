@@ -3,7 +3,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from src.api.routes import router
+from src.api.routes import health_router, router
 from src.config import get_settings
 
 
@@ -32,8 +32,4 @@ app.add_middleware(
 )
 
 app.include_router(router, prefix="/api/v1")
-
-
-@app.get("/health")
-async def health():
-    return {"status": "ok", "env": settings.app_env}
+app.include_router(health_router)

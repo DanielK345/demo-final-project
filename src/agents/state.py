@@ -16,3 +16,18 @@ class AgentState(TypedDict, total=False):
     response: str
     error: str
     metadata: dict
+    session_id: str
+    intent: str
+    pickup: dict
+    destination: dict
+    vehicle_type: str
+    confirmation_status: str
+    asr_confidence: float
+    failed_count: int
+    last_user_text: str
+    last_action: str
+    tool_result: dict
+    handoff_candidate: bool
+    handoff_reason: str
+    booking_id: str
+    handoff_triggered: bool
