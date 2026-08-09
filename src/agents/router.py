@@ -6,6 +6,10 @@ class UnsupportedIntentError(ValueError):
     pass
 
 
+class ToolResultRoutingError(ValueError):
+    pass
+
+
 class AgentRouter:
     """Minimal deterministic router used by the walking skeleton."""
 
@@ -18,14 +22,22 @@ class AgentRouter:
         if state.current_workflow is not None:
             return state.current_workflow
 
-        transcript = agent_input.transcript.casefold()
-        if any(term in transcript for term in self._BOOKING_TERMS):
-            return WorkflowType.RIDE_BOOKING
-        if any(term in transcript for term in self._LOOKUP_TERMS):
-            return WorkflowType.TRIP_LOOKUP
-        if any(term in transcript for term in self._HANDOFF_TERMS):
-            return WorkflowType.HUMAN_HANDOFF
-        if any(term in transcript for term in self._FAQ_TERMS):
-            return WorkflowType.FAQ
+        if agent_input.tool_result is not None:
+            raise ToolResultRoutingError(
+                "Tool result cannot be routed without a current workflow"
+            )
 
+        return self.classify_intent(agent_input.transcript)
+
+    def classify_intent(self, transcript: str) -> WorkflowType:
+        normalized_transcript = transcript.casefold().strip()
+
+        if any(term in normalized_transcript for term in self._HANDOFF_TERMS):
+            return WorkflowType.HUMAN_HANDOFF
+        if any(term in normalized_transcript for term in self._BOOKING_TERMS):
+            return WorkflowType.RIDE_BOOKING
+        if any(term in normalized_transcript for term in self._LOOKUP_TERMS):
+            return WorkflowType.TRIP_LOOKUP
+        if any(term in normalized_transcript for term in self._FAQ_TERMS):
+            return WorkflowType.FAQ
         raise UnsupportedIntentError("No workflow matched the current input")
