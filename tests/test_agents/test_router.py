@@ -59,6 +59,7 @@ def test_router_routes_tool_result_to_current_workflow():
         current_workflow=WorkflowType.RIDE_BOOKING,
         current_step="RESOLVE_PICKUP",
         pending_tool_call_id="session-001:search-pickup:1",
+        pending_tool_name=ToolName.SEARCH_PLACE,
     )
 
     result = AgentRouter().route(agent_input, state)

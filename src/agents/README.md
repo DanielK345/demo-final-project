@@ -144,7 +144,12 @@ State là single source of truth của hội thoại:
 | `current_step` | Bước hiện tại bên trong workflow |
 | `collected_data` | Dữ liệu nghiệp vụ đã thu thập |
 | `pending_tool_call_id` | Tool call mà workflow đang chờ |
+| `pending_tool_name` | Loại tool tương ứng với pending call |
+| `confirmation` | Trạng thái xác nhận nghiệp vụ có cấu trúc |
 | `retry_count` | Số lần retry hiện tại |
+| `last_stt_confidence` | Confidence gần nhất dùng cho policy nhiều lượt |
+| `conversation_history` | Lịch sử typed, giới hạn và không thay business state |
+| `state_version` | Version tăng sau mỗi validated transition |
 
 Agent không được dùng state có `session_id` khác input. State được cập nhật bằng
 partial `state_updates` trong action; Backend hoặc state layer chịu trách nhiệm
@@ -163,6 +168,16 @@ state.apply(
 
 `state.apply()` re-validate toàn bộ state. Không update trực tiếp bằng dictionary
 không kiểm tra.
+
+`session_id` và `state_version` là protected fields, workflow không được sửa qua
+`state_updates`. `pending_tool_call_id` và `pending_tool_name` phải được set hoặc
+clear cùng nhau. History được giới hạn để state không tăng vô hạn; raw tool
+payload và PII không được tự động đưa vào history.
+
+`StateStore` trong `state_store.py` định nghĩa lifecycle create/get/update/delete.
+`InMemoryStateStore` chỉ dùng cho test/local development. PostgreSQL/Redis và
+retention policy thật thuộc Backend. Store dùng `expected_version` để từ chối
+stale update và trả state copy nhằm tránh mutation ngoài validation.
 
 ### 4.3 `AgentAction`
 

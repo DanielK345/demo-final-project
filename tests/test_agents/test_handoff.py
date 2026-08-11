@@ -109,11 +109,12 @@ async def test_handoff_detects_critical_tool_error():
 
     action = await HandoffWorkflow().handle(
         AgentInput(session_id="session-001", tool_result=tool_result),
-        AgentState(
-            session_id="session-001",
-            current_workflow=WorkflowType.HUMAN_HANDOFF,
-            pending_tool_call_id=tool_result.call_id,
-        ),
+            AgentState(
+                session_id="session-001",
+                current_workflow=WorkflowType.HUMAN_HANDOFF,
+                pending_tool_call_id=tool_result.call_id,
+                pending_tool_name=ToolName.CREATE_BOOKING,
+            ),
     )
 
     context = action.state_updates["collected_data"]["handoff_context"]

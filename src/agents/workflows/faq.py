@@ -28,6 +28,7 @@ class FAQWorkflow(BaseWorkflow):
                 "current_workflow": self.workflow_type,
                 "current_step": "WAITING_FOR_KNOWLEDGE",
                 "pending_tool_call_id": call_id,
+                "pending_tool_name": ToolName.RETRIEVE_KNOWLEDGE,
             },
             reason="FAQ responses require grounded knowledge.",
         )

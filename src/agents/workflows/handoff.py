@@ -71,6 +71,7 @@ class HandoffWorkflow(BaseWorkflow):
                 "current_step": "HANDOFF_REQUESTED",
                 "collected_data": collected_data,
                 "pending_tool_call_id": None,
+                "pending_tool_name": None,
             },
             reason=f"Human handoff required: {handoff_reason.value}.",
         )

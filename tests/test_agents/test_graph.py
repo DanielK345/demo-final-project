@@ -87,6 +87,7 @@ async def test_graph_passes_tool_result_to_agent():
                 "current_workflow": WorkflowType.RIDE_BOOKING,
                 "current_step": "RESOLVE_PICKUP",
                 "pending_tool_call_id": "session-001:search-pickup:1",
+                "pending_tool_name": ToolName.SEARCH_PLACE,
             },
             "tool_result": tool_result.model_dump(mode="json"),
         }
