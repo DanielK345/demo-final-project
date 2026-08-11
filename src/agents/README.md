@@ -421,6 +421,13 @@ COLLECT_PICKUP
 **Definition of Done:** happy path, multiple candidates, reject/change
 confirmation, tool error và retry-limit tests đều pass.
 
+**Implementation hiện tại:** Booking state được validate bằng `BookingData` và
+lưu dưới `collected_data["booking"]`. Workflow resolve pickup/destination qua
+`search_place`, yêu cầu user chọn khi ambiguous, thu thập phone, bắt buộc
+confirmation rõ ràng rồi mới phát `create_booking`. Tool result sai correlation,
+payload sai hoặc critical error được chuyển handoff; booking ID/ETA/fare chỉ lấy
+từ typed `CreateBookingResult`.
+
 ### F4 — Trip Lookup Workflow
 
 **Mục tiêu:** tra cứu chuyến bằng booking ID hoặc phone.
