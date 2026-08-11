@@ -22,9 +22,11 @@ Tài liệu này được biên soạn dành riêng cho **Backend Developers (Py
 ### 2.1. Phân Hệ Xác Thực (Authentication & Profile)
 
 #### `POST /api/v1/auth/login` — Đăng nhập tài khoản
+
 - **Frontend Caller**: [LoginForm.tsx](file:///c:/Users/Admin/Desktop/P-160/frontend/src/features/auth/components/LoginForm.tsx)
 
 **Request Body (`JSON`)**:
+
 ```json
 {
   "email": "viet.nguyen@alosm.vn",
@@ -33,6 +35,7 @@ Tài liệu này được biên soạn dành riêng cho **Backend Developers (Py
 ```
 
 **Response Payload (`200 OK`)**:
+
 ```json
 {
   "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
@@ -53,10 +56,12 @@ Tài liệu này được biên soạn dành riêng cho **Backend Developers (Py
 ### 2.2. Phân Hệ Trợ Lý AI (AI Assistant — đã có nền tảng FastAPI)
 
 #### `POST /api/v1/chat` — Trò chuyện & xử lý ý định đặt xe với LangGraph
+
 - **Frontend Hook**: [useSendMessage.ts](file:///c:/Users/Admin/Desktop/P-160/frontend/src/features/ai-assistant/hooks.ts)
 - **Backend Handler Hiện Tại**: [src/api/routes.py](file:///c:/Users/Admin/Desktop/P-160/src/api/routes.py)
 
 **Request Body (`JSON`)**:
+
 ```json
 {
   "message": "Đặt cho tôi một xe AloSM Plus từ 123 Tech St ra Sân bay Tân Sơn Nhất"
@@ -64,6 +69,7 @@ Tài liệu này được biên soạn dành riêng cho **Backend Developers (Py
 ```
 
 **Response Payload (`200 OK`)**:
+
 ```json
 {
   "response": "Tôi đã tìm thấy xe AloSM Plus khả dụng. Ước tính cước phí 250,000 ₫.",
@@ -77,9 +83,11 @@ Tài liệu này được biên soạn dành riêng cho **Backend Developers (Py
 ### 2.3. Phân Hệ Dịch Vụ & Đặt Xe (Services Catalog & Booking)
 
 #### `GET /api/v1/services` — Lấy danh sách dịch vụ xe & bảng giá
+
 - **Frontend Isolation File**: [mockData.ts](file:///c:/Users/Admin/Desktop/P-160/frontend/src/features/booking/mockData.ts)
 
 **Response Payload (`200 OK`)**:
+
 ```json
 [
   {
@@ -122,9 +130,11 @@ Tài liệu này được biên soạn dành riêng cho **Backend Developers (Py
 ```
 
 #### `POST /api/v1/bookings` — Tạo yêu cầu đặt xe
+
 - **Frontend Component**: [BookingPage.tsx](file:///c:/Users/Admin/Desktop/P-160/frontend/src/pages/Booking/BookingPage.tsx)
 
 **Request Body (`JSON`)**:
+
 ```json
 {
   "service_id": "plus",
@@ -139,6 +149,7 @@ Tài liệu này được biên soạn dành riêng cho **Backend Developers (Py
 ```
 
 **Response Payload (`201 Created`)**:
+
 ```json
 {
   "booking_id": "bk_887910",
@@ -162,10 +173,12 @@ Tài liệu này được biên soạn dành riêng cho **Backend Developers (Py
 ### 2.4. Phân Hệ Theo Dõi Chuyến Đi Trực Tiếp (Live GPS Tracking)
 
 #### `GET /api/v1/tracking/{ride_id}` hoặc `WebSocket /ws/v1/tracking/{ride_id}`
+
 - **Frontend Page**: [TrackingPage.tsx](file:///c:/Users/Admin/Desktop/P-160/frontend/src/pages/Tracking/TrackingPage.tsx)
 - **Frontend Component**: [TrackingCard.tsx](file:///c:/Users/Admin/Desktop/P-160/frontend/src/features/tracking/components/TrackingCard.tsx)
 
 **Data Format Stream (`JSON`)**:
+
 ```json
 {
   "ride_id": "bk_887910",
@@ -191,12 +204,14 @@ Tài liệu này được biên soạn dành riêng cho **Backend Developers (Py
 ### 2.5. Phân Hệ Lịch Sử Chuyến Đi (Activity / Trip History)
 
 #### `GET /api/v1/trips` — Lấy lịch sử chuyến đi của người dùng
+
 - **Frontend Isolation File**: [mockData.ts](file:///c:/Users/Admin/Desktop/P-160/frontend/src/features/activity/mockData.ts)
 - **Frontend Component**: [ActivityList.tsx](file:///c:/Users/Admin/Desktop/P-160/frontend/src/features/activity/components/ActivityList.tsx)
 
 **Query Parameters**: `?status=all|completed|cancelled`
 
 **Response Payload (`200 OK`)**:
+
 ```json
 [
   {
@@ -229,10 +244,10 @@ Khi Backend hoàn thành triển khai endpoint nào, Frontend Developer chỉ c�
 
 ## 🎯 4. Danh Sách Tệp Nguồn Frontend Cần Tham Chiếu
 
-| Tính năng | Tệp Nguồn Frontend | Tệp Types/Mock |
-|:---|:---|:---|
-| **Auth / Login** | [LoginPage.tsx](file:///c:/Users/Admin/Desktop/P-160/frontend/src/pages/Login/LoginPage.tsx) | [auth/types.ts](file:///c:/Users/Admin/Desktop/P-160/frontend/src/features/auth/types.ts) |
-| **AI Assistant** | [AssistantPage.tsx](file:///c:/Users/Admin/Desktop/P-160/frontend/src/pages/Assistant/AssistantPage.tsx) | [ai-assistant/api.ts](file:///c:/Users/Admin/Desktop/P-160/frontend/src/features/ai-assistant/api.ts) |
-| **Booking & Modal** | [BookingPage.tsx](file:///c:/Users/Admin/Desktop/P-160/frontend/src/pages/Booking/BookingPage.tsx) | [booking/mockData.ts](file:///c:/Users/Admin/Desktop/P-160/frontend/src/features/booking/mockData.ts) |
-| **Trip History** | [ActivityPage.tsx](file:///c:/Users/Admin/Desktop/P-160/frontend/src/pages/Activity/ActivityPage.tsx) | [activity/mockData.ts](file:///c:/Users/Admin/Desktop/P-160/frontend/src/features/activity/mockData.ts) |
-| **Live Tracking** | [TrackingPage.tsx](file:///c:/Users/Admin/Desktop/P-160/frontend/src/pages/Tracking/TrackingPage.tsx) | [tracking/types.ts](file:///c:/Users/Admin/Desktop/P-160/frontend/src/features/tracking/types.ts) |
+| Tính năng               | Tệp Nguồn Frontend                                                                                    | Tệp Types/Mock                                                                                        |
+| :------------------------ | :------------------------------------------------------------------------------------------------------ | :----------------------------------------------------------------------------------------------------- |
+| **Auth / Login**    | [LoginPage.tsx](file:///c:/Users/Admin/Desktop/P-160/frontend/src/pages/Login/LoginPage.tsx)             | [auth/types.ts](file:///c:/Users/Admin/Desktop/P-160/frontend/src/features/auth/types.ts)               |
+| **AI Assistant**    | [AssistantPage.tsx](file:///c:/Users/Admin/Desktop/P-160/frontend/src/pages/Assistant/AssistantPage.tsx) | [ai-assistant/api.ts](file:///c:/Users/Admin/Desktop/P-160/frontend/src/features/ai-assistant/api.ts)   |
+| **Booking & Modal** | [BookingPage.tsx](file:///c:/Users/Admin/Desktop/P-160/frontend/src/pages/Booking/BookingPage.tsx)       | [booking/mockData.ts](file:///c:/Users/Admin/Desktop/P-160/frontend/src/features/booking/mockData.ts)   |
+| **Trip History**    | [ActivityPage.tsx](file:///c:/Users/Admin/Desktop/P-160/frontend/src/pages/Activity/ActivityPage.tsx)    | [activity/mockData.ts](file:///c:/Users/Admin/Desktop/P-160/frontend/src/features/activity/mockData.ts) |
+| **Live Tracking**   | [TrackingPage.tsx](file:///c:/Users/Admin/Desktop/P-160/frontend/src/pages/Tracking/TrackingPage.tsx)    | [tracking/types.ts](file:///c:/Users/Admin/Desktop/P-160/frontend/src/features/tracking/types.ts)       |

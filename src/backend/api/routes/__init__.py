@@ -1,21 +1,21 @@
 from fastapi import APIRouter, HTTPException
 
 from src.backend.agents.graph import agent
+from src.backend.api.routes.auth import router as auth_router
 from src.backend.api.routes.bookings import router as bookings_router
 from src.backend.api.routes.calls import router as calls_router
 from src.backend.api.routes.handoffs import router as handoffs_router
 from src.backend.api.routes.health import router as health_router
 from src.backend.api.routes.sessions import router as sessions_router
-from src.backend.api.routes.trips import router as trips_router
 from src.backend.models.schemas import ChatRequest, ChatResponse
 
 
 router = APIRouter()
 
+router.include_router(auth_router)
 router.include_router(calls_router)
 router.include_router(sessions_router)
 router.include_router(bookings_router)
-router.include_router(trips_router)
 router.include_router(handoffs_router)
 
 

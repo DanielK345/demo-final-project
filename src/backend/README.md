@@ -1,12 +1,13 @@
 # Backend
 
-This folder contains the FastAPI backend for the AloSM Voice AI project. It is the application layer that exposes the API, coordinates the LangGraph agent, and connects to session, booking, trip, handoff, and observability components.
+This folder contains the FastAPI backend for the AloSM Voice booking MVP. It is the application layer for the two customer-facing web pages: authentication and a voice/text booking homepage.
 
 ## What this backend does
 
-- Serves the HTTP API used by the voice and operator flows.
-- Exposes the LangGraph-powered chat route used by the current test suite.
-- Manages sessions, bookings, trips, and handoffs through controller and service layers.
+- Serves authenticated browser sessions and text/voice conversation turns.
+- Collects pickup and destination in a server-side session.
+- Requires an explicit confirmation before creating a booking.
+- Uses an idempotency key for every booking creation.
 - Provides health and readiness endpoints for runtime checks.
 - Wraps external systems such as Redis, PostgreSQL, ASR, TTS, maps, and booking integrations.
 
@@ -20,35 +21,24 @@ The FastAPI application is created in [main.py](main.py) and includes:
 
 ## API surface
 
-### Calls
+### Authentication
 
-- `POST /api/v1/calls`
-- `WS /api/v1/calls/{call_id}/stream`
+- `POST /api/v1/auth/register`
+- `POST /api/v1/auth/login`
+- `GET /api/v1/auth/me`
 
-### Sessions
+### Voice/text booking session
 
-- `GET /api/v1/sessions/{session_id}`
-- `PATCH /api/v1/sessions/{session_id}`
-- `POST /api/v1/sessions/{session_id}/resume`
+- `POST /api/v1/sessions` — starts a browser session (Bearer token required)
+- `POST /api/v1/sessions/{session_id}/messages` — sends a text or voice transcript
+- `POST /api/v1/sessions/{session_id}/end`
+- `GET`, `PATCH`, `POST /api/v1/sessions/{session_id}/resume`
 
-### Bookings
+### Booking
 
-- `POST /api/v1/bookings`
+- `POST /api/v1/bookings` — requires `Idempotency-Key` and `fare_confirmed: true`
 
-### Trips
-
-- `GET /api/v1/trips/status?session_id=...`
-
-### Handoffs
-
-- `POST /api/v1/handoffs`
-- `GET /api/v1/handoffs?status=pending`
-- `POST /api/v1/handoffs/{handoff_id}/accept`
-
-### Legacy compatibility routes
-
-- `POST /api/v1/chat`
-- `GET /api/v1/status`
+The service deliberately does not expose customer live tracking, trip history, payment, or wallet features in this MVP.
 
 ## Project layout
 
@@ -110,4 +100,4 @@ This backend expects the project dependencies to include:
 
 - `GET /health` returns the current environment.
 - `GET /ready` is a lightweight readiness check.
-- The current `/chat` route is kept for compatibility and delegates to the LangGraph agent.
+- The current in-memory adapters make the demo self-contained. Replace them with password hashing, PostgreSQL/Redis and real booking/voice providers before production.
