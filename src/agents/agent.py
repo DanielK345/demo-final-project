@@ -1,6 +1,10 @@
 from collections.abc import Mapping
 
-from src.agents.router import AgentRouter, UnsupportedIntentError
+from src.agents.router import (
+    AgentRouter,
+    ToolResultRoutingError,
+    UnsupportedIntentError,
+)
 from src.agents.schemas import ActionType, AgentAction, AgentInput, WorkflowType
 from src.agents.state import AgentState
 from src.agents.workflows.base import BaseWorkflow
@@ -19,14 +23,14 @@ class LLMAgent:
         workflows: Mapping[WorkflowType, BaseWorkflow] | None = None,
     ) -> None:
         self.router = router or AgentRouter()
+        default_workflows = {
+            WorkflowType.RIDE_BOOKING: RideBookingWorkflow(),
+            WorkflowType.TRIP_LOOKUP: TripLookupWorkflow(),
+            WorkflowType.FAQ: FAQWorkflow(),
+            WorkflowType.HUMAN_HANDOFF: HandoffWorkflow(),
+        }
         self.workflows = dict(
-            workflows
-            or {
-                WorkflowType.RIDE_BOOKING: RideBookingWorkflow(),
-                WorkflowType.TRIP_LOOKUP: TripLookupWorkflow(),
-                WorkflowType.FAQ: FAQWorkflow(),
-                WorkflowType.HUMAN_HANDOFF: HandoffWorkflow(),
-            }
+            default_workflows if workflows is None else workflows
         )
 
     async def handle(
@@ -46,10 +50,34 @@ class LLMAgent:
                 message="Bạn cần đặt xe, tra cứu chuyến đi hay hỗ trợ vấn đề khác?",
                 reason="The user's intent is not clear enough to select a workflow.",
             )
+        except ToolResultRoutingError as exc:
+            return AgentAction(
+                action_type=ActionType.HANDOFF,
+                message=(
+                    "Tôi chưa thể tiếp tục xử lý tự động. "
+                    "Tôi sẽ chuyển bạn tới tổng đài viên."
+                ),
+                state_updates={
+                    "current_workflow": WorkflowType.HUMAN_HANDOFF,
+                    "current_step": "HANDOFF_REQUIRED",
+                },
+                reason=str(exc),
+            )
 
         workflow = self.workflows.get(workflow_type)
         if workflow is None:
-            raise LookupError(f"Workflow is not registered: {workflow_type}")
+            return AgentAction(
+                action_type=ActionType.HANDOFF,
+                message=(
+                    "Tôi chưa thể tiếp tục xử lý tự động. "
+                    "Tôi sẽ chuyển bạn tới tổng đài viên."
+                ),
+                state_updates={
+                    "current_workflow": WorkflowType.HUMAN_HANDOFF,
+                    "current_step": "HANDOFF_REQUIRED",
+                },
+                reason=f"Workflow is not registered: {workflow_type}",
+            )
         return await workflow.handle(agent_input, current_state)
 
 
