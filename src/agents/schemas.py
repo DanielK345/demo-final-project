@@ -38,6 +38,8 @@ class ToolResult(BaseModel):
     status: ToolStatus
     data: dict[str, Any] = Field(default_factory=dict)
     error: str | None = None
+    error_code: str | None = None
+    retryable: bool = False
 
     @model_validator(mode="after")
     def validate_status_payload(self) -> "ToolResult":
@@ -45,6 +47,10 @@ class ToolResult(BaseModel):
             raise ValueError("error details are required for a failed tool result")
         if self.status is ToolStatus.SUCCESS and self.error is not None:
             raise ValueError("a successful tool result cannot contain an error")
+        if self.status is ToolStatus.SUCCESS and self.error_code is not None:
+            raise ValueError("a successful tool result cannot contain an error code")
+        if self.status is ToolStatus.SUCCESS and self.retryable:
+            raise ValueError("a successful tool result cannot be retryable")
         return self
 
 

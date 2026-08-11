@@ -240,6 +240,32 @@ Quy tắc:
 - Workflow yêu cầu tool chịu trách nhiệm xử lý result.
 - Không tự tạo dữ liệu khi tool không trả về.
 
+Tool error giữ safe `error` message và có thể kèm `error_code`, `retryable` để
+workflow áp dụng business retry policy. Success result không được chứa error
+metadata. Payload thành công phải validate qua result model tương ứng trong
+`tools/schemas.py` trước khi workflow sử dụng.
+
+### 4.6 Tool lifecycle
+
+`tools/call_id.py` tạo call ID có cấu trúc:
+
+```text
+session:workflow:tool:operation:sequence
+```
+
+`tools/lifecycle.py` chịu trách nhiệm:
+
+- mở pending lifecycle bằng `pending_tool_updates()`;
+- correlate cả `call_id` và `tool_name`;
+- parse success payload thành typed model;
+- normalize failure thành `ToolFailure`;
+- clear cả pending ID/name bằng `clear_pending_tool_updates()`.
+
+Workflow phải dừng sau khi phát `CALL_TOOL`. Backend thực thi tool rồi gửi
+`ToolResult` ở invocation tiếp theo. Result stale, duplicate, sai ID hoặc sai
+tool không được làm workflow tiến tiếp. Network retry và idempotency thuộc
+Backend; workflow chỉ quyết định business retry/handoff.
+
 ## 5. Luồng xử lý chuẩn của một turn
 
 1. Backend tạo `AgentInput` và đọc `AgentState` theo `session_id`.
