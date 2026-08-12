@@ -1,29 +1,59 @@
-from langgraph.graph import END, StateGraph
+from typing import Any
+from uuid import uuid4
 
+<<<<<<< HEAD:src/backend/agents/graph.py
 from src.backend.agents.nodes.example_node import analyze_node, respond_node
 from src.backend.agents.state import AgentState
+=======
+from src.agents.agent import LLMAgent
+from src.agents.schemas import AgentInput, ToolResult
+from src.agents.state import AgentState
+>>>>>>> 8cd3a39b010f5ca897c1f87bdcc03f29e9a49cc0:src/agents/graph.py
 
 
-def should_continue(state: AgentState) -> str:
-    """Route based on whether an error occurred during analysis."""
-    if state.get("error"):
-        return END
-    return "respond"
+class AgentGraphAdapter:
+    """Compatibility adapter for the starter template's ``ainvoke`` API."""
+
+    def __init__(self, llm_agent: LLMAgent | None = None) -> None:
+        self.llm_agent = llm_agent or LLMAgent()
+
+    async def ainvoke(self, values: dict[str, Any]) -> dict[str, Any]:
+        query = str(values.get("query", ""))
+        raw_state = values.get("state")
+        state = (
+            AgentState.model_validate(raw_state)
+            if raw_state is not None
+            else None
+        )
+        raw_tool_result = values.get("tool_result")
+        tool_result = (
+            ToolResult.model_validate(raw_tool_result)
+            if raw_tool_result is not None
+            else None
+        )
+        session_id = str(
+            values.get("session_id")
+            or (state.session_id if state is not None else uuid4())
+        )
+
+        action = await self.llm_agent.handle(
+            AgentInput(
+                session_id=session_id,
+                transcript=query,
+                tool_result=tool_result,
+            ),
+            state,
+        )
+        return {
+            **values,
+            "response": action.message or "",
+            "analysis": action.reason or "",
+            "action": action.model_dump(mode="json"),
+        }
 
 
-def build_graph() -> StateGraph:
-    graph = StateGraph(AgentState)
-
-    # Add nodes
-    graph.add_node("analyze", analyze_node)
-    graph.add_node("respond", respond_node)
-
-    # Add edges
-    graph.set_entry_point("analyze")
-    graph.add_conditional_edges("analyze", should_continue)
-    graph.add_edge("respond", END)
-
-    return graph.compile()
+def build_graph() -> AgentGraphAdapter:
+    return AgentGraphAdapter()
 
 
 agent = build_graph()
