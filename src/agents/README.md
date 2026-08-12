@@ -574,6 +574,14 @@ accuracy, hallucination/guardrail violation, latency và output-schema validity.
 F8 là cross-cutting. Mỗi feature owner vẫn phải viết guardrail test liên quan
 đến feature của mình; F8 owner không chịu trách nhiệm viết thay mọi test.
 
+**Implementation hiện tại:** `AgentGuardrails` hậu kiểm mọi workflow action,
+validate state transition, pending tool identity, message length và cấm
+`create_booking` khi confirmation chưa rõ. Diagnostic reason và handoff summary
+được redact phone; confidence gần nhất được đưa vào validated state update.
+`AgentPolicy` gom threshold/retry dùng chung. `BehaviorEvaluator` chạy scenario
+offline và báo action/workflow/tool accuracy, schema validity, pass rate cùng
+Agent latency. Evaluation không gọi LLM hay external service thật.
+
 ## 8. Quy tắc branch và merge
 
 Track integration branch:

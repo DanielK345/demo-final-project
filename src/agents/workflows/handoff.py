@@ -1,6 +1,8 @@
 from enum import StrEnum
 from typing import Any
 
+from src.agents.guardrails import redact_pii
+from src.agents.policy import AgentPolicy
 from src.agents.schemas import (
     ActionType,
     AgentAction,
@@ -24,8 +26,6 @@ class HandoffReason(StrEnum):
 
 class HandoffWorkflow(BaseWorkflow):
     workflow_type = WorkflowType.HUMAN_HANDOFF
-    max_retry_count = 3
-    low_confidence_threshold = 0.5
     context_key = "handoff_context"
 
     _USER_REQUEST_TERMS = (
@@ -47,6 +47,9 @@ class HandoffWorkflow(BaseWorkflow):
         "không cho tôi xuống xe",
         "tai nạn",
     )
+
+    def __init__(self, policy: AgentPolicy | None = None) -> None:
+        self.policy = policy or AgentPolicy()
 
     async def handle(
         self, agent_input: AgentInput, state: AgentState
@@ -94,11 +97,11 @@ class HandoffWorkflow(BaseWorkflow):
             and agent_input.tool_result.status is ToolStatus.ERROR
         ):
             return HandoffReason.CRITICAL_TOOL_ERROR
-        if state.retry_count >= self.max_retry_count:
+        if state.retry_count >= self.policy.max_retry_count:
             return HandoffReason.RETRY_LIMIT
         if (
             agent_input.stt_confidence is not None
-            and agent_input.stt_confidence < self.low_confidence_threshold
+            and agent_input.stt_confidence < self.policy.low_confidence_threshold
         ):
             return HandoffReason.LOW_CONFIDENCE
         return HandoffReason.UNABLE_TO_CONTINUE
@@ -145,7 +148,7 @@ class HandoffWorkflow(BaseWorkflow):
         state: AgentState,
         handoff_reason: HandoffReason,
     ) -> str:
-        transcript = " ".join(agent_input.transcript.split())
+        transcript = redact_pii(" ".join(agent_input.transcript.split())) or ""
         if len(transcript) > 300:
             transcript = f"{transcript[:297]}..."
 

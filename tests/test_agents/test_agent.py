@@ -156,8 +156,8 @@ async def test_agent_handoffs_when_workflow_is_not_registered():
     assert action.action_type is ActionType.HANDOFF
     assert action.message
     assert action.tool_call is None
-    assert action.state_updates == {
-        "current_workflow": WorkflowType.HUMAN_HANDOFF,
-        "current_step": "HANDOFF_REQUIRED",
-    }
+    assert action.state_updates["current_workflow"] is WorkflowType.HUMAN_HANDOFF
+    assert action.state_updates["current_step"] == "HANDOFF_REQUIRED"
+    assert action.state_updates["pending_tool_call_id"] is None
+    assert action.state_updates["pending_tool_name"] is None
     assert action.reason
