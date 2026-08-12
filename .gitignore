@@ -28,8 +28,13 @@ env/
 .DS_Store
 Thumbs.db
 
-# Data (never commit large data)
-data/
+# Data (never commit large/generated data) — ngoại trừ data nguồn nhỏ, có chủ đích
+# commit (gazetteer địa danh cho Voice AI, xem src/voice/text/gazetteer.py). LƯU Ý:
+# phải dùng "data/*" (không phải "data/") — pattern "data/" chặn git traverse vào cả
+# thư mục nên "!data/gazetteer/" bên dưới sẽ KHÔNG có tác dụng (gotcha kinh điển của
+# gitignore) — đã tự verify bằng `git add` thật (không dùng -f) trước khi chốt.
+data/*
+!data/gazetteer/
 *.db
 *.sqlite3
 

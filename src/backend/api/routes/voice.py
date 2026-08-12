@@ -19,14 +19,18 @@ dùng `window.speechSynthesis` của trình duyệt, chất lượng/giọng kh�
 và hay lẫn tiếng Anh/Việt tuỳ máy người dùng — xem
 `docs/prompt_voice_integration_real_be_fe.md`).
 
-LƯU Ý (13/08/2026): file này từng bị 1 commit khác ("test whisper model", nhánh
-`test_speech_model`) ghi đè hoàn toàn bằng 1 prototype khác (`POST /voice/turn`, dùng
-OpenAI/Gemini) khiến app không boot được (`prewarm_tts_cache` bị main.py import nhưng
-không còn tồn tại). Đã khôi phục lại theo đúng yêu cầu của user — prototype kia vẫn
-còn nguyên trong git history (`git show 5e8a1d5`), không bị mất, chỉ không còn được
-route/main.py trỏ tới nữa. Nếu cần dùng lại, nên mount ở prefix khác (vd
-`/api/v1/voice-prototype`) để không đụng route `/stream`/`/speak` đang được
-`AssistantPage.tsx` phụ thuộc thật.
+CẬP NHẬT (13/08/2026): file này từng bị 1 commit khác ("test whisper model", nhánh
+`test_speech_model`, tác giả DanielK345) ghi đè hoàn toàn, khiến app không boot được
+(`prewarm_tts_cache` bị main.py import nhưng không còn tồn tại). Ban đầu đã khôi phục
+lại nguyên bản WS Gateway và gỡ route `/turn` của commit đó — nhưng phát hiện ngay sau
+đó: `AssistantPage.tsx` (frontend, cùng commit "test whisper model") ĐÃ được nối thật
+vào `POST /voice/turn` cho toàn bộ luồng ghi âm micro (`features/voice/api.ts ->
+sendVoiceTurn()`), không phải code thử nghiệm bị bỏ xó — gỡ route đó làm nút micro
+trên web bị lỗi 404 thật. Vì vậy giờ CẢ HAI cùng tồn tại trong 1 router này (không đè
+nhau nữa vì khác path): `/turn` (OpenAI/Gemini, DanielK345, frontend đang gọi thật) +
+`/stream`+`/speak` (Groq/Edge-TTS, hệ thống WS Gateway gốc — hiện frontend CHƯA gọi
+`/stream`/`/speak` nữa, giữ lại vì đã test kỹ và có thể cần lại). Xem thêm
+`docs/voice-ai/architecture-note-2-voice-systems.md`.
 """
 
 from __future__ import annotations
@@ -34,9 +38,13 @@ from __future__ import annotations
 import logging
 import os
 
-from fastapi import APIRouter, Response, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, File, Form, Header, HTTPException, Response, UploadFile, WebSocket, WebSocketDisconnect, status
 from pydantic import BaseModel, Field
 
+from src.backend.api.routes.sessions import _require_session_access
+from src.backend.integrations.voice_client import VoiceProviderError
+from src.backend.schemas.voice import VoiceTurnResponseDTO
+from src.backend.services.voice_service import VoiceService
 from src.models.voice_schemas import ClientControlType, WSClientControl, WSEventType, WSServerEvent
 from src.voice.asr.biasing import correct_place_names
 from src.voice.asr.groq_provider import GroqASRProvider
@@ -144,6 +152,37 @@ async def speak(request: SpeakRequestDTO) -> Response:
         logger.exception("TTS provider raised while synthesizing /speak request")
         return Response(status_code=503, content=b"", media_type="application/octet-stream")
     return Response(content=result.audio, media_type=result.mime_type)
+
+
+_voice_turn_service = VoiceService()
+
+
+@router.post("/turn", response_model=VoiceTurnResponseDTO)
+async def voice_turn(
+    session_id: str = Form(...),
+    audio: UploadFile = File(...),
+    authorization: str | None = Header(default=None),
+) -> VoiceTurnResponseDTO:
+    """Ghi âm 1 lượt trọn vẹn -> transcript + phản hồi text + audio (base64) trong
+    1 lần gọi. Đây là cơ chế micro THẬT mà `AssistantPage.tsx` đang dùng
+    (`features/voice/api.ts::sendVoiceTurn`) — khác `/stream` (WS streaming theo thời
+    gian thực, Groq+Edge-TTS). Dùng OpenAI/Gemini (`src/backend/integrations/
+    voice_client.py`), cấu hình qua `VOICE_PROVIDER`/`OPENAI_API_KEY`/`GEMINI_API_KEY`."""
+    _require_session_access(session_id, authorization)
+    audio_bytes = await audio.read()
+    try:
+        result = await _voice_turn_service.process_turn(
+            session_id,
+            audio_bytes,
+            mime_type=audio.content_type,
+        )
+        return VoiceTurnResponseDTO(**result)
+    except VoiceProviderError as exc:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)) from exc
+    except KeyError as exc:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
 
 
 async def prewarm_tts_cache() -> None:
