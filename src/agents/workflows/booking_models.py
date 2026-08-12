@@ -24,6 +24,12 @@ class VehicleType(StrEnum):
     PREMIUM = "PREMIUM"
 
 
+class BookingLifecycleStatus(StrEnum):
+    PENDING = "PENDING"
+    FAILED = "FAILED"
+    SUCCESS = "SUCCESS"
+
+
 class BookingData(BaseModel):
     pickup_query: str | None = None
     pickup: PlaceCandidate | None = None
@@ -32,6 +38,7 @@ class BookingData(BaseModel):
     destination: PlaceCandidate | None = None
     destination_candidates: list[PlaceCandidate] = Field(default_factory=list)
     vehicle_type: VehicleType | None = None
+    lifecycle_status: BookingLifecycleStatus | None = None
     booking_id: str | None = None
     booking_status: str | None = None
     eta_minutes: int | None = Field(default=None, ge=0)

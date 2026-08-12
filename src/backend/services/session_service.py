@@ -43,6 +43,8 @@ class SessionService:
             "failed_count": 0,
             "booking_id": None,
             "handoff_triggered": False,
+            "booking_lifecycle_status": None,
+            "feedback": None,
             "current_workflow": None,
             "current_step": None,
             "agent_state": None,
@@ -169,6 +171,9 @@ class SessionService:
                 session["vehicle_type"] = booking["vehicle_type"]
             if booking.get("booking_id"):
                 session["booking_id"] = booking["booking_id"]
+            lifecycle = booking.get("lifecycle_status")
+            if lifecycle:
+                session["booking_lifecycle_status"] = lifecycle
             session["booking_progress"] = SessionService._booking_progress(booking)
 
         session["current_workflow"] = (
@@ -216,6 +221,7 @@ class SessionService:
             "destination": destination,
             "vehicle_type": vehicle_type,
             "missing_field": missing_field,
+            "lifecycle_status": booking.get("lifecycle_status"),
         }
 
     def _format_action_response(
@@ -240,10 +246,14 @@ class SessionService:
                 booking = {
                     "booking_id": booking_data["booking_id"],
                     "status": booking_data.get("booking_status", "CONFIRMED"),
+                    "lifecycle_status": booking_data.get("lifecycle_status"),
                     "estimated_fare": int(booking_data.get("fare_amount") or 85000),
                 }
 
         message = action.message or "Em đang hỗ trợ anh/chị."
+        lifecycle_status = session.get("booking_lifecycle_status")
+        if lifecycle_status is None and isinstance(booking_data, dict):
+            lifecycle_status = booking_data.get("lifecycle_status")
 
         state = {
             key: session.get(key)
@@ -258,6 +268,7 @@ class SessionService:
             )
         }
         state["booking_progress"] = booking_progress
+        state["booking_lifecycle_status"] = lifecycle_status
         return {
             "message_id": f"msg_{uuid4().hex[:10]}",
             "action": action_name,
@@ -290,3 +301,22 @@ class SessionService:
             state=response.get("state") if isinstance(response.get("state"), dict) else None,
             booking=response.get("booking") if isinstance(response.get("booking"), dict) else None,
         )
+
+    def submit_feedback(
+        self,
+        session_id: str,
+        rating: int,
+        comment: str | None = None,
+    ) -> dict[str, object]:
+        session = self.sessions.get(session_id)
+        if session is None:
+            raise KeyError("Không tìm thấy phiên hội thoại")
+        if session.get("booking_lifecycle_status") != "SUCCESS":
+            raise ValueError("Chỉ có thể đánh giá sau khi đặt xe thành công")
+        feedback = {
+            "rating": rating,
+            "comment": comment,
+            "submitted_at": datetime.now(UTC).isoformat(),
+        }
+        session["feedback"] = feedback
+        return {"session_id": session_id, "feedback": feedback}

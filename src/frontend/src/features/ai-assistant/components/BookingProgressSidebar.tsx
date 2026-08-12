@@ -1,5 +1,6 @@
 import React from "react";
-import { Car, MapPin, Navigation } from "lucide-react";
+import { Car, Clock3, MapPin, Navigation } from "lucide-react";
+import type { BookingLifecycleStatus } from "@/features/ride/api";
 
 export type BookingFieldProgress = {
   label: string;
@@ -12,6 +13,19 @@ export type BookingProgress = {
   destination?: BookingFieldProgress | null;
   vehicle_type?: string | null;
   missing_field?: "pickup" | "destination" | "vehicle_type" | null;
+  lifecycle_status?: BookingLifecycleStatus | null;
+};
+
+const LIFECYCLE_LABELS: Record<BookingLifecycleStatus, string> = {
+  PENDING: "Đang xử lý",
+  SUCCESS: "Thành công",
+  FAILED: "Thất bại",
+};
+
+const LIFECYCLE_STYLES: Record<BookingLifecycleStatus, string> = {
+  PENDING: "bg-amber-100 text-amber-800 border-amber-200",
+  SUCCESS: "bg-emerald-100 text-emerald-800 border-emerald-200",
+  FAILED: "bg-rose-100 text-rose-800 border-rose-200",
 };
 
 const VEHICLE_LABELS: Record<string, string> = {
@@ -28,6 +42,8 @@ const FIELD_LABELS: Record<string, string> = {
 
 type Props = {
   progress: BookingProgress | null;
+  lifecycleStatus?: BookingLifecycleStatus | null;
+  isProcessing?: boolean;
 };
 
 function fieldStatus(
@@ -53,7 +69,12 @@ function fieldStatus(
   };
 }
 
-export const BookingProgressSidebar: React.FC<Props> = ({ progress }) => {
+export const BookingProgressSidebar: React.FC<Props> = ({
+  progress,
+  lifecycleStatus,
+  isProcessing = false,
+}) => {
+  const status = lifecycleStatus ?? progress?.lifecycle_status ?? (isProcessing ? "PENDING" : null);
   const items = [
     { key: "pickup" as const, icon: MapPin },
     { key: "destination" as const, icon: Navigation },
@@ -69,6 +90,14 @@ export const BookingProgressSidebar: React.FC<Props> = ({ progress }) => {
         <p className="text-xs text-slate-500 mt-1">
           Agent chỉ hỏi thông tin còn thiếu.
         </p>
+        {status && (
+          <div
+            className={`mt-3 inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold ${LIFECYCLE_STYLES[status]}`}
+          >
+            {status === "PENDING" && <Clock3 className="w-3.5 h-3.5" />}
+            {LIFECYCLE_LABELS[status]}
+          </div>
+        )}
         <ul className="mt-4 space-y-3">
           {items.map(({ key, icon: Icon }) => {
             const status = progress

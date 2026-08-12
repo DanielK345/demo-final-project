@@ -48,6 +48,16 @@ class SessionMessageResponseDTO(BaseModel):
     booking: dict[str, object] | None = None
 
 
+class SessionFeedbackDTO(BaseModel):
+    rating: int = Field(..., ge=1, le=5)
+    comment: str | None = Field(default=None, max_length=500)
+
+
+class SessionFeedbackResponseDTO(BaseModel):
+    session_id: str
+    feedback: dict[str, object]
+
+
 class EndSessionDTO(BaseModel):
     reason: str = Field(default="USER_ENDED", min_length=1, max_length=64)
 

@@ -29,7 +29,7 @@ from src.agents.understanding.models import (
     UnderstandingResult,
 )
 from src.agents.workflows.base import BaseWorkflow
-from src.agents.workflows.booking_models import BookingData, BookingStep, VehicleType
+from src.agents.workflows.booking_models import BookingData, BookingLifecycleStatus, BookingStep, VehicleType
 from src.agents.workflows.handoff import HandoffWorkflow
 
 _ROUTE_PATTERN = re.compile(
@@ -367,6 +367,9 @@ class RideBookingWorkflow(BaseWorkflow):
             return await self._handoff(agent_input, state, str(exc))
 
         if result.status is ToolStatus.ERROR:
+            step = self._step(state)
+            if step is BookingStep.WAITING_FOR_BOOKING_RESULT:
+                return self._fail_booking(state, data, result.error or "Booking failed")
             return await self._handoff(
                 agent_input,
                 state,
@@ -620,6 +623,7 @@ class RideBookingWorkflow(BaseWorkflow):
             operation="booking",
             sequence=state.state_version + 1,
         )
+        data.lifecycle_status = BookingLifecycleStatus.PENDING
         tool_call = self.create_booking_tool.build_call(
             call_id,
             pickup_place_id=data.pickup.place_id,
@@ -649,6 +653,7 @@ class RideBookingWorkflow(BaseWorkflow):
     ) -> AgentAction:
         data.booking_id = result.booking_id
         data.booking_status = result.status
+        data.lifecycle_status = BookingLifecycleStatus.SUCCESS
         data.eta_minutes = result.eta_minutes
         data.fare_amount = result.fare_amount
         data.currency = result.currency
@@ -666,6 +671,29 @@ class RideBookingWorkflow(BaseWorkflow):
                 **clear_pending_tool_updates(),
             },
             reason="The booking tool returned a successful result.",
+        )
+
+    def _fail_booking(
+        self,
+        state: AgentState,
+        data: BookingData,
+        error_message: str,
+    ) -> AgentAction:
+        data.lifecycle_status = BookingLifecycleStatus.FAILED
+        return AgentAction(
+            action_type=ActionType.RESPOND,
+            message=(
+                "Em chưa đặt được xe lúc này. Anh/chị vui lòng thử lại "
+                "hoặc liên hệ tổng đài viên."
+            ),
+            state_updates={
+                "current_workflow": self.workflow_type,
+                "current_step": BookingStep.CONFIRM.value,
+                "collected_data": self._store_data(state, data),
+                "confirmation": ConfirmationStatus.AWAITING_CONFIRMATION,
+                **clear_pending_tool_updates(),
+            },
+            reason=f"Booking tool failed: {error_message}",
         )
 
     def _apply_correction(
