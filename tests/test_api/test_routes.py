@@ -19,6 +19,11 @@ async def test_chat_empty_message(client):
 async def test_agent_status(client):
     response = await client.get("/api/v1/status")
     assert response.status_code == 200
+    data = response.json()
+    assert data["status"] == "ready"
+    assert isinstance(data["llm_enabled"], bool)
+    assert data["understanding_mode"] in {"openai", "rules"}
+    assert data["conversation_backend"] == "core_agent"
 
 
 @pytest.mark.asyncio
@@ -58,3 +63,34 @@ async def test_auth_me_returns_cached_session(client):
     )
     assert response.status_code == 200
     assert response.json()["session_id"] == session_id
+
+
+@pytest.mark.asyncio
+async def test_session_message_requires_valid_session(client):
+    login = await client.post(
+        "/api/v1/auth/login",
+        json={"phone": "0901234567", "password": "Password123!"},
+    )
+    token = login.json()["access_token"]
+
+    response = await client.post(
+        "/api/v1/sessions/sess_missing/messages",
+        json={"message": "Xin chào", "source": "TEXT"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert response.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_session_message_requires_auth_header(client):
+    login = await client.post(
+        "/api/v1/auth/login",
+        json={"phone": "0901234567", "password": "Password123!"},
+    )
+    session_id = login.json()["session_id"]
+
+    response = await client.post(
+        f"/api/v1/sessions/{session_id}/messages",
+        json={"message": "Xin chào", "source": "TEXT"},
+    )
+    assert response.status_code == 401

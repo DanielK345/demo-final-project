@@ -26,7 +26,7 @@ class Settings(BaseSettings):
     llm_temperature: float = Field(default=0.7, ge=0.0, le=2.0)
 
     # Core Agent language understanding
-    agent_llm_enabled: bool = False
+    agent_llm_enabled: bool = True
     agent_llm_provider: Literal["openai"] = "openai"
     agent_llm_model: str = "gpt-5.6-luna"
     agent_llm_base_url: str | None = None

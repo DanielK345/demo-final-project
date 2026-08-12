@@ -2,8 +2,10 @@ import React, { useEffect, useRef, useState } from "react";
 import { Bot, LogOut, Mic, Send, Square, Volume2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { getCurrentUser } from "@/features/auth/api";
+import { redirectToLoginIfUnauthorized } from "@/features/auth/sessionGuard";
 import { clearAuthSession, getAccessToken, getSessionId, getUserName, saveAuthSession } from "@/features/auth/storage";
-import { createRideSession, endRideSession, sendRideMessage } from "@/features/ride/api";
+import { LlmStatusNote } from "@/features/ai-assistant/components/LlmStatusNote";
+import { createRideSession, endRideSession, getRideSession, sendRideMessage } from "@/features/ride/api";
 
 type Message = { id: string; role: "user" | "assistant"; text: string };
 type BrowserRecognition = {
@@ -19,7 +21,7 @@ type RecognitionConstructor = new () => BrowserRecognition;
 
 export const AssistantPage: React.FC = () => {
   const [sessionId, setSessionId] = useState<string | null>(null);
-  const [messages, setMessages] = useState<Message[]>([{ id: "welcome", role: "assistant", text: "Xin chào! Anh/chị muốn đặt xe từ đâu đến đâu ạ?" }]);
+  const [messages, setMessages] = useState<Message[]>([{ id: "welcome", role: "assistant", text: "Xin chào! Để đặt xe, anh/chị vui lòng cho em biết điểm đón, điểm đến và loại xe (4 chỗ, 7 chỗ hoặc hạng sang)." }]);
   const [text, setText] = useState("");
   const [isSending, setIsSending] = useState(false);
   const [isListening, setIsListening] = useState(false);
@@ -34,8 +36,15 @@ export const AssistantPage: React.FC = () => {
     const bootstrapSession = async () => {
       const cachedSessionId = getSessionId();
       if (cachedSessionId) {
-        setSessionId(cachedSessionId);
-        return;
+        try {
+          await getRideSession(cachedSessionId);
+          if (cancelled) return;
+          setSessionId(cachedSessionId);
+          return;
+        } catch (error) {
+          if (cancelled) return;
+          if (redirectToLoginIfUnauthorized(error, navigate)) return;
+        }
       }
 
       try {
@@ -62,12 +71,8 @@ export const AssistantPage: React.FC = () => {
         setSessionId(session.session_id);
       } catch (error) {
         if (cancelled) return;
-        const message = error instanceof Error ? error.message : "Không thể khởi tạo phiên hội thoại.";
-        setNotice(message);
-        if (message.includes("đăng nhập")) {
-          clearAuthSession();
-          navigate("/login");
-        }
+        if (redirectToLoginIfUnauthorized(error, navigate)) return;
+        setNotice(error instanceof Error ? error.message : "Không thể khởi tạo phiên hội thoại.");
       }
     };
 
@@ -100,8 +105,11 @@ export const AssistantPage: React.FC = () => {
       if (result.action === "END_SESSION") {
         setSessionId(null);
         localStorage.removeItem("alosm_session_id");
+        clearAuthSession();
+        navigate("/login");
       }
     } catch (error) {
+      if (redirectToLoginIfUnauthorized(error, navigate)) return;
       setNotice(error instanceof Error ? error.message : "Không thể gửi tin nhắn.");
     } finally {
       setIsSending(false);
@@ -132,12 +140,19 @@ export const AssistantPage: React.FC = () => {
   };
 
   return <main className="min-h-screen bg-slate-50 text-[#191C1E]">
-    <header className="h-16 px-5 md:px-10 bg-white border-b border-slate-200 flex items-center justify-between">
+    <header className="min-h-16 px-5 md:px-10 py-3 bg-white border-b border-slate-200 flex flex-wrap items-center justify-between gap-3">
       <div><p className="font-extrabold text-xl text-[#006a62]">AloSM Voice</p><p className="text-xs text-slate-500">Đặt xe an toàn, dễ dàng</p></div>
-      <button onClick={logout} className="flex gap-2 items-center text-sm font-semibold text-slate-600 hover:text-rose-600"><LogOut className="w-4 h-4" /> Đăng xuất</button>
+      <div className="flex items-center gap-3">
+        <LlmStatusNote compact />
+        <button onClick={logout} className="flex gap-2 items-center text-sm font-semibold text-slate-600 hover:text-rose-600"><LogOut className="w-4 h-4" /> Đăng xuất</button>
+      </div>
     </header>
     <section className="max-w-3xl mx-auto px-4 py-8 md:py-12">
-      <div className="text-center mb-6"><h1 className="text-3xl font-extrabold">Chào {userName}, bạn muốn đi đâu?</h1><p className="text-slate-500 mt-2">Nói tự nhiên hoặc nhắn tin. AloSM luôn hỏi xác nhận trước khi đặt xe.</p></div>
+      <div className="text-center mb-6">
+        <h1 className="text-3xl font-extrabold">Chào {userName}, bạn muốn đi đâu?</h1>
+        <p className="text-slate-500 mt-2">Nói tự nhiên hoặc nhắn tin. AloSM luôn hỏi xác nhận trước khi đặt xe.</p>
+        <div className="mt-4 max-w-xl mx-auto text-left"><LlmStatusNote /></div>
+      </div>
       <div className="bg-white border border-slate-200 shadow-lg rounded-3xl overflow-hidden">
         <div className="p-6 bg-gradient-to-br from-[#006a62] to-[#00D1C1] text-white text-center">
           <button onClick={toggleMicrophone} disabled={!sessionId || isSending} className="w-28 h-28 mx-auto rounded-full bg-white/20 border-4 border-white/50 flex items-center justify-center hover:scale-105 disabled:opacity-50 transition" aria-label="Bắt đầu nói">

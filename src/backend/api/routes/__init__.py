@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException
 
 from src.agents.graph import agent
+from src.backend.api.deps import get_app_settings
 from src.backend.api.routes.auth import router as auth_router
 from src.backend.api.routes.bookings import router as bookings_router
 from src.backend.api.routes.calls import router as calls_router
@@ -34,5 +35,15 @@ async def chat(request: ChatRequest) -> ChatResponse:
 
 @router.get("/status")
 async def agent_status():
-    """Legacy status route kept for compatibility with the current test suite."""
-    return {"status": "ready", "agent": "LangGraph Agent v1.0"}
+    """Agent readiness and language-understanding configuration."""
+    settings = get_app_settings()
+    llm_ready = settings.agent_llm_enabled and bool(settings.openai_api_key)
+    return {
+        "status": "ready",
+        "agent": "Core Agent v1.0",
+        "llm_enabled": settings.agent_llm_enabled,
+        "llm_provider": settings.agent_llm_provider,
+        "llm_model": settings.agent_llm_model,
+        "understanding_mode": "openai" if llm_ready else "rules",
+        "conversation_backend": "core_agent",
+    }
