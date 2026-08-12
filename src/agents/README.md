@@ -282,6 +282,17 @@ Backend; workflow chỉ quyết định business retry/handoff.
 Router chỉ chọn workflow. Router không thu thập pickup, không xác nhận booking và
 không diễn giải tool result.
 
+`graph.py` hiện compose một turn bằng LangGraph:
+
+```text
+normalize_input → invoke_core_agent → format_output
+```
+
+Graph không có checkpointer và không sở hữu business state. Nó chỉ là adapter
+orchestration giữ API `ainvoke` của starter template; Backend vẫn truyền
+`AgentState`, apply/persist `state_updates` và thực thi `AgentAction`. Graph không
+tự gọi tool và kết thúc sau đúng một action.
+
 ## 6. Quy tắc chỉnh shared files
 
 Các file sau ảnh hưởng nhiều feature và cần Agentic AI lead review:
@@ -454,6 +465,12 @@ từ typed `CreateBookingResult`.
 **Definition of Done:** lookup bằng booking ID, lookup bằng phone, missing
 identifier, not-found và tool-error tests đều pass.
 
+**Implementation hiện tại:** Trip lookup data được validate bằng
+`TripLookupData` và lưu dưới `collected_data["trip_lookup"]`. Workflow nhận mã
+chuyến hoặc phone, phát `lookup_trip`, phân biệt not-found với tool error và chỉ
+đọc status/ETA từ typed `LookupTripResult`. Retryable error được gọi lại có giới
+hạn; critical, mismatched hoặc invalid result được handoff.
+
 ### F5 — Human Handoff Workflow
 
 **Mục tiêu:** xác định handoff và chuẩn bị đủ context cho tổng đài viên.
@@ -531,6 +548,15 @@ khác vào context.
 
 **Không làm:** không trả lời ngoài retrieved context và không tạo nguồn giả.
 
+**Implementation hiện tại:** FAQ state được validate bằng `FAQData` và lưu dưới
+`collected_data["faq"]`. Workflow phát `retrieve_knowledge`, validate lifecycle
+và typed documents, sau đó lọc theo configurable score threshold/top-k.
+`GroundedAnswerGenerator` là provider-independent port; mặc định dùng
+`ExtractiveAnswerGenerator` deterministic nên chỉ có thể trả retrieved content.
+Không có source đủ điểm thì trả fallback trung thực; retrieval error critical,
+mismatched hoặc invalid result được handoff. Vector store, ingestion và dữ liệu
+chính sách thật thuộc Backend/Knowledge Service.
+
 ### F8 — Prompt, Guardrails & Evaluation
 
 **Mục tiêu:** kiểm soát hành vi xuyên suốt và đo chất lượng agent.
@@ -558,6 +584,14 @@ accuracy, hallucination/guardrail violation, latency và output-schema validity.
 
 F8 là cross-cutting. Mỗi feature owner vẫn phải viết guardrail test liên quan
 đến feature của mình; F8 owner không chịu trách nhiệm viết thay mọi test.
+
+**Implementation hiện tại:** `AgentGuardrails` hậu kiểm mọi workflow action,
+validate state transition, pending tool identity, message length và cấm
+`create_booking` khi confirmation chưa rõ. Diagnostic reason và handoff summary
+được redact phone; confidence gần nhất được đưa vào validated state update.
+`AgentPolicy` gom threshold/retry dùng chung. `BehaviorEvaluator` chạy scenario
+offline và báo action/workflow/tool accuracy, schema validity, pass rate cùng
+Agent latency. Evaluation không gọi LLM hay external service thật.
 
 ## 8. Quy tắc branch và merge
 
@@ -610,24 +644,69 @@ Booking API, Trip API hoặc vector service thật.
 - [ ] Ruff và compile check pass.
 - [ ] PR target là `feature/agentic-ai`.
 
-## 11. Trạng thái baseline khi giao feature
+## 11. Trạng thái Core Agent MVP
 
-Baseline hiện được xác nhận bằng:
-
-```text
-16 tests passed
-Ruff: All checks passed
-Python compile: passed
-```
-
-Các hành vi skeleton đã chạy:
+Core Agent MVP đã hoàn thành:
 
 ```text
-đặt xe      → ASK_USER / RIDE_BOOKING
-tra cứu     → ASK_USER / TRIP_LOOKUP
-người thật  → HANDOFF / HUMAN_HANDOFF
-FAQ         → CALL_TOOL / RETRIEVE_KNOWLEDGE
+F1 Core & Routing                 implemented
+F2 State & Memory                 implemented
+F3 Ride Booking                   implemented
+F4 Trip Lookup                    implemented
+F5 Human Handoff                  implemented
+F6 Tool Calling Lifecycle         implemented
+F7 FAQ + grounded RAG             implemented
+F8 Guardrails & Offline Eval      implemented
+LangGraph one-turn orchestration  implemented
+Multi-turn integration scenarios implemented
+OpenAI structured understanding      implemented (opt-in)
 ```
 
-Khi feature implementation thay đổi hành vi này, owner phải cập nhật test tương
-ứng nhưng vẫn giữ đúng shared contracts và nguyên tắc Agent không tạo side effect.
+Validation command:
+
+```bash
+.venv/bin/python -m pytest -q
+.venv/bin/python -m ruff check src tests examples
+.venv/bin/python -m compileall -q src tests examples
+git diff --check
+```
+
+Integration contract cho Backend nằm tại
+[`BACKEND_INTEGRATION.md`](BACKEND_INTEGRATION.md). Demo text-mode chạy bằng:
+
+```bash
+.venv/bin/python -m examples.core_agent_demo
+```
+
+Ngoài scope Core Agent MVP: Maps/Booking/Trip executors, production knowledge
+ingestion/vector store, PostgreSQL/Redis persistence,
+FastAPI endpoints và Voice Runtime. Các integration này phải giữ nguyên shared
+contracts và boundary Agent quyết định/Backend thực thi.
+
+### OpenAI structured language understanding
+
+Core Agent có provider-independent `LanguageUnderstandingPort`. Mặc định
+`AGENT_LLM_ENABLED=false` để offline tests và local fallback dùng
+`RuleBasedUnderstanding`. Bật OpenAI Responses API structured output bằng:
+
+```env
+OPENAI_API_KEY=...
+AGENT_LLM_ENABLED=true
+AGENT_LLM_PROVIDER=openai
+AGENT_LLM_MODEL=gpt-5.6-luna
+AGENT_LLM_TIMEOUT_SECONDS=5
+AGENT_LLM_REASONING_EFFORT=none
+```
+
+OpenAI chỉ extract intent/slots/correction/confirmation. Router, workflow,
+confirmation safety và tool execution vẫn deterministic. Provider timeout/error
+fallback về rules. Tool-result-only turn không gọi LLM.
+
+Unit tests không gọi provider. Chạy integration test thật có chủ đích:
+
+```bash
+RUN_OPENAI_INTEGRATION=1 \
+OPENAI_API_KEY="..." \
+AGENT_LLM_MODEL="gpt-5.6-luna" \
+.venv/bin/python -m pytest -q -m provider tests/integration
+```

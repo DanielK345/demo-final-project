@@ -15,8 +15,3 @@ class CreateBookingTool(BaseTool):
             call_id=call_id,
             params=validated.model_dump(),
         )
-
-
-async def create_booking(payload: dict[str, object]) -> dict[str, object]:
-    """Compatibility placeholder for integrations not yet using tool calls."""
-    return {"status": "pending", "payload": payload}

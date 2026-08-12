@@ -1,6 +1,8 @@
 from enum import StrEnum
 from typing import Any
 
+from src.agents.guardrails import redact_pii
+from src.agents.policy import AgentPolicy
 from src.agents.schemas import (
     ActionType,
     AgentAction,
@@ -9,6 +11,7 @@ from src.agents.schemas import (
     WorkflowType,
 )
 from src.agents.state import AgentState
+from src.agents.understanding.models import UnderstandingIntent, UnderstandingResult
 from src.agents.workflows.base import BaseWorkflow
 
 
@@ -24,8 +27,6 @@ class HandoffReason(StrEnum):
 
 class HandoffWorkflow(BaseWorkflow):
     workflow_type = WorkflowType.HUMAN_HANDOFF
-    max_retry_count = 3
-    low_confidence_threshold = 0.5
     context_key = "handoff_context"
 
     _USER_REQUEST_TERMS = (
@@ -48,13 +49,19 @@ class HandoffWorkflow(BaseWorkflow):
         "tai nạn",
     )
 
+    def __init__(self, policy: AgentPolicy | None = None) -> None:
+        self.policy = policy or AgentPolicy()
+
     async def handle(
-        self, agent_input: AgentInput, state: AgentState
+        self,
+        agent_input: AgentInput,
+        state: AgentState,
+        understanding: UnderstandingResult | None = None,
     ) -> AgentAction:
         if agent_input.session_id != state.session_id:
             raise ValueError("agent input and state must belong to the same session")
 
-        handoff_reason = self.detect_reason(agent_input, state)
+        handoff_reason = self.detect_reason(agent_input, state, understanding)
         context = self.build_context(agent_input, state, handoff_reason)
         collected_data = {
             key: value
@@ -80,6 +87,7 @@ class HandoffWorkflow(BaseWorkflow):
         self,
         agent_input: AgentInput,
         state: AgentState,
+        understanding: UnderstandingResult | None = None,
     ) -> HandoffReason:
         transcript = agent_input.transcript.casefold().strip()
 
@@ -90,15 +98,20 @@ class HandoffWorkflow(BaseWorkflow):
         if any(term in transcript for term in self._USER_REQUEST_TERMS):
             return HandoffReason.USER_REQUEST
         if (
+            understanding is not None
+            and understanding.intent is UnderstandingIntent.HUMAN_HANDOFF
+        ):
+            return HandoffReason.USER_REQUEST
+        if (
             agent_input.tool_result is not None
             and agent_input.tool_result.status is ToolStatus.ERROR
         ):
             return HandoffReason.CRITICAL_TOOL_ERROR
-        if state.retry_count >= self.max_retry_count:
+        if state.retry_count >= self.policy.max_retry_count:
             return HandoffReason.RETRY_LIMIT
         if (
             agent_input.stt_confidence is not None
-            and agent_input.stt_confidence < self.low_confidence_threshold
+            and agent_input.stt_confidence < self.policy.low_confidence_threshold
         ):
             return HandoffReason.LOW_CONFIDENCE
         return HandoffReason.UNABLE_TO_CONTINUE
@@ -145,7 +158,7 @@ class HandoffWorkflow(BaseWorkflow):
         state: AgentState,
         handoff_reason: HandoffReason,
     ) -> str:
-        transcript = " ".join(agent_input.transcript.split())
+        transcript = redact_pii(" ".join(agent_input.transcript.split())) or ""
         if len(transcript) > 300:
             transcript = f"{transcript[:297]}..."
 

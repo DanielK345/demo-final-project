@@ -11,6 +11,7 @@ from src.agents.schemas import (
     WorkflowType,
 )
 from src.agents.state import AgentState
+from src.agents.understanding.models import UnderstandingResult
 from src.agents.workflows.base import BaseWorkflow
 
 
@@ -25,7 +26,9 @@ class RecordingWorkflow(BaseWorkflow):
         self,
         agent_input: AgentInput,
         state: AgentState,
+        understanding: UnderstandingResult | None = None,
     ) -> AgentAction:
+        del understanding
         self.was_called = True
         self.received_input = agent_input
         return AgentAction(
@@ -156,8 +159,8 @@ async def test_agent_handoffs_when_workflow_is_not_registered():
     assert action.action_type is ActionType.HANDOFF
     assert action.message
     assert action.tool_call is None
-    assert action.state_updates == {
-        "current_workflow": WorkflowType.HUMAN_HANDOFF,
-        "current_step": "HANDOFF_REQUIRED",
-    }
+    assert action.state_updates["current_workflow"] is WorkflowType.HUMAN_HANDOFF
+    assert action.state_updates["current_step"] == "HANDOFF_REQUIRED"
+    assert action.state_updates["pending_tool_call_id"] is None
+    assert action.state_updates["pending_tool_name"] is None
     assert action.reason
