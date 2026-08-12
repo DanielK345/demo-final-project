@@ -1,6 +1,8 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Bot, LogOut, Mic, Send, Square, Volume2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { getCurrentUser } from "@/features/auth/api";
+import { clearAuthSession, getAccessToken, getSessionId, getUserName, saveAuthSession } from "@/features/auth/storage";
 import { createRideSession, endRideSession, sendRideMessage } from "@/features/ride/api";
 
 type Message = { id: string; role: "user" | "assistant"; text: string };
@@ -24,19 +26,55 @@ export const AssistantPage: React.FC = () => {
   const [notice, setNotice] = useState<string | null>(null);
   const recognitionRef = useRef<BrowserRecognition | null>(null);
   const navigate = useNavigate();
-  const userName = localStorage.getItem("alosm_user_name") || "bạn";
+  const userName = getUserName();
 
   useEffect(() => {
-    const token = localStorage.getItem("alosm_access_token");
-    const userId = localStorage.getItem("alosm_user_id");
-    if (!token || !userId || !userId.trim()) {
-      navigate("/login");
-      return;
-    }
-    createRideSession(userId).then((session) => setSessionId(session.session_id)).catch((error: Error) => {
-      setNotice(error.message);
-      if (error.message.includes("đăng nhập")) navigate("/login");
-    });
+    let cancelled = false;
+
+    const bootstrapSession = async () => {
+      const cachedSessionId = getSessionId();
+      if (cachedSessionId) {
+        setSessionId(cachedSessionId);
+        return;
+      }
+
+      try {
+        const user = await getCurrentUser();
+        if (cancelled) return;
+        if (user.session_id) {
+          saveAuthSession({
+            access_token: getAccessToken() || "",
+            user_id: user.user_id,
+            full_name: user.full_name,
+            session_id: user.session_id,
+          });
+          setSessionId(user.session_id);
+          return;
+        }
+        const session = await createRideSession();
+        if (cancelled) return;
+        saveAuthSession({
+          access_token: getAccessToken() || "",
+          user_id: user.user_id,
+          full_name: user.full_name,
+          session_id: session.session_id,
+        });
+        setSessionId(session.session_id);
+      } catch (error) {
+        if (cancelled) return;
+        const message = error instanceof Error ? error.message : "Không thể khởi tạo phiên hội thoại.";
+        setNotice(message);
+        if (message.includes("đăng nhập")) {
+          clearAuthSession();
+          navigate("/login");
+        }
+      }
+    };
+
+    bootstrapSession();
+    return () => {
+      cancelled = true;
+    };
   }, [navigate]);
 
   const speak = (reply: string) => {
@@ -59,7 +97,10 @@ export const AssistantPage: React.FC = () => {
       setMessages((items) => [...items, { id: result.message_id, role: "assistant", text: result.message }]);
       speak(result.message);
       if (result.action === "HANDOFF") setNotice("Yêu cầu đã được chuyển đến tổng đài viên.");
-      if (result.action === "END_SESSION") setSessionId(null);
+      if (result.action === "END_SESSION") {
+        setSessionId(null);
+        localStorage.removeItem("alosm_session_id");
+      }
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "Không thể gửi tin nhắn.");
     } finally {
@@ -86,9 +127,7 @@ export const AssistantPage: React.FC = () => {
 
   const logout = async () => {
     if (sessionId) await endRideSession(sessionId).catch(() => undefined);
-    localStorage.removeItem("alosm_access_token");
-    localStorage.removeItem("alosm_user_name");
-    localStorage.removeItem("alosm_user_id");
+    clearAuthSession();
     navigate("/login");
   };
 

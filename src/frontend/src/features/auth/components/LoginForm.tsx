@@ -3,6 +3,7 @@ import { ArrowRight, Lock, Phone, UserRound } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import logoSvg from "@/assets/logo.svg";
 import { login, register } from "@/features/auth/api";
+import { saveAuthSession } from "@/features/auth/storage";
 
 export const LoginForm: React.FC = () => {
   const [isRegistering, setIsRegistering] = useState(false);
@@ -21,8 +22,12 @@ export const LoginForm: React.FC = () => {
       const result = isRegistering
         ? await register(fullName, phone, password)
         : await login(phone, password);
-      localStorage.setItem("alosm_access_token", result.access_token);
-      localStorage.setItem("alosm_user_name", result.full_name);
+      saveAuthSession({
+        access_token: result.access_token,
+        user_id: result.user_id,
+        full_name: result.full_name,
+        session_id: result.session_id,
+      });
       navigate("/");
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Không thể đăng nhập");

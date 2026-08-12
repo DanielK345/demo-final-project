@@ -1,4 +1,5 @@
 import { fetchApi } from "@/app/config/api";
+import { getAccessToken } from "@/features/auth/storage";
 
 export interface RideSession {
   session_id: string;
@@ -16,15 +17,15 @@ export interface RideTurn {
 }
 
 function authHeader(): HeadersInit {
-  const token = localStorage.getItem("alosm_access_token");
+  const token = getAccessToken();
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
-export function createRideSession(userId: string): Promise<RideSession> {
+export function createRideSession(): Promise<RideSession> {
   return fetchApi<RideSession>("/api/v1/sessions", {
     method: "POST",
     headers: authHeader(),
-    body: JSON.stringify({ user_id: userId, channel: "WEB_VOICE", device_id: "browser" }),
+    body: JSON.stringify({ channel: "WEB_VOICE", device_id: "browser" }),
   });
 }
 

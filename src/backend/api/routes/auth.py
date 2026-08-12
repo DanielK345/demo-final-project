@@ -30,4 +30,4 @@ async def me(authorization: str | None = Header(default=None)) -> CurrentUserDTO
     user = service.get_user_for_token(token)
     if user is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Phiên đăng nhập không hợp lệ")
-    return CurrentUserDTO(**AuthService._public_user(user))
+    return CurrentUserDTO(**AuthService._public_user(user), session_id=service.get_session_for_token(token))

@@ -1,7 +1,13 @@
 import React from "react";
+import { Navigate } from "react-router-dom";
 import { LoginForm } from "@/features/auth/components/LoginForm";
+import { isAuthenticated } from "@/features/auth/storage";
 
 export const LoginPage: React.FC = () => {
+  if (isAuthenticated()) {
+    return <Navigate to="/" replace />;
+  }
+
   return (
     <div className="min-h-screen w-full flex items-center justify-center relative overflow-hidden bg-slate-50 p-4">
       {/* Decorative Radial Grid Pattern Background */}

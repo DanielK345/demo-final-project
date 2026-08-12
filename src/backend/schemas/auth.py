@@ -20,6 +20,7 @@ class AuthResponseDTO(BaseModel):
     access_token: str
     token_type: str = "bearer"
     expires_in: int
+    session_id: str
 
 
 class CurrentUserDTO(BaseModel):
@@ -27,3 +28,4 @@ class CurrentUserDTO(BaseModel):
     full_name: str
     phone: str
     role: str
+    session_id: str | None = None
