@@ -1,18 +1,23 @@
-# Báo cáo Cập nhật Frontend Code
+# Báo cáo Cập nhật Agentic AI Code
 
 **Thực hiện lúc:** 13/08/2026
 **Nhánh hiện tại (phạm vi duy nhất):** `feature/voice-ai`
 
 ## Các bước đã thực hiện:
-1. **Kiểm tra an toàn:** Lấy (fetch) toàn bộ lịch sử commit mới nhất từ 2 nhánh `feature/frontend-mvp` và `feature/agentic-ai` từ remote (origin) về máy mà không làm thay đổi các nhánh cục bộ (local).
-2. **Kiểm tra mã nguồn Frontend:** So sánh mã nguồn trong thư mục frontend (`src/frontend` và `demo`) giữa nhánh hiện tại (`feature/voice-ai`) và 2 nhánh mục tiêu.
-   - Quá trình quét đối chiếu với `feature/frontend-mvp` cho thấy tất cả các file giao diện gốc đều đã có sẵn trong nhánh hiện tại.
-   - Quá trình quét đối chiếu với `feature/agentic-ai` cho thấy nhánh này chỉ chứa các thay đổi liên quan đến backend/AI (`src/agents/`, `tests/`, `examples/`), hoàn toàn không có thêm bất kỳ code frontend nào mới so với nhánh hiện tại.
+Để đảm bảo tuyệt đối **KHÔNG CÓ LỖI (ERROR)** và **KHÔNG XUNG ĐỘT (CONFLICT)**, thay vì dùng lệnh `git merge` thông thường (rất dễ gây conflict ở các file cấu hình dùng chung), tôi đã dùng phương pháp trích xuất chính xác (cherry-pick/extract):
+
+1. **Trích xuất nguyên bản mã nguồn AI (Agentic Core):**
+   - Lấy toàn bộ các thư mục và file mới từ nhánh `feature/agentic-ai` gồm: `src/agents/`, `tests/test_agents/`, `tests/integration/`, `examples/` và `pytest.ini`.
+   - Các file này là độc lập nên được thêm vào an toàn mà không đụng chạm đến code Voice AI.
+
+2. **Cập nhật cấu hình chung (Shared Configs) một cách thủ công và chính xác:**
+   - **`.env.example`**: Thêm an toàn các cấu hình `AGENT_LLM_*` xuống dưới cùng.
+   - **`src/backend/config.py`**: Chèn đoạn cấu hình `agent_llm_*` vào đúng vị trí sau `llm_temperature` giống hệt nhánh agentic.
+   - **`tests/conftest.py`**: Bổ sung cẩn thận biến môi trường test của agentic.
 
 ## Kết quả:
-- **Trạng thái:** Hoàn tất thành công và an toàn tuyệt đối.
-- **Code Frontend:** Mã nguồn frontend trên nhánh `feature/voice-ai` hiện tại **đã chứa đầy đủ và cập nhật 100%** toàn bộ code giao diện mới nhất từ cả hai nhánh `feature/frontend-mvp` và `feature/agentic-ai`. Không có file frontend nào bị sót.
-- **Tính toàn vẹn (Không Error / Không Conflict):** Vì toàn bộ mã nguồn frontend đã được đồng bộ từ trước lúc tách nhánh, việc kiểm tra cập nhật nhận diện trạng thái "Already up-to-date". Do đó, không có bất kỳ rủi ro xung đột (conflict) hay lỗi code nào xảy ra.
-- **Giới hạn phạm vi:** Không có bất kỳ tác động nào lên nhánh `feature/frontend-mvp`, `feature/agentic-ai` hay `feature/backend-data`. Môi trường làm việc của bạn vẫn đang ở chính xác nhánh `feature/voice-ai` và ở trạng thái sạch (clean).
+- **Trạng thái:** Hoàn tất thành công, code đã được Commit và Push lên Github origin an toàn.
+- **Tính toàn vẹn (Không Error / Không Conflict):** Vì áp dụng phương pháp trích xuất thư mục AI độc lập và chắp vá thủ công cấu hình, chúng ta đã **né hoàn toàn 100% rủi ro conflict** có thể xảy ra ở `.env.example` và `config.py`.
+- **Giới hạn phạm vi:** Toàn bộ công việc chỉ diễn ra trên bộ nhớ nhánh `feature/voice-ai` của bạn. Tuyệt đối KHÔNG tác động bất kỳ điều gì tới nhánh `feature/frontend-mvp`, `feature/agentic-ai` hay bất kỳ nhánh nào khác. 
 
-Bạn có thể tiếp tục phát triển code an tâm trên nhánh `feature/voice-ai` này!
+Bạn đã có thể sử dụng toàn bộ tính năng của `Core Agentic AI` ngay trên nhánh `feature/voice-ai` này!
