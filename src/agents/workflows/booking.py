@@ -23,6 +23,11 @@ from src.agents.tools.lifecycle import (
 )
 from src.agents.tools.maps import SearchPlaceTool
 from src.agents.tools.schemas import CreateBookingResult, SearchPlaceResult
+from src.agents.understanding.models import (
+    ConfirmationIntent,
+    CorrectionField,
+    UnderstandingResult,
+)
 from src.agents.workflows.base import BaseWorkflow
 from src.agents.workflows.booking_models import BookingData, BookingStep
 from src.agents.workflows.handoff import HandoffWorkflow
@@ -60,6 +65,7 @@ class RideBookingWorkflow(BaseWorkflow):
         self,
         agent_input: AgentInput,
         state: AgentState,
+        understanding: UnderstandingResult | None = None,
     ) -> AgentAction:
         if agent_input.session_id != state.session_id:
             raise ValueError("agent input and state must belong to the same session")
@@ -75,23 +81,30 @@ class RideBookingWorkflow(BaseWorkflow):
         step = self._step(state)
         transcript = agent_input.transcript.strip()
 
-        correction = self._extract_correction(transcript)
+        correction = self._understood_correction(understanding)
+        if correction is None:
+            correction = self._extract_correction(transcript)
         if correction is not None:
             field, value = correction
             return self._apply_correction(state, data, field, value)
 
         if step is BookingStep.COLLECT_PICKUP:
-            return self._collect_pickup(state, data, transcript)
+            return self._collect_pickup(state, data, transcript, understanding)
         if step is BookingStep.SELECT_PICKUP_CANDIDATE:
             return self._select_candidate(state, data, transcript, pickup=True)
         if step is BookingStep.COLLECT_DESTINATION:
-            return self._collect_destination(state, data, transcript)
+            return self._collect_destination(state, data, transcript, understanding)
         if step is BookingStep.SELECT_DESTINATION_CANDIDATE:
             return self._select_candidate(state, data, transcript, pickup=False)
         if step is BookingStep.COLLECT_PHONE:
-            return self._collect_phone(state, data, transcript)
+            return self._collect_phone(state, data, transcript, understanding)
         if step is BookingStep.CONFIRM:
-            return self._handle_confirmation(state, data, transcript)
+            return self._handle_confirmation(
+                state,
+                data,
+                transcript,
+                understanding,
+            )
         if step in {
             BookingStep.WAITING_FOR_PICKUP_RESULT,
             BookingStep.WAITING_FOR_DESTINATION_RESULT,
@@ -109,14 +122,27 @@ class RideBookingWorkflow(BaseWorkflow):
                 reason="The booking workflow is already complete.",
             )
 
-        return self._start_booking(state, data, transcript)
+        return self._start_booking(state, data, transcript, understanding)
 
     def _start_booking(
         self,
         state: AgentState,
         data: BookingData,
         transcript: str,
+        understanding: UnderstandingResult | None,
     ) -> AgentAction:
+        if understanding is not None and understanding.pickup_query:
+            data.pickup_query = understanding.pickup_query
+            data.destination_query = understanding.destination_query
+            if understanding.phone_number:
+                data.phone_number = understanding.phone_number
+            return self._request_place(
+                state,
+                data,
+                query=data.pickup_query,
+                operation="pickup",
+                waiting_step=BookingStep.WAITING_FOR_PICKUP_RESULT,
+            )
         route = _ROUTE_PATTERN.search(transcript)
         if route is not None:
             data.pickup_query = route.group("pickup").strip(" .")
@@ -142,21 +168,31 @@ class RideBookingWorkflow(BaseWorkflow):
         state: AgentState,
         data: BookingData,
         transcript: str,
+        understanding: UnderstandingResult | None,
     ) -> AgentAction:
-        if not transcript:
+        pickup = (
+            understanding.pickup_query
+            if understanding is not None and understanding.pickup_query
+            else transcript
+        )
+        if understanding is not None and understanding.destination_query:
+            data.destination_query = understanding.destination_query
+        if understanding is not None and understanding.phone_number:
+            data.phone_number = understanding.phone_number
+        if not pickup:
             return self._retry_ask(
                 state,
                 data,
                 BookingStep.COLLECT_PICKUP,
                 "Bạn vui lòng nói lại điểm đón.",
             )
-        data.pickup_query = transcript
+        data.pickup_query = pickup
         data.pickup = None
         data.pickup_candidates = []
         return self._request_place(
             state,
             data,
-            query=transcript,
+            query=pickup,
             operation="pickup",
             waiting_step=BookingStep.WAITING_FOR_PICKUP_RESULT,
         )
@@ -166,21 +202,29 @@ class RideBookingWorkflow(BaseWorkflow):
         state: AgentState,
         data: BookingData,
         transcript: str,
+        understanding: UnderstandingResult | None,
     ) -> AgentAction:
-        if not transcript:
+        destination = (
+            understanding.destination_query
+            if understanding is not None and understanding.destination_query
+            else transcript
+        )
+        if understanding is not None and understanding.phone_number:
+            data.phone_number = understanding.phone_number
+        if not destination:
             return self._retry_ask(
                 state,
                 data,
                 BookingStep.COLLECT_DESTINATION,
                 "Bạn vui lòng nói lại điểm đến.",
             )
-        data.destination_query = transcript
+        data.destination_query = destination
         data.destination = None
         data.destination_candidates = []
         return self._request_place(
             state,
             data,
-            query=transcript,
+            query=destination,
             operation="destination",
             waiting_step=BookingStep.WAITING_FOR_DESTINATION_RESULT,
         )
@@ -406,8 +450,13 @@ class RideBookingWorkflow(BaseWorkflow):
         state: AgentState,
         data: BookingData,
         transcript: str,
+        understanding: UnderstandingResult | None,
     ) -> AgentAction:
-        phone = self._extract_phone(transcript)
+        phone = (
+            understanding.phone_number
+            if understanding is not None and understanding.phone_number
+            else self._extract_phone(transcript)
+        )
         if phone is None:
             return self._retry_ask(
                 state,
@@ -445,9 +494,18 @@ class RideBookingWorkflow(BaseWorkflow):
         state: AgentState,
         data: BookingData,
         transcript: str,
+        understanding: UnderstandingResult | None,
     ) -> AgentAction:
         normalized = transcript.casefold()
-        if any(term in normalized for term in _REJECT_TERMS):
+        rejected = (
+            understanding is not None
+            and understanding.confirmation is ConfirmationIntent.REJECT
+        ) or any(term in normalized for term in _REJECT_TERMS)
+        confirmed = (
+            understanding is not None
+            and understanding.confirmation is ConfirmationIntent.CONFIRM
+        ) or any(term in normalized for term in _CONFIRM_TERMS)
+        if rejected:
             return self._ask(
                 state,
                 data,
@@ -456,7 +514,7 @@ class RideBookingWorkflow(BaseWorkflow):
                 reason="The user rejected the booking details.",
                 confirmation=ConfirmationStatus.REJECTED,
             )
-        if not any(term in normalized for term in _CONFIRM_TERMS):
+        if not confirmed:
             return self._retry_ask(
                 state,
                 data,
@@ -657,6 +715,19 @@ class RideBookingWorkflow(BaseWorkflow):
         destination = _DESTINATION_CORRECTION.search(transcript)
         if destination is not None:
             return "destination", destination.group("value").strip(" .")
+        return None
+
+    @staticmethod
+    def _understood_correction(
+        understanding: UnderstandingResult | None,
+    ) -> tuple[str, str] | None:
+        if understanding is None or not understanding.corrections:
+            return None
+        correction = understanding.corrections[0]
+        if correction.field is CorrectionField.PICKUP:
+            return "pickup", correction.value
+        if correction.field is CorrectionField.DESTINATION:
+            return "destination", correction.value
         return None
 
     @staticmethod

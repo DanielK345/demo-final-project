@@ -11,6 +11,7 @@ from src.agents.schemas import (
     WorkflowType,
 )
 from src.agents.state import AgentState
+from src.agents.understanding.models import UnderstandingIntent, UnderstandingResult
 from src.agents.workflows.base import BaseWorkflow
 
 
@@ -52,12 +53,15 @@ class HandoffWorkflow(BaseWorkflow):
         self.policy = policy or AgentPolicy()
 
     async def handle(
-        self, agent_input: AgentInput, state: AgentState
+        self,
+        agent_input: AgentInput,
+        state: AgentState,
+        understanding: UnderstandingResult | None = None,
     ) -> AgentAction:
         if agent_input.session_id != state.session_id:
             raise ValueError("agent input and state must belong to the same session")
 
-        handoff_reason = self.detect_reason(agent_input, state)
+        handoff_reason = self.detect_reason(agent_input, state, understanding)
         context = self.build_context(agent_input, state, handoff_reason)
         collected_data = {
             key: value
@@ -83,6 +87,7 @@ class HandoffWorkflow(BaseWorkflow):
         self,
         agent_input: AgentInput,
         state: AgentState,
+        understanding: UnderstandingResult | None = None,
     ) -> HandoffReason:
         transcript = agent_input.transcript.casefold().strip()
 
@@ -91,6 +96,11 @@ class HandoffWorkflow(BaseWorkflow):
         if any(term in transcript for term in self._COMPLAINT_TERMS):
             return HandoffReason.COMPLAINT
         if any(term in transcript for term in self._USER_REQUEST_TERMS):
+            return HandoffReason.USER_REQUEST
+        if (
+            understanding is not None
+            and understanding.intent is UnderstandingIntent.HUMAN_HANDOFF
+        ):
             return HandoffReason.USER_REQUEST
         if (
             agent_input.tool_result is not None

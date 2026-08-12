@@ -25,6 +25,14 @@ class Settings(BaseSettings):
     model_name: str = "gpt-4o-mini"
     llm_temperature: float = Field(default=0.7, ge=0.0, le=2.0)
 
+    # Core Agent language understanding
+    agent_llm_enabled: bool = False
+    agent_llm_provider: Literal["openai"] = "openai"
+    agent_llm_model: str = "gpt-5.6-luna"
+    agent_llm_base_url: str | None = None
+    agent_llm_timeout_seconds: float = Field(default=5.0, gt=0)
+    agent_llm_reasoning_effort: Literal["none", "low", "medium"] = "none"
+
     # Database
     database_url: str = "sqlite:///./data/app.db"
 

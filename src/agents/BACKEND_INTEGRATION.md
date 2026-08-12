@@ -26,6 +26,10 @@ Core Agent:
 - không sở hữu credentials;
 - không tự retry network hoặc tạo side effect.
 
+Language understanding có thể dùng OpenAI khi `AGENT_LLM_ENABLED=true`.
+Credential/model được inject qua environment; Backend không gửi API key trong
+turn payload. OpenAI chỉ extract structured intent/slots, không thực thi tools.
+
 ## 2. Entrypoint
 
 Backend có thể gọi domain API trực tiếp:
