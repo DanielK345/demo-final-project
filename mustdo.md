@@ -8,61 +8,49 @@ soát toàn bộ Frontend ↔ Backend ngày 13/08/2026 (xem báo cáo đầy đ�
 
 ---
 
-## 1. Các trang UI "đa trang" chưa được route tới — cần quyết định sản phẩm
+## 1. ~~Các trang UI "đa trang" chưa được route tới~~ — ĐÃ GIẢI QUYẾT (13/08/2026)
 
-### Vì sao chưa thể tự làm
+**Cập nhật:** Theo yêu cầu trực tiếp của user ("lấy lại code tất cả các trang của
+frontend các màn bị cho là rác và tự động hoàn thiện toàn bộ cả fe và be tương ứng"),
+6 trang này đã được route lại vào `app/router/index.tsx` (lồng trong `AppLayout` —
+Sidebar/Topbar/MobileNav, vốn đã được build sẵn cho đúng việc này) và nối vào dữ liệu
+BE thật (không còn `MOCK_*`/`setTimeout` giả):
 
-`react-router` (`src/frontend/src/app/router/index.tsx`) hiện chỉ mount 2 route:
-`/login` và `/` (→ `AssistantPage`, trang chat/voice duy nhất). Toàn bộ các trang sau
-**tồn tại trong code nhưng KHÔNG ai điều hướng tới được** (không có `<Route>` nào trỏ
-tới, `AppLayout`/`Sidebar`/`Topbar`/`MobileNav` cũng không được mount ở đâu):
+- **HomePage** — tên chào thật + 2 chuyến gần đây thật.
+- **BookingPage** — "Xác nhận đặt xe" đi qua đúng dialogue engine thật (Core Agent) đã
+  test kỹ, không xây đường đặt xe riêng.
+- **TrackingPage** — poll `GET /api/v1/trips/status` mỗi 4s, tài xế/trạng thái mô
+  phỏng ổn định (seed theo booking_id, không random mỗi lần gọi như code cũ).
+- **ActivityPage** — `GET /api/v1/bookings` thật, đã xoá `mockData.ts`.
+- **ProfilePage** — tên/SĐT/role thật từ `/auth/me`.
+- **PaymentPage (Cài đặt)** — `GET/PUT /api/v1/users/me/settings` thật, đổi mật khẩu
+  thật qua `POST /api/v1/auth/change-password`.
 
-- `src/frontend/src/pages/Home/HomePage.tsx`
-- `src/frontend/src/pages/Booking/BookingPage.tsx` (nút "Xác nhận đặt xe" hiện chỉ
-  `setTimeout` giả lập, không gọi API thật)
-- `src/frontend/src/pages/Tracking/TrackingPage.tsx` (tự ghi chú ngay trong UI:
-  *"Đang chờ tích hợp GPS / WebSocket Backend API"*)
-- `src/frontend/src/pages/Payment/PaymentPage.tsx` (thực chất là trang Cài đặt —
-  thông báo/2FA/ngôn ngữ/giao diện — nút Lưu không gọi API nào)
-- `src/frontend/src/pages/Profile/ProfilePage.tsx` (toàn bộ dữ liệu hardcode: tên,
-  email, ngày sinh, số dư ví, thẻ Visa, ưu đãi)
-- `src/frontend/src/pages/Activity/ActivityPage.tsx` + `features/activity/mockData.ts`
-  (lịch sử chuyến đi hardcode 3 chuyến giả)
+`/login` và `/assistant` giữ nguyên đứng riêng (không đổi, tránh rủi ro không cần
+thiết cho trang đang được người khác phát triển tích cực). `feature/customer-call-ui`
+(nhánh remote riêng, `frontend/` — `CustomerUI.tsx`/`OperatorUI.tsx`) **không bị đụng
+tới** — vẫn là hướng đi độc lập của team, không liên quan tới `src/frontend/`.
 
-**Đây không phải bug — đây là code mồ côi (orphaned) từ lần scaffold đầu tiên**
-(`e9115ca feat: scaffold initial frontend project structure`), bị bỏ lại khi flow
-thật của sản phẩm chuyển sang mô hình chat/voice một trang (`AssistantPage` +
-`/api/v1/sessions`, đã hoạt động đầy đủ — xem báo cáo).
+### Còn lại — cần quyết định/thao tác thủ công (không tự code được)
 
-Việc dựng Backend thật cho các trang này (ví, thanh toán, GPS tracking, coupon/loyalty,
-lịch sử chuyến đi) là một khối lượng công việc lớn, đa domain, và **có rủi ro trùng
-lặp/xung đột trực tiếp** với công việc khác của team: repo đang có nhánh remote
-`feature/customer-call-ui` (`frontend/` — package.json riêng, `CustomerUI.tsx`,
-`OperatorUI.tsx`) — rất có thể đây chính là câu trả lời của team cho "trải nghiệm đa
-trang" này, làm theo hướng khác hẳn (React app riêng, không phải `src/frontend/`).
+1. **Ví AloSM Pay / thẻ thanh toán** (`ProfilePage`) — chưa có khái niệm ví/thanh toán
+   nào ở Backend. Hiện hiển thị trạng thái rỗng trung thực ("Chưa liên kết phương thức
+   thanh toán nào") thay vì số dư/thẻ giả. Cần Payment Gateway thật — xem mục 2 bên
+   dưới.
+2. **Ưu đãi/coupon** (`ProfilePage`) — tương tự, chưa có hệ thống coupon/loyalty nào.
+   Hiện hiển thị trạng thái rỗng trung thực. Cần quyết định nghiệp vụ (loại ưu đãi,
+   điều kiện áp dụng) trước khi code được.
+3. **2FA thật** (`PaymentPage`) — toggle đã persist lựa chọn thật qua API, nhưng
+   **CHƯA enforce** ở bước đăng nhập (cần TOTP hoặc SMS OTP — xem mục 4 bên dưới). UI
+   đã ghi rõ "sắp ra mắt", không giả vờ đã bảo mật hơn.
 
-### Cần làm (quyết định của team, không phải của code)
+### Cách kiểm tra
 
-1. Họp nhanh với người phụ trách `feature/customer-call-ui` / `feature/frontend-mvp`
-   để thống nhất: sản phẩm cuối cùng là **chat/voice một trang** (hiện tại), **đa
-   trang kiểu truyền thống** (Home/Booking/Tracking/Profile...), hay **cả hai** (dùng
-   `feature/customer-call-ui` làm Operator/Customer UI riêng)?
-2. Nếu quyết định giữ các trang `Booking/Tracking/Payment/Profile/Activity`:
-   - Thêm route cho chúng vào `app/router/index.tsx`.
-   - Backend cần thêm (theo đúng pattern in-memory MVP hiện có, KHÔNG cần DB thật
-     ngay): `GET /api/v1/bookings` (lịch sử), `GET /api/v1/users/me/settings` +
-     `PUT` (thông báo/ngôn ngữ/giao diện), mở rộng `TripService`/`BookingService` để
-     trạng thái chuyến đi nhất quán theo `booking_id` thay vì random mỗi lần gọi.
-   - Ví/thẻ thanh toán/coupon: xem mục 3 bên dưới (cần quyết định nghiệp vụ + có thể
-     cần credential thật).
-3. Nếu quyết định **xoá** các trang mồ côi này (không dùng nữa): xoá hẳn để tránh gây
-   nhầm lẫn cho người sau — không nằm trong phạm vi tôi tự quyết vì đây là code người
-   khác viết và có thể đang được dùng làm tham khảo thiết kế.
-
-### Cách kiểm tra sau khi quyết định
-
-Sau khi thêm route thật, vào từng trang, xác nhận dữ liệu hiển thị đến từ API (Network
-tab có request thật, không còn `MOCK_*`/`mockData.ts`).
+Đã verify: đăng nhập → vào từng trang (Home/Booking/Tracking/Activity/Payment/
+Profile) qua Sidebar, xác nhận dữ liệu hiển thị đến từ API thật (đã test trực tiếp
+qua curl với server đang chạy thật, không phải chỉ unit test). Muốn tự kiểm tra lại:
+mở Network tab khi dùng các trang này, xác nhận có request thật tới `/api/v1/bookings`,
+`/api/v1/trips/status`, `/api/v1/users/me/settings` — không còn `MOCK_*`/`mockData.ts`.
 
 ---
 
