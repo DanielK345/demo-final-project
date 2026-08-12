@@ -18,7 +18,7 @@ export function isUnauthorizedError(error: unknown): boolean {
 // return it as a list of { msg, loc, type, ... } objects instead. Normalize any
 // shape down to a human-readable string so callers never end up rendering
 // "[object Object]" (e.g. via `new Error(detail)`).
-function extractErrorMessage(errorBody: unknown, status: number): string {
+export function extractErrorMessage(errorBody: unknown, status: number): string {
   const detail = (errorBody as { detail?: unknown } | null)?.detail;
   if (typeof detail === "string" && detail.trim()) return detail;
   if (Array.isArray(detail)) {

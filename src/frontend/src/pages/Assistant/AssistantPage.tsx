@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Bot, LogOut, Mic, Send, Square, Volume2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { getCurrentUser } from "@/features/auth/api";
@@ -6,18 +6,10 @@ import { redirectToLoginIfUnauthorized } from "@/features/auth/sessionGuard";
 import { clearAuthSession, getAccessToken, getSessionId, getUserName, saveAuthSession } from "@/features/auth/storage";
 import { LlmStatusNote } from "@/features/ai-assistant/components/LlmStatusNote";
 import { createRideSession, endRideSession, getRideSession, sendRideMessage } from "@/features/ride/api";
+import { playBase64Audio, sendVoiceTurn, speakWithBrowser } from "@/features/voice/api";
+import { useVoiceRecorder } from "@/features/voice/useVoiceRecorder";
 
 type Message = { id: string; role: "user" | "assistant"; text: string };
-type BrowserRecognition = {
-  lang: string;
-  interimResults: boolean;
-  onresult: ((event: { results: ArrayLike<ArrayLike<{ transcript: string }>> }) => void) | null;
-  onerror: (() => void) | null;
-  onend: (() => void) | null;
-  start: () => void;
-  stop: () => void;
-};
-type RecognitionConstructor = new () => BrowserRecognition;
 
 export const AssistantPage: React.FC = () => {
   const [sessionId, setSessionId] = useState<string | null>(null);
@@ -26,9 +18,48 @@ export const AssistantPage: React.FC = () => {
   const [isSending, setIsSending] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
-  const recognitionRef = useRef<BrowserRecognition | null>(null);
   const navigate = useNavigate();
   const userName = getUserName();
+
+  const handleVoiceRecorded = async (audio: Blob) => {
+    if (!sessionId || isSending) return;
+    setIsSending(true);
+    setNotice(null);
+    try {
+      const result = await sendVoiceTurn(sessionId, audio);
+      setMessages((items) => [
+        ...items,
+        { id: `user-${Date.now()}`, role: "user", text: result.transcript },
+        { id: result.message_id, role: "assistant", text: result.message },
+      ]);
+      if (result.audio_base64) {
+        await playBase64Audio(result.audio_base64, result.audio_mime_type);
+      } else {
+        speakWithBrowser(result.message);
+      }
+      if (result.action === "HANDOFF") setNotice("Yêu cầu đã được chuyển đến tổng đài viên.");
+      if (result.action === "END_SESSION") {
+        setSessionId(null);
+        localStorage.removeItem("alosm_session_id");
+        clearAuthSession();
+        navigate("/login");
+      }
+    } catch (error) {
+      if (redirectToLoginIfUnauthorized(error, navigate)) return;
+      setNotice(error instanceof Error ? error.message : "Không thể xử lý giọng nói.");
+    } finally {
+      setIsSending(false);
+      setIsListening(false);
+    }
+  };
+
+  const { toggleRecording } = useVoiceRecorder({
+    onRecorded: handleVoiceRecorded,
+    onError: (error) => {
+      setIsListening(false);
+      setNotice(error.message);
+    },
+  });
 
   useEffect(() => {
     let cancelled = false;
@@ -83,12 +114,7 @@ export const AssistantPage: React.FC = () => {
   }, [navigate]);
 
   const speak = (reply: string) => {
-    if ("speechSynthesis" in window) {
-      window.speechSynthesis.cancel();
-      const utterance = new SpeechSynthesisUtterance(reply);
-      utterance.lang = "vi-VN";
-      window.speechSynthesis.speak(utterance);
-    }
+    speakWithBrowser(reply);
   };
 
   const send = async (value: string, source: "TEXT" | "VOICE" = "TEXT") => {
@@ -116,21 +142,15 @@ export const AssistantPage: React.FC = () => {
     }
   };
 
-  const toggleMicrophone = () => {
-    if (isListening) { recognitionRef.current?.stop(); return; }
-    const Recognition = (window as typeof window & { SpeechRecognition?: RecognitionConstructor; webkitSpeechRecognition?: RecognitionConstructor }).SpeechRecognition
-      || (window as typeof window & { webkitSpeechRecognition?: RecognitionConstructor }).webkitSpeechRecognition;
-    if (!Recognition) { setNotice("Trình duyệt này chưa hỗ trợ nhận giọng nói. Anh/chị có thể nhắn tin bên dưới."); return; }
-    const recognition = new Recognition();
-    recognition.lang = "vi-VN";
-    recognition.interimResults = false;
-    recognition.onresult = (event) => send(event.results[0][0].transcript, "VOICE");
-    recognition.onerror = () => setNotice("Không nghe rõ giọng nói. Anh/chị thử lại hoặc nhắn tin nhé.");
-    recognition.onend = () => setIsListening(false);
-    recognitionRef.current = recognition;
+  const toggleMicrophone = async () => {
+    if (!sessionId || isSending) return;
+    if (isListening) {
+      toggleRecording();
+      return;
+    }
     setNotice(null);
     setIsListening(true);
-    recognition.start();
+    await toggleRecording();
   };
 
   const logout = async () => {
@@ -158,7 +178,7 @@ export const AssistantPage: React.FC = () => {
           <button onClick={toggleMicrophone} disabled={!sessionId || isSending} className="w-28 h-28 mx-auto rounded-full bg-white/20 border-4 border-white/50 flex items-center justify-center hover:scale-105 disabled:opacity-50 transition" aria-label="Bắt đầu nói">
             {isListening ? <Square className="w-9 h-9 fill-white" /> : <Mic className="w-11 h-11" />}
           </button>
-          <p className="font-bold mt-4">{isListening ? "Đang nghe… Nhấn để dừng" : sessionId ? "Nhấn để nói" : "Đang kết nối phiên…"}</p>
+          <p className="font-bold mt-4">{isListening ? "Đang ghi âm… Nhấn để gửi" : isSending ? "Đang xử lý giọng nói…" : sessionId ? "Nhấn để nói (Whisper/TTS)" : "Đang kết nối phiên…"}</p>
           <p className="text-sm text-white/85 mt-1">Ví dụ: “Đặt xe từ Quận 1 đến sân bay Tân Sơn Nhất”</p>
         </div>
         <div className="p-5 md:p-6">
@@ -178,7 +198,7 @@ export const AssistantPage: React.FC = () => {
             <input value={text} onChange={(event) => setText(event.target.value)} disabled={!sessionId || isSending} className="flex-1 rounded-xl bg-slate-100 px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-[#00D1C1]" placeholder="Nhập điểm đón và điểm đến…" />
             <button disabled={!text.trim() || !sessionId || isSending} className="w-12 rounded-xl bg-[#00D1C1] text-white grid place-items-center disabled:opacity-50" aria-label="Gửi"><Send className="w-5 h-5" /></button>
           </form>
-          <p className="mt-3 flex items-center gap-1 text-xs text-slate-400"><Volume2 className="w-3 h-3" /> Phản hồi sẽ được đọc thành tiếng nếu trình duyệt hỗ trợ.</p>
+          <p className="mt-3 flex items-center gap-1 text-xs text-slate-400"><Volume2 className="w-3 h-3" /> Giọng nói dùng Whisper/Gemini STT và OpenAI TTS (fallback loa trình duyệt).</p>
         </div>
       </div>
     </section>

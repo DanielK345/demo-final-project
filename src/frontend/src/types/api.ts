@@ -20,4 +20,7 @@ export interface AgentStatusResponse {
   llm_model: string;
   understanding_mode: "openai" | "rules";
   conversation_backend: "session_rules" | "core_agent";
+  voice_provider?: "openai" | "gemini" | null;
+  voice_stt_model?: string;
+  voice_tts_enabled?: boolean;
 }

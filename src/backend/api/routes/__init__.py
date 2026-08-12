@@ -8,6 +8,8 @@ from src.backend.api.routes.calls import router as calls_router
 from src.backend.api.routes.handoffs import router as handoffs_router
 from src.backend.api.routes.health import router as health_router
 from src.backend.api.routes.sessions import router as sessions_router
+from src.backend.api.routes.voice import router as voice_router
+from src.backend.integrations.voice_client import resolve_voice_provider
 from src.backend.models.schemas import ChatRequest, ChatResponse
 
 
@@ -16,6 +18,7 @@ router = APIRouter()
 router.include_router(auth_router)
 router.include_router(calls_router)
 router.include_router(sessions_router)
+router.include_router(voice_router)
 router.include_router(bookings_router)
 router.include_router(handoffs_router)
 
@@ -38,6 +41,11 @@ async def agent_status():
     """Agent readiness and language-understanding configuration."""
     settings = get_app_settings()
     llm_ready = settings.agent_llm_enabled and bool(settings.openai_api_key)
+    voice_provider = None
+    try:
+        voice_provider = resolve_voice_provider(settings)
+    except Exception:
+        voice_provider = None
     return {
         "status": "ready",
         "agent": "Core Agent v1.0",
@@ -46,4 +54,7 @@ async def agent_status():
         "llm_model": settings.agent_llm_model,
         "understanding_mode": "openai" if llm_ready else "rules",
         "conversation_backend": "core_agent",
+        "voice_provider": voice_provider,
+        "voice_stt_model": settings.voice_stt_model if voice_provider == "openai" else settings.voice_gemini_model,
+        "voice_tts_enabled": voice_provider == "openai",
     }
