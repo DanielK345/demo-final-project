@@ -24,6 +24,7 @@ class CorrectionField(StrEnum):
     PICKUP = "PICKUP"
     DESTINATION = "DESTINATION"
     PHONE_NUMBER = "PHONE_NUMBER"
+    VEHICLE_TYPE = "VEHICLE_TYPE"
 
 
 class Correction(BaseModel):
@@ -42,6 +43,7 @@ class UnderstandingResult(BaseModel):
     intent: UnderstandingIntent = UnderstandingIntent.UNKNOWN
     pickup_query: str | None = None
     destination_query: str | None = None
+    vehicle_type: str | None = None
     phone_number: str | None = None
     booking_id: str | None = None
     confirmation: ConfirmationIntent = ConfirmationIntent.NOT_APPLICABLE

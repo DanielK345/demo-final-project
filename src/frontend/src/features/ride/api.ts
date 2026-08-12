@@ -29,9 +29,16 @@ export function createRideSession(): Promise<RideSession> {
   });
 }
 
+export function getRideSession(sessionId: string): Promise<RideSession> {
+  return fetchApi<RideSession>(`/api/v1/sessions/${sessionId}`, {
+    headers: authHeader(),
+  });
+}
+
 export function sendRideMessage(sessionId: string, message: string, source: "TEXT" | "VOICE", sttConfidence?: number): Promise<RideTurn> {
   return fetchApi<RideTurn>(`/api/v1/sessions/${sessionId}/messages`, {
     method: "POST",
+    headers: authHeader(),
     body: JSON.stringify({ message, source, stt_confidence: sttConfidence }),
   });
 }
@@ -39,6 +46,7 @@ export function sendRideMessage(sessionId: string, message: string, source: "TEX
 export function endRideSession(sessionId: string): Promise<unknown> {
   return fetchApi(`/api/v1/sessions/${sessionId}/end`, {
     method: "POST",
+    headers: authHeader(),
     body: JSON.stringify({ reason: "USER_ENDED" }),
   });
 }

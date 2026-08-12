@@ -12,10 +12,17 @@ class BookingStep(StrEnum):
     COLLECT_DESTINATION = "COLLECT_DESTINATION"
     WAITING_FOR_DESTINATION_RESULT = "WAITING_FOR_DESTINATION_RESULT"
     SELECT_DESTINATION_CANDIDATE = "SELECT_DESTINATION_CANDIDATE"
+    COLLECT_VEHICLE_TYPE = "COLLECT_VEHICLE_TYPE"
     COLLECT_PHONE = "COLLECT_PHONE"
     CONFIRM = "CONFIRM"
     WAITING_FOR_BOOKING_RESULT = "WAITING_FOR_BOOKING_RESULT"
     COMPLETE = "COMPLETE"
+
+
+class VehicleType(StrEnum):
+    FOUR_SEAT = "4_SEAT"
+    SEVEN_SEAT = "7_SEAT"
+    PREMIUM = "PREMIUM"
 
 
 class BookingData(BaseModel):
@@ -25,6 +32,7 @@ class BookingData(BaseModel):
     destination_query: str | None = None
     destination: PlaceCandidate | None = None
     destination_candidates: list[PlaceCandidate] = Field(default_factory=list)
+    vehicle_type: VehicleType | None = None
     phone_number: str | None = None
     booking_id: str | None = None
     booking_status: str | None = None

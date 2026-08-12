@@ -96,7 +96,7 @@ async def test_booking_happy_path_through_langgraph():
 
     destination_call = await scenario.user_turn("Times City")
     assert destination_call.action_type is ActionType.CALL_TOOL
-    ask_phone = await scenario.tool_turn(
+    ask_vehicle = await scenario.tool_turn(
         successful_result(
             destination_call,
             data={
@@ -109,6 +109,10 @@ async def test_booking_happy_path_through_langgraph():
             },
         )
     )
+    assert ask_vehicle.action_type is ActionType.ASK_USER
+    assert "loại xe" in ask_vehicle.message
+
+    ask_phone = await scenario.user_turn("xe 4 chỗ")
     assert ask_phone.action_type is ActionType.ASK_USER
     assert "số điện thoại" in ask_phone.message
 

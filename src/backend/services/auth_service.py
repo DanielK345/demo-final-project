@@ -55,6 +55,11 @@ class AuthService:
     def get_session_for_token(self, token: str) -> str | None:
         return self.token_sessions.get(token)
 
+    def bind_session_to_token(self, token: str, session_id: str) -> None:
+        if token not in self.tokens:
+            raise ValueError("Token không hợp lệ")
+        self.token_sessions[token] = session_id
+
     def _auth_response(self, user: dict[str, str]) -> dict[str, object]:
         session = self._session_service.create_session(user["user_id"], "WEB_VOICE", "browser")
         token = self._issue_token(user["user_id"], session["session_id"])

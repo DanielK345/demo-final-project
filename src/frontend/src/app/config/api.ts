@@ -1,5 +1,19 @@
 export const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
+export class ApiError extends Error {
+  status: number;
+
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+  }
+}
+
+export function isUnauthorizedError(error: unknown): boolean {
+  return error instanceof ApiError && error.status === 401;
+}
+
 // FastAPI's `detail` field is usually a string, but validation errors (HTTP 422)
 // return it as a list of { msg, loc, type, ... } objects instead. Normalize any
 // shape down to a human-readable string so callers never end up rendering
@@ -29,7 +43,7 @@ export async function fetchApi<T>(endpoint: string, options?: RequestInit): Prom
 
   if (!response.ok) {
     const errorBody = await response.json().catch(() => null);
-    throw new Error(extractErrorMessage(errorBody, response.status));
+    throw new ApiError(extractErrorMessage(errorBody, response.status), response.status);
   }
 
   return response.json();

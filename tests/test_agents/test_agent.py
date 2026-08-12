@@ -33,7 +33,7 @@ class RecordingWorkflow(BaseWorkflow):
         self.received_input = agent_input
         return AgentAction(
             action_type=ActionType.ASK_USER,
-            message="Bạn muốn đón ở đâu?",
+            message="Để đặt xe, anh/chị cần cung cấp điểm đón, điểm đến và loại xe",
             reason="Recording workflow handled the turn.",
         )
 
@@ -84,7 +84,7 @@ async def test_agent_uses_injected_workflow_registry():
 
     assert workflow.was_called is True
     assert action.action_type is ActionType.ASK_USER
-    assert action.message == "Bạn muốn đón ở đâu?"
+    assert "điểm đón" in action.message
 
 
 @pytest.mark.asyncio

@@ -51,7 +51,7 @@ async def test_booking_starts_by_asking_for_pickup():
     )
 
     assert action.action_type is ActionType.ASK_USER
-    assert action.message == "Bạn muốn đón ở đâu?"
+    assert "điểm đón" in action.message
     assert action.state_updates["current_step"] == BookingStep.COLLECT_PICKUP
 
 
@@ -183,8 +183,16 @@ async def test_booking_happy_path_requires_confirmation_before_create_booking():
         state,
     )
     assert ask_phone.action_type is ActionType.ASK_USER
-    assert ask_phone.state_updates["current_step"] == BookingStep.COLLECT_PHONE
+    assert ask_phone.state_updates["current_step"] == BookingStep.COLLECT_VEHICLE_TYPE
     state = apply_action(state, ask_phone)
+
+    ask_phone_number = await workflow.handle(
+        AgentInput(session_id="session-001", transcript="xe 4 chỗ"),
+        state,
+    )
+    assert ask_phone_number.action_type is ActionType.ASK_USER
+    assert ask_phone_number.state_updates["current_step"] == BookingStep.COLLECT_PHONE
+    state = apply_action(state, ask_phone_number)
 
     confirmation = await workflow.handle(
         AgentInput(session_id="session-001", transcript="0901234567"),
@@ -243,6 +251,7 @@ async def test_booking_does_not_create_booking_for_unclear_confirmation():
         {
             "pickup": {"place_id": "p1", "display_name": "Hồ Gươm"},
             "destination": {"place_id": "p2", "display_name": "Times City"},
+            "vehicle_type": "4_SEAT",
             "phone_number": "0901234567",
         }
     )
@@ -268,6 +277,7 @@ async def test_booking_correction_resets_confirmation_and_resolves_again():
         {
             "pickup": {"place_id": "p1", "display_name": "Hồ Gươm"},
             "destination": {"place_id": "p2", "display_name": "Times City"},
+            "vehicle_type": "4_SEAT",
             "phone_number": "0901234567",
         }
     )
