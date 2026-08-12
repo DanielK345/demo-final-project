@@ -27,11 +27,13 @@ export const AssistantPage: React.FC = () => {
   const userName = localStorage.getItem("alosm_user_name") || "bạn";
 
   useEffect(() => {
-    if (!localStorage.getItem("alosm_access_token")) {
+    const token = localStorage.getItem("alosm_access_token");
+    const userId = localStorage.getItem("alosm_user_id");
+    if (!token || !userId) {
       navigate("/login");
       return;
     }
-    createRideSession().then((session) => setSessionId(session.session_id)).catch((error: Error) => {
+    createRideSession(userId).then((session) => setSessionId(session.session_id)).catch((error: Error) => {
       setNotice(error.message);
       if (error.message.includes("đăng nhập")) navigate("/login");
     });
