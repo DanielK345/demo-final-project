@@ -11,7 +11,7 @@ from src.agents.understanding.models import (
     UnderstandingIntent,
 )
 from src.agents.understanding.openai import OpenAIUnderstandingAdapter
-from src.config import get_settings
+from src.backend.config import get_settings
 
 pytestmark = [
     pytest.mark.provider,

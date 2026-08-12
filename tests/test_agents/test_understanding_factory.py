@@ -3,7 +3,7 @@ import pytest
 from src.agents.understanding.factory import build_understanding_service
 from src.agents.understanding.rules import RuleBasedUnderstanding
 from src.agents.understanding.service import ResilientUnderstandingService
-from src.config import Settings
+from src.backend.config import Settings
 
 
 def test_factory_uses_rules_when_agent_llm_is_disabled():
