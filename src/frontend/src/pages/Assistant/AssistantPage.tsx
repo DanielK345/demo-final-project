@@ -5,7 +5,9 @@ import { getCurrentUser } from "@/features/auth/api";
 import { redirectToLoginIfUnauthorized } from "@/features/auth/sessionGuard";
 import { clearAuthSession, getAccessToken, getSessionId, getUserName, saveAuthSession } from "@/features/auth/storage";
 import { LlmStatusNote } from "@/features/ai-assistant/components/LlmStatusNote";
+import { BookingProgressSidebar } from "@/features/ai-assistant/components/BookingProgressSidebar";
 import { createRideSession, endRideSession, getRideSession, sendRideMessage } from "@/features/ride/api";
+import type { BookingProgress } from "@/features/ride/api";
 import { playBase64Audio, sendVoiceTurn, speakWithBrowser } from "@/features/voice/api";
 import { useVoiceRecorder } from "@/features/voice/useVoiceRecorder";
 
@@ -18,6 +20,7 @@ export const AssistantPage: React.FC = () => {
   const [isSending, setIsSending] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  const [bookingProgress, setBookingProgress] = useState<BookingProgress | null>(null);
   const navigate = useNavigate();
   const userName = getUserName();
 
@@ -32,6 +35,9 @@ export const AssistantPage: React.FC = () => {
         { id: `user-${Date.now()}`, role: "user", text: result.transcript },
         { id: result.message_id, role: "assistant", text: result.message },
       ]);
+      if (result.state?.booking_progress) {
+        setBookingProgress(result.state.booking_progress as BookingProgress);
+      }
       if (result.audio_base64) {
         await playBase64Audio(result.audio_base64, result.audio_mime_type);
       } else {
@@ -126,6 +132,9 @@ export const AssistantPage: React.FC = () => {
     try {
       const result = await sendRideMessage(sessionId, message, source, source === "VOICE" ? 0.9 : undefined);
       setMessages((items) => [...items, { id: result.message_id, role: "assistant", text: result.message }]);
+      if (result.state?.booking_progress) {
+        setBookingProgress(result.state.booking_progress);
+      }
       speak(result.message);
       if (result.action === "HANDOFF") setNotice("Yêu cầu đã được chuyển đến tổng đài viên.");
       if (result.action === "END_SESSION") {
@@ -167,7 +176,9 @@ export const AssistantPage: React.FC = () => {
         <button onClick={logout} className="flex gap-2 items-center text-sm font-semibold text-slate-600 hover:text-rose-600"><LogOut className="w-4 h-4" /> Đăng xuất</button>
       </div>
     </header>
-    <section className="max-w-3xl mx-auto px-4 py-8 md:py-12">
+    <section className="max-w-6xl mx-auto px-4 py-8 md:py-12">
+      <div className="flex flex-col lg:flex-row gap-6 items-start">
+        <div className="flex-1 min-w-0 w-full">
       <div className="text-center mb-6">
         <h1 className="text-3xl font-extrabold">Chào {userName}, bạn muốn đi đâu?</h1>
         <p className="text-slate-500 mt-2">Nói tự nhiên hoặc nhắn tin. AloSM luôn hỏi xác nhận trước khi đặt xe.</p>
@@ -200,6 +211,9 @@ export const AssistantPage: React.FC = () => {
           </form>
           <p className="mt-3 flex items-center gap-1 text-xs text-slate-400"><Volume2 className="w-3 h-3" /> Giọng nói dùng Whisper/Gemini STT và OpenAI TTS (fallback loa trình duyệt).</p>
         </div>
+      </div>
+        </div>
+        <BookingProgressSidebar progress={bookingProgress} />
       </div>
     </section>
   </main>;

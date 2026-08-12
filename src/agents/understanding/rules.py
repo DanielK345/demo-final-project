@@ -14,6 +14,10 @@ _ROUTE_PATTERN = re.compile(
     r"\btừ\s+(?P<pickup>.+?)\s+(?:đến|tới|về)\s+(?P<destination>.+)$",
     re.IGNORECASE,
 )
+_DESTINATION_ONLY = re.compile(
+    r"^(?:tôi\s+)?(?:muốn\s+)?(?:đi|tới|đến|về)\s+(?P<destination>.+)$",
+    re.IGNORECASE,
+)
 _PHONE_PATTERN = re.compile(r"(?<!\d)(?:\+?84|0)(?:[ .-]?\d){9}(?!\d)")
 _BOOKING_ID_PATTERN = re.compile(
     r"(?:mã\s+(?:chuyến|đặt\s*xe)|booking(?:\s*id)?)\s*(?:là|:|#)?\s*"
@@ -73,6 +77,7 @@ class RuleBasedUnderstanding:
 
         vehicle_type = self._parse_vehicle_type(normalized)
         route = _ROUTE_PATTERN.search(transcript)
+        dest_only = _DESTINATION_ONLY.match(transcript.strip())
         phone_match = None
         if context.current_workflow is not WorkflowType.RIDE_BOOKING:
             phone_match = _PHONE_PATTERN.search(transcript)
@@ -105,7 +110,13 @@ class RuleBasedUnderstanding:
             intent=intent,
             pickup_query=(route.group("pickup").strip(" .") if route else None),
             destination_query=(
-                route.group("destination").strip(" .") if route else None
+                route.group("destination").strip(" .")
+                if route
+                else (
+                    dest_only.group("destination").strip(" .")
+                    if dest_only
+                    else None
+                )
             ),
             vehicle_type=vehicle_type,
             phone_number=(

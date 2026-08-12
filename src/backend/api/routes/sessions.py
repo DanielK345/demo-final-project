@@ -130,6 +130,7 @@ async def send_message(
                 session_id,
                 request.message,
                 request.stt_confidence,
+                source=request.source,
             )
         )
     except KeyError as exc:

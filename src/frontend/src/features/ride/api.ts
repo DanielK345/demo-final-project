@@ -8,11 +8,24 @@ export interface RideSession {
   created_at: string;
 }
 
+export interface BookingFieldProgress {
+  label: string;
+  resolved: boolean;
+  place_id?: string | null;
+}
+
+export interface BookingProgress {
+  pickup?: BookingFieldProgress | null;
+  destination?: BookingFieldProgress | null;
+  vehicle_type?: string | null;
+  missing_field?: "pickup" | "destination" | "vehicle_type" | null;
+}
+
 export interface RideTurn {
   message_id: string;
   action: "ASK_USER" | "RESPOND" | "HANDOFF" | "END_SESSION";
   message: string;
-  state: Record<string, unknown>;
+  state: Record<string, unknown> & { booking_progress?: BookingProgress | null };
   booking?: { booking_id: string; status: string; estimated_fare: number } | null;
 }
 

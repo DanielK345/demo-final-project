@@ -7,17 +7,25 @@ from src.agents.agent import LLMAgent
 from src.agents.schemas import ActionType, AgentInput, AgentAction
 from src.agents.state import AgentState
 from src.backend.services.agent_tool_executor import AgentToolExecutor
+from src.backend.services.conversation_logger import ConversationLogger
 
 
 class SessionService:
     sessions: dict[str, dict[str, object]] = {}
     _agent = LLMAgent()
     _tool_executor = AgentToolExecutor()
+    _conversation_logger = ConversationLogger()
     _MAX_TOOL_TURNS = 8
 
     def create_session(self, user_id: str, channel: str, device_id: str | None = None) -> dict[str, object]:
         session_id = f"sess_{uuid4().hex[:12]}"
         now = datetime.now(UTC).isoformat()
+        log_path = self._conversation_logger.start_session(
+            session_id=session_id,
+            user_id=user_id,
+            channel=channel,
+            device_id=device_id,
+        )
         self.sessions[session_id] = {
             "session_id": session_id,
             "call_id": f"call_{uuid4().hex[:8]}",
@@ -26,6 +34,7 @@ class SessionService:
             "channel": channel,
             "device_id": device_id,
             "created_at": now,
+            "log_file": log_path.name,
             "intent": None,
             "pickup": None,
             "destination": None,
@@ -64,6 +73,9 @@ class SessionService:
         session = self.sessions.get(session_id)
         if session is None:
             raise KeyError("Không tìm thấy phiên hội thoại")
+        log_file = session.get("log_file")
+        if isinstance(log_file, str):
+            self._conversation_logger.end_session(log_file, reason=reason)
         session.update({"status": "ENDED", "end_reason": reason})
         return {"session_id": session_id, "status": "ENDED", "ended_at": datetime.now(UTC).isoformat()}
 
@@ -72,6 +84,8 @@ class SessionService:
         session_id: str,
         message: str,
         confidence: float | None = None,
+        *,
+        source: str = "TEXT",
     ) -> dict[str, object]:
         session = self.sessions.get(session_id)
         if session is None:
@@ -103,7 +117,15 @@ class SessionService:
 
         session["agent_state"] = agent_state.model_dump(mode="json")
         self._sync_legacy_session_fields(session, agent_state, action)
-        return self._format_action_response(session, agent_state, action)
+        response = self._format_action_response(session, agent_state, action)
+        self._log_conversation_turn(
+            session,
+            user_message=message.strip(),
+            source=source,
+            stt_confidence=confidence,
+            response=response,
+        )
+        return response
 
     async def _run_agent_turn(
         self,
@@ -143,8 +165,11 @@ class SessionService:
                 session["pickup"] = pickup
             if isinstance(destination, dict):
                 session["destination"] = destination
+            if booking.get("vehicle_type"):
+                session["vehicle_type"] = booking["vehicle_type"]
             if booking.get("booking_id"):
                 session["booking_id"] = booking["booking_id"]
+            session["booking_progress"] = SessionService._booking_progress(booking)
 
         session["current_workflow"] = (
             agent_state.current_workflow.value if agent_state.current_workflow else None
@@ -153,6 +178,45 @@ class SessionService:
         session["handoff_triggered"] = action.action_type is ActionType.HANDOFF
         if action.action_type is ActionType.END_SESSION:
             session["status"] = "ENDED"
+
+    @staticmethod
+    def _booking_progress(booking: dict[str, object]) -> dict[str, object]:
+        def field_value(
+            place: object,
+            query: object,
+        ) -> dict[str, object] | None:
+            if isinstance(place, dict):
+                label = place.get("display_name") or place.get("name")
+                if label:
+                    return {
+                        "label": str(label),
+                        "resolved": True,
+                        "place_id": place.get("place_id"),
+                    }
+            if query:
+                return {"label": str(query), "resolved": False, "place_id": None}
+            return None
+
+        pickup = field_value(booking.get("pickup"), booking.get("pickup_query"))
+        destination = field_value(
+            booking.get("destination"),
+            booking.get("destination_query"),
+        )
+        vehicle_type = booking.get("vehicle_type")
+        missing_field = None
+        if pickup is None:
+            missing_field = "pickup"
+        elif destination is None:
+            missing_field = "destination"
+        elif not vehicle_type:
+            missing_field = "vehicle_type"
+
+        return {
+            "pickup": pickup,
+            "destination": destination,
+            "vehicle_type": vehicle_type,
+            "missing_field": missing_field,
+        }
 
     def _format_action_response(
         self,
@@ -169,14 +233,18 @@ class SessionService:
 
         booking = None
         booking_data = agent_state.collected_data.get("booking")
-        if isinstance(booking_data, dict) and booking_data.get("booking_id"):
-            booking = {
-                "booking_id": booking_data["booking_id"],
-                "status": booking_data.get("booking_status", "CONFIRMED"),
-                "estimated_fare": int(booking_data.get("fare_amount") or 85000),
-            }
+        booking_progress = None
+        if isinstance(booking_data, dict):
+            booking_progress = self._booking_progress(booking_data)
+            if booking_data.get("booking_id"):
+                booking = {
+                    "booking_id": booking_data["booking_id"],
+                    "status": booking_data.get("booking_status", "CONFIRMED"),
+                    "estimated_fare": int(booking_data.get("fare_amount") or 85000),
+                }
 
         message = action.message or "Em đang hỗ trợ anh/chị."
+
         state = {
             key: session.get(key)
             for key in (
@@ -189,6 +257,7 @@ class SessionService:
                 "booking_id",
             )
         }
+        state["booking_progress"] = booking_progress
         return {
             "message_id": f"msg_{uuid4().hex[:10]}",
             "action": action_name,
@@ -196,3 +265,28 @@ class SessionService:
             "state": state,
             "booking": booking,
         }
+
+    @classmethod
+    def _log_conversation_turn(
+        cls,
+        session: dict[str, object],
+        *,
+        user_message: str,
+        source: str,
+        stt_confidence: float | None,
+        response: dict[str, object],
+    ) -> None:
+        log_file = session.get("log_file")
+        if not isinstance(log_file, str) or not user_message:
+            return
+        cls._conversation_logger.log_turn(
+            log_file,
+            user_message=user_message,
+            source=source,
+            stt_confidence=stt_confidence,
+            agent_message=str(response.get("message", "")),
+            message_id=str(response.get("message_id", "")),
+            action=str(response.get("action", "")),
+            state=response.get("state") if isinstance(response.get("state"), dict) else None,
+            booking=response.get("booking") if isinstance(response.get("booking"), dict) else None,
+        )

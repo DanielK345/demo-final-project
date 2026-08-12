@@ -44,6 +44,27 @@ def booking_state(
 
 
 @pytest.mark.asyncio
+async def test_booking_recognizes_destination_when_asked_for_pickup():
+    workflow = RideBookingWorkflow()
+    state = booking_state(step=BookingStep.COLLECT_PICKUP)
+
+    action = await workflow.handle(
+        AgentInput(
+            session_id="session-001",
+            transcript="TÔI MUỐN ĐI PHỤ CỦ HÀ NộI",
+        ),
+        state,
+    )
+
+    assert action.action_type is ActionType.ASK_USER
+    assert action.state_updates["current_step"] == BookingStep.COLLECT_PICKUP
+    assert action.message == "Anh/chị muốn đón ở đâu?"
+    data = BookingData.model_validate(action.state_updates["collected_data"]["booking"])
+    assert data.destination_query == "PHỤ CỦ HÀ NộI"
+    assert data.pickup is None
+
+
+@pytest.mark.asyncio
 async def test_booking_starts_by_asking_for_pickup():
     action = await RideBookingWorkflow().handle(
         AgentInput(session_id="session-001", transcript="Tôi muốn đặt xe"),

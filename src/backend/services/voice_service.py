@@ -43,6 +43,7 @@ class VoiceService:
             session_id,
             transcript,
             self.DEFAULT_STT_CONFIDENCE,
+            source="VOICE",
         )
         reply_text = str(agent_result["message"])
 
