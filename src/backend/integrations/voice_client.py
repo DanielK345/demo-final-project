@@ -9,7 +9,6 @@ from openai import AsyncOpenAI
 
 from src.config import Settings, get_settings
 
-
 VoiceProviderName = Literal["openai", "gemini"]
 
 

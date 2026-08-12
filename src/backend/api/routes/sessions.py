@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Header, HTTPException, status
 
-from src.backend.controllers.session_controller import SessionController
 from src.backend.api.routes.auth import service as auth_service
+from src.backend.controllers.session_controller import SessionController
 from src.backend.schemas.session import (
     CreateSessionDTO,
     EndSessionDTO,
@@ -16,7 +16,6 @@ from src.backend.schemas.session import (
     SessionUpdateDTO,
 )
 from src.backend.services.session_service import SessionService
-
 
 router = APIRouter(prefix="/sessions", tags=["sessions"])
 controller = SessionController()

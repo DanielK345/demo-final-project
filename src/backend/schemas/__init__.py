@@ -1,5 +1,5 @@
-from src.backend.schemas.booking import BookingRequestDTO, BookingResponseDTO
 from src.backend.schemas.auth import AuthResponseDTO, CurrentUserDTO, LoginRequestDTO, RegisterRequestDTO
+from src.backend.schemas.booking import BookingRequestDTO, BookingResponseDTO
 from src.backend.schemas.call import CallResponseDTO, CallStreamEventDTO, CreateCallDTO
 from src.backend.schemas.common import LocationDTO
 from src.backend.schemas.handoff import HandoffAcceptanceDTO, HandoffDTO, HandoffResponseDTO

@@ -1,5 +1,6 @@
-import pytest
 from unittest.mock import AsyncMock, patch
+
+import pytest
 
 from src.backend.integrations.voice_client import resolve_voice_provider
 from src.config import Settings

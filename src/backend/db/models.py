@@ -14,7 +14,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, JSON, String, Text
+from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 
@@ -31,8 +31,8 @@ class User(Base):
     role: Mapped[str] = mapped_column(String(20), nullable=False, default="CUSTOMER")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
-    tokens: Mapped[list["AuthToken"]] = relationship(back_populates="user", cascade="all, delete-orphan")
-    ride_sessions: Mapped[list["RideSession"]] = relationship(back_populates="user")
+    tokens: Mapped[list[AuthToken]] = relationship(back_populates="user", cascade="all, delete-orphan")
+    ride_sessions: Mapped[list[RideSession]] = relationship(back_populates="user")
 
 
 class AuthToken(Base):
@@ -47,7 +47,7 @@ class AuthToken(Base):
     issued_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
 
-    user: Mapped["User"] = relationship(back_populates="tokens")
+    user: Mapped[User] = relationship(back_populates="tokens")
 
 
 class RideSession(Base):
@@ -80,8 +80,8 @@ class RideSession(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
-    user: Mapped["User"] = relationship(back_populates="ride_sessions")
-    bookings: Mapped[list["Booking"]] = relationship(back_populates="session")
+    user: Mapped[User] = relationship(back_populates="ride_sessions")
+    bookings: Mapped[list[Booking]] = relationship(back_populates="session")
 
 
 class Booking(Base):
@@ -99,8 +99,8 @@ class Booking(Base):
     eta_minutes: Mapped[int | None] = mapped_column(Integer, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
-    session: Mapped["RideSession"] = relationship(back_populates="bookings")
-    trip: Mapped["Trip"] = relationship(back_populates="booking", uselist=False, cascade="all, delete-orphan")
+    session: Mapped[RideSession] = relationship(back_populates="bookings")
+    trip: Mapped[Trip] = relationship(back_populates="booking", uselist=False, cascade="all, delete-orphan")
 
 
 class Trip(Base):
@@ -117,7 +117,7 @@ class Trip(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
-    booking: Mapped["Booking"] = relationship(back_populates="trip")
+    booking: Mapped[Booking] = relationship(back_populates="trip")
 
 
 class Handoff(Base):

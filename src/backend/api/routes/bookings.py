@@ -3,7 +3,6 @@ from fastapi import APIRouter, Header, HTTPException, status
 from src.backend.controllers.booking_controller import BookingController
 from src.backend.schemas.booking import BookingRequestDTO, BookingResponseDTO
 
-
 router = APIRouter(prefix="/bookings", tags=["bookings"])
 controller = BookingController()
 

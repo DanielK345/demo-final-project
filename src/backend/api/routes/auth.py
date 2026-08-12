@@ -3,7 +3,6 @@ from fastapi import APIRouter, Header, HTTPException, status
 from src.backend.schemas.auth import AuthResponseDTO, CurrentUserDTO, LoginRequestDTO, RegisterRequestDTO
 from src.backend.services.auth_service import AuthService
 
-
 router = APIRouter(prefix="/auth", tags=["authentication"])
 service = AuthService()
 

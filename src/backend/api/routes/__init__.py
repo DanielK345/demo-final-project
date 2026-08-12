@@ -12,7 +12,6 @@ from src.backend.api.routes.voice import router as voice_router
 from src.backend.integrations.voice_client import resolve_voice_provider
 from src.backend.models.schemas import ChatRequest, ChatResponse
 
-
 router = APIRouter()
 
 router.include_router(auth_router)

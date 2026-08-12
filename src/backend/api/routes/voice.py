@@ -38,7 +38,18 @@ from __future__ import annotations
 import logging
 import os
 
-from fastapi import APIRouter, File, Form, Header, HTTPException, Response, UploadFile, WebSocket, WebSocketDisconnect, status
+from fastapi import (
+    APIRouter,
+    File,
+    Form,
+    Header,
+    HTTPException,
+    Response,
+    UploadFile,
+    WebSocket,
+    WebSocketDisconnect,
+    status,
+)
 from pydantic import BaseModel, Field
 
 from src.backend.api.routes.sessions import _require_session_access
