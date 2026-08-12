@@ -57,10 +57,23 @@ class AgentToolExecutor:
                 ]
             }
         if tool_call.tool_name is ToolName.CREATE_BOOKING:
+            # Import trễ (trong hàm) để tránh circular import: session_service.py đã
+            # import AgentToolExecutor, nên import ngược SessionService ở top-level file
+            # này sẽ vòng lặp. Đọc session để gắn user_id/pickup/destination/vehicle_type
+            # thật vào booking — tại thời điểm tool này chạy (bước CONFIRM), turn trước
+            # đã resolve xong pickup/destination nên session[...] đã có dữ liệu thật (xem
+            # SessionService._sync_legacy_session_fields).
+            from src.backend.services.session_service import SessionService
+
+            session = SessionService.sessions.get(session_id) or {}
             booking = BookingService().create_booking(
                 {
                     "idempotency_key": f"{session_id}:create_booking:1",
                     "estimated_fare": 85000,
+                    "user_id": session.get("user_id"),
+                    "pickup": session.get("pickup"),
+                    "destination": session.get("destination"),
+                    "vehicle_type": session.get("vehicle_type"),
                 }
             )
             return {

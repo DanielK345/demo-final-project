@@ -1,4 +1,4 @@
-from src.backend.schemas.booking import BookingRequestDTO, BookingResponseDTO
+from src.backend.schemas.booking import BookingRequestDTO, BookingResponseDTO, BookingSummaryDTO
 from src.backend.services.booking_service import BookingService
 from src.backend.services.session_service import SessionService
 
@@ -16,3 +16,6 @@ class BookingController:
         payload = request.model_dump()
         payload["idempotency_key"] = idempotency_key
         return BookingResponseDTO(**self.service.create_booking(payload))
+
+    async def list_bookings(self, user_id: str) -> list[BookingSummaryDTO]:
+        return [BookingSummaryDTO(**booking) for booking in self.service.list_bookings_for_user(user_id)]
