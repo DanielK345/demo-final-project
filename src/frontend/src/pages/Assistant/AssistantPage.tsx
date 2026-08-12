@@ -116,7 +116,10 @@ export const AssistantPage: React.FC = () => {
             {isSending && <p className="text-sm text-slate-500 animate-pulse">AloSM đang xử lý…</p>}
           </div>
           {notice && <p className="mt-4 text-sm bg-amber-50 text-amber-800 rounded-xl p-3">{notice}</p>}
-          <div className="flex flex-wrap gap-2 mt-4"><button onClick={() => send("Đặt xe từ Quận 1 đến sân bay Tân Sơn Nhất")} className="text-xs bg-slate-100 rounded-full px-3 py-2 hover:bg-slate-200">Đặt xe ra sân bay</button><button onClick={() => send("Tôi muốn gặp tổng đài viên")} className="text-xs bg-slate-100 rounded-full px-3 py-2 hover:bg-slate-200">Gặp tổng đài viên</button></div>
+          <div className="flex flex-wrap gap-2 mt-4">
+            <button onClick={() => send("Đặt xe từ Quận 1 đến sân bay Tân Sơn Nhất")} className="text-xs bg-slate-100 rounded-full px-3 py-2 hover:bg-slate-200">Đặt xe ra sân bay</button>
+            <button onClick={() => send("Tôi muốn gặp tổng đài viên")} className="text-xs bg-slate-100 rounded-full px-3 py-2 hover:bg-slate-200">Gặp tổng đài viên</button>
+          </div>
           <form onSubmit={(event) => { event.preventDefault(); send(text); }} className="flex gap-2 border-t border-slate-100 mt-5 pt-4">
             <input value={text} onChange={(event) => setText(event.target.value)} disabled={!sessionId || isSending} className="flex-1 rounded-xl bg-slate-100 px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-[#00D1C1]" placeholder="Nhập điểm đón và điểm đến…" />
             <button disabled={!text.trim() || !sessionId || isSending} className="w-12 rounded-xl bg-[#00D1C1] text-white grid place-items-center disabled:opacity-50" aria-label="Gửi"><Send className="w-5 h-5" /></button>
