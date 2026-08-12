@@ -1,14 +1,9 @@
 from typing import Any
 from uuid import uuid4
 
-<<<<<<< HEAD:src/backend/agents/graph.py
-from src.backend.agents.nodes.example_node import analyze_node, respond_node
-from src.backend.agents.state import AgentState
-=======
 from src.agents.agent import LLMAgent
 from src.agents.schemas import AgentInput, ToolResult
 from src.agents.state import AgentState
->>>>>>> 8cd3a39b010f5ca897c1f87bdcc03f29e9a49cc0:src/agents/graph.py
 
 
 class AgentGraphAdapter:

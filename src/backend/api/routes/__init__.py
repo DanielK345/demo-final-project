@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException
 
-from src.backend.agents.graph import agent
+from src.agents.graph import agent
 from src.backend.api.routes.auth import router as auth_router
 from src.backend.api.routes.bookings import router as bookings_router
 from src.backend.api.routes.calls import router as calls_router

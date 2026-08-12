@@ -13,29 +13,6 @@ class ConfirmationStatus(StrEnum):
     REJECTED = "REJECTED"
 
 
-<<<<<<< HEAD:src/backend/agents/state.py
-    query: str
-    context: str
-    analysis: str
-    response: str
-    error: str
-    metadata: dict
-    session_id: str
-    intent: str
-    pickup: dict
-    destination: dict
-    vehicle_type: str
-    confirmation_status: str
-    asr_confidence: float
-    failed_count: int
-    last_user_text: str
-    last_action: str
-    tool_result: dict
-    handoff_candidate: bool
-    handoff_reason: str
-    booking_id: str
-    handoff_triggered: bool
-=======
 class ConversationRole(StrEnum):
     USER = "USER"
     ASSISTANT = "ASSISTANT"
@@ -97,4 +74,3 @@ class AgentState(BaseModel):
         history = [*self.conversation_history, message]
         bounded_history = history[-self.max_history_messages :]
         return self.apply({"conversation_history": bounded_history})
->>>>>>> 8cd3a39b010f5ca897c1f87bdcc03f29e9a49cc0:src/agents/state.py

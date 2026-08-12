@@ -1,4 +1,4 @@
-from src.backend.agents.state import AgentState
+from src.agents.state import AgentState
 
 
 async def collect_node(state: AgentState) -> dict:

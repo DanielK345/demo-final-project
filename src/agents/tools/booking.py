@@ -1,7 +1,3 @@
-<<<<<<< HEAD:src/backend/agents/tools/booking.py
-async def create_booking(payload: dict[str, object]) -> dict[str, object]:
-    return {"status": "pending", "payload": payload}
-=======
 from typing import Any
 
 from src.agents.schemas import ToolCall, ToolName
@@ -19,4 +15,8 @@ class CreateBookingTool(BaseTool):
             call_id=call_id,
             params=validated.model_dump(),
         )
->>>>>>> 8cd3a39b010f5ca897c1f87bdcc03f29e9a49cc0:src/agents/tools/booking.py
+
+
+async def create_booking(payload: dict[str, object]) -> dict[str, object]:
+    """Compatibility placeholder for integrations not yet using tool calls."""
+    return {"status": "pending", "payload": payload}
