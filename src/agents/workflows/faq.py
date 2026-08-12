@@ -26,6 +26,7 @@ from src.agents.tools.lifecycle import (
     pending_tool_updates,
 )
 from src.agents.tools.schemas import KnowledgeDocument, RetrieveKnowledgeResult
+from src.agents.understanding.models import UnderstandingResult
 from src.agents.workflows.base import BaseWorkflow
 from src.agents.workflows.faq_models import FAQData, FAQStep
 from src.agents.workflows.handoff import HandoffWorkflow
@@ -58,7 +59,9 @@ class FAQWorkflow(BaseWorkflow):
         self,
         agent_input: AgentInput,
         state: AgentState,
+        understanding: UnderstandingResult | None = None,
     ) -> AgentAction:
+        del understanding
         if agent_input.session_id != state.session_id:
             raise ValueError("agent input and state must belong to the same session")
 

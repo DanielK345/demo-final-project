@@ -23,6 +23,7 @@ from src.agents.tools.lifecycle import (
 )
 from src.agents.tools.schemas import LookupTripResult
 from src.agents.tools.trip import LookupTripTool
+from src.agents.understanding.models import UnderstandingResult
 from src.agents.workflows.base import BaseWorkflow
 from src.agents.workflows.handoff import HandoffWorkflow
 from src.agents.workflows.trip_lookup_models import TripLookupData, TripLookupStep
@@ -50,6 +51,7 @@ class TripLookupWorkflow(BaseWorkflow):
         self,
         agent_input: AgentInput,
         state: AgentState,
+        understanding: UnderstandingResult | None = None,
     ) -> AgentAction:
         if agent_input.session_id != state.session_id:
             raise ValueError("agent input and state must belong to the same session")
@@ -76,7 +78,9 @@ class TripLookupWorkflow(BaseWorkflow):
                 reason="The trip lookup workflow is already complete.",
             )
 
-        identifier = self._extract_identifier(agent_input.transcript)
+        identifier = self._understood_identifier(understanding)
+        if identifier is None:
+            identifier = self._extract_identifier(agent_input.transcript)
         if identifier is None:
             return self._ask_for_identifier(state, data)
 
@@ -274,4 +278,16 @@ class TripLookupWorkflow(BaseWorkflow):
             )
         if booking_match is not None:
             return "booking_id", booking_match.group("value")
+        return None
+
+    @staticmethod
+    def _understood_identifier(
+        understanding: UnderstandingResult | None,
+    ) -> tuple[str, str] | None:
+        if understanding is None:
+            return None
+        if understanding.booking_id:
+            return "booking_id", understanding.booking_id
+        if understanding.phone_number:
+            return "phone_number", understanding.phone_number
         return None

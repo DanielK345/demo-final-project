@@ -11,6 +11,7 @@ from src.agents.schemas import (
     WorkflowType,
 )
 from src.agents.state import AgentState
+from src.agents.understanding.models import UnderstandingResult
 from src.agents.workflows.base import BaseWorkflow
 
 
@@ -25,7 +26,9 @@ class RecordingWorkflow(BaseWorkflow):
         self,
         agent_input: AgentInput,
         state: AgentState,
+        understanding: UnderstandingResult | None = None,
     ) -> AgentAction:
+        del understanding
         self.was_called = True
         self.received_input = agent_input
         return AgentAction(

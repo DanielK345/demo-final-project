@@ -21,7 +21,8 @@ from src.agents.workflows.base import BaseWorkflow
 class UnsafeBookingWorkflow(BaseWorkflow):
     workflow_type = WorkflowType.RIDE_BOOKING
 
-    async def handle(self, agent_input, state):
+    async def handle(self, agent_input, state, understanding=None):
+        del agent_input, state, understanding
         call = ToolCall(
             tool_name=ToolName.CREATE_BOOKING,
             call_id="unsafe-call",

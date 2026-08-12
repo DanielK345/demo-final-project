@@ -1,8 +1,13 @@
+import os
 from unittest.mock import AsyncMock
 
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
+
+# Unit tests must remain deterministic even when local development enables the
+# real provider in .env. Provider tests instantiate their adapter explicitly.
+os.environ["AGENT_LLM_ENABLED"] = "false"
 
 from src.main import app
 

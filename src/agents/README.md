@@ -659,6 +659,7 @@ F7 FAQ + grounded RAG             implemented
 F8 Guardrails & Offline Eval      implemented
 LangGraph one-turn orchestration  implemented
 Multi-turn integration scenarios implemented
+OpenAI structured understanding      implemented (opt-in)
 ```
 
 Validation command:
@@ -677,7 +678,35 @@ Integration contract cho Backend nằm tại
 .venv/bin/python -m examples.core_agent_demo
 ```
 
-Ngoài scope Core Agent MVP: real LLM/NLU provider, Maps/Booking/Trip executors,
-production knowledge ingestion/vector store, PostgreSQL/Redis persistence,
+Ngoài scope Core Agent MVP: Maps/Booking/Trip executors, production knowledge
+ingestion/vector store, PostgreSQL/Redis persistence,
 FastAPI endpoints và Voice Runtime. Các integration này phải giữ nguyên shared
 contracts và boundary Agent quyết định/Backend thực thi.
+
+### OpenAI structured language understanding
+
+Core Agent có provider-independent `LanguageUnderstandingPort`. Mặc định
+`AGENT_LLM_ENABLED=false` để offline tests và local fallback dùng
+`RuleBasedUnderstanding`. Bật OpenAI Responses API structured output bằng:
+
+```env
+OPENAI_API_KEY=...
+AGENT_LLM_ENABLED=true
+AGENT_LLM_PROVIDER=openai
+AGENT_LLM_MODEL=gpt-5.6-luna
+AGENT_LLM_TIMEOUT_SECONDS=5
+AGENT_LLM_REASONING_EFFORT=none
+```
+
+OpenAI chỉ extract intent/slots/correction/confirmation. Router, workflow,
+confirmation safety và tool execution vẫn deterministic. Provider timeout/error
+fallback về rules. Tool-result-only turn không gọi LLM.
+
+Unit tests không gọi provider. Chạy integration test thật có chủ đích:
+
+```bash
+RUN_OPENAI_INTEGRATION=1 \
+OPENAI_API_KEY="..." \
+AGENT_LLM_MODEL="gpt-5.6-luna" \
+.venv/bin/python -m pytest -q -m provider tests/integration
+```

@@ -1,6 +1,7 @@
 from src.agents.policy import AgentPolicy
 from src.agents.schemas import AgentInput, WorkflowType
 from src.agents.state import AgentState
+from src.agents.understanding.models import UnderstandingIntent, UnderstandingResult
 
 
 class UnsupportedIntentError(ValueError):
@@ -34,8 +35,19 @@ class AgentRouter:
     def __init__(self, policy: AgentPolicy | None = None) -> None:
         self.policy = policy or AgentPolicy()
 
-    def route(self, agent_input: AgentInput, state: AgentState) -> WorkflowType:
-        if self._requires_handoff(agent_input, state):
+    def route(
+        self,
+        agent_input: AgentInput,
+        state: AgentState,
+        understanding: UnderstandingResult | None = None,
+    ) -> WorkflowType:
+        if self.requires_immediate_handoff(agent_input, state):
+            return WorkflowType.HUMAN_HANDOFF
+
+        if (
+            understanding is not None
+            and understanding.intent is UnderstandingIntent.HUMAN_HANDOFF
+        ):
             return WorkflowType.HUMAN_HANDOFF
 
         if state.current_workflow is not None:
@@ -46,7 +58,23 @@ class AgentRouter:
                 "Tool result cannot be routed without a current workflow"
             )
 
+        if understanding is not None:
+            workflow = self._workflow_from_understanding(understanding.intent)
+            if workflow is not None:
+                return workflow
         return self.classify_intent(agent_input.transcript)
+
+    @staticmethod
+    def _workflow_from_understanding(
+        intent: UnderstandingIntent,
+    ) -> WorkflowType | None:
+        mapping = {
+            UnderstandingIntent.RIDE_BOOKING: WorkflowType.RIDE_BOOKING,
+            UnderstandingIntent.TRIP_LOOKUP: WorkflowType.TRIP_LOOKUP,
+            UnderstandingIntent.FAQ: WorkflowType.FAQ,
+            UnderstandingIntent.HUMAN_HANDOFF: WorkflowType.HUMAN_HANDOFF,
+        }
+        return mapping.get(intent)
 
     def classify_intent(self, transcript: str) -> WorkflowType:
         normalized_transcript = transcript.casefold().strip()
@@ -61,7 +89,7 @@ class AgentRouter:
             return WorkflowType.FAQ
         raise UnsupportedIntentError("No workflow matched the current input")
 
-    def _requires_handoff(
+    def requires_immediate_handoff(
         self,
         agent_input: AgentInput,
         state: AgentState,
