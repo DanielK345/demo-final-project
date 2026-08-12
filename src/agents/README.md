@@ -644,24 +644,40 @@ Booking API, Trip API hoặc vector service thật.
 - [ ] Ruff và compile check pass.
 - [ ] PR target là `feature/agentic-ai`.
 
-## 11. Trạng thái baseline khi giao feature
+## 11. Trạng thái Core Agent MVP
 
-Baseline hiện được xác nhận bằng:
-
-```text
-16 tests passed
-Ruff: All checks passed
-Python compile: passed
-```
-
-Các hành vi skeleton đã chạy:
+Core Agent MVP đã hoàn thành:
 
 ```text
-đặt xe      → ASK_USER / RIDE_BOOKING
-tra cứu     → ASK_USER / TRIP_LOOKUP
-người thật  → HANDOFF / HUMAN_HANDOFF
-FAQ         → CALL_TOOL / RETRIEVE_KNOWLEDGE
+F1 Core & Routing                 implemented
+F2 State & Memory                 implemented
+F3 Ride Booking                   implemented
+F4 Trip Lookup                    implemented
+F5 Human Handoff                  implemented
+F6 Tool Calling Lifecycle         implemented
+F7 FAQ + grounded RAG             implemented
+F8 Guardrails & Offline Eval      implemented
+LangGraph one-turn orchestration  implemented
+Multi-turn integration scenarios implemented
 ```
 
-Khi feature implementation thay đổi hành vi này, owner phải cập nhật test tương
-ứng nhưng vẫn giữ đúng shared contracts và nguyên tắc Agent không tạo side effect.
+Validation command:
+
+```bash
+.venv/bin/python -m pytest -q
+.venv/bin/python -m ruff check src tests examples
+.venv/bin/python -m compileall -q src tests examples
+git diff --check
+```
+
+Integration contract cho Backend nằm tại
+[`BACKEND_INTEGRATION.md`](BACKEND_INTEGRATION.md). Demo text-mode chạy bằng:
+
+```bash
+.venv/bin/python -m examples.core_agent_demo
+```
+
+Ngoài scope Core Agent MVP: real LLM/NLU provider, Maps/Booking/Trip executors,
+production knowledge ingestion/vector store, PostgreSQL/Redis persistence,
+FastAPI endpoints và Voice Runtime. Các integration này phải giữ nguyên shared
+contracts và boundary Agent quyết định/Backend thực thi.
