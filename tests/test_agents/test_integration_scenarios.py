@@ -112,11 +112,7 @@ async def test_booking_happy_path_through_langgraph():
     assert ask_vehicle.action_type is ActionType.ASK_USER
     assert "loại xe" in ask_vehicle.message
 
-    ask_phone = await scenario.user_turn("xe 4 chỗ")
-    assert ask_phone.action_type is ActionType.ASK_USER
-    assert "số điện thoại" in ask_phone.message
-
-    confirmation = await scenario.user_turn("0901234567")
+    confirmation = await scenario.user_turn("xe 4 chỗ")
     assert confirmation.action_type is ActionType.ASK_USER
     assert "xác nhận" in confirmation.message
 
@@ -127,7 +123,7 @@ async def test_booking_happy_path_through_langgraph():
     assert booking_call.tool_call.params == {
         "pickup_place_id": "pickup-1",
         "destination_place_id": "destination-1",
-        "phone_number": "0901234567",
+        "phone_number": "authenticated_account",
     }
 
     completed = await scenario.tool_turn(

@@ -13,7 +13,7 @@ type Message = { id: string; role: "user" | "assistant"; text: string };
 
 export const AssistantPage: React.FC = () => {
   const [sessionId, setSessionId] = useState<string | null>(null);
-  const [messages, setMessages] = useState<Message[]>([{ id: "welcome", role: "assistant", text: "Xin chào! Để đặt xe, anh/chị vui lòng cho em biết điểm đón, điểm đến và loại xe (4 chỗ, 7 chỗ hoặc hạng sang)." }]);
+  const [messages, setMessages] = useState<Message[]>([{ id: "welcome", role: "assistant", text: "Xin chào! Em chỉ cần điểm đón, điểm đến và loại xe (4 chỗ, 7 chỗ hoặc hạng sang). Em không hỏi số điện thoại, email hay thông tin riêng tư." }]);
   const [text, setText] = useState("");
   const [isSending, setIsSending] = useState(false);
   const [isListening, setIsListening] = useState(false);

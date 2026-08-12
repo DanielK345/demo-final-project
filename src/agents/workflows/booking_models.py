@@ -13,7 +13,6 @@ class BookingStep(StrEnum):
     WAITING_FOR_DESTINATION_RESULT = "WAITING_FOR_DESTINATION_RESULT"
     SELECT_DESTINATION_CANDIDATE = "SELECT_DESTINATION_CANDIDATE"
     COLLECT_VEHICLE_TYPE = "COLLECT_VEHICLE_TYPE"
-    COLLECT_PHONE = "COLLECT_PHONE"
     CONFIRM = "CONFIRM"
     WAITING_FOR_BOOKING_RESULT = "WAITING_FOR_BOOKING_RESULT"
     COMPLETE = "COMPLETE"
@@ -33,7 +32,6 @@ class BookingData(BaseModel):
     destination: PlaceCandidate | None = None
     destination_candidates: list[PlaceCandidate] = Field(default_factory=list)
     vehicle_type: VehicleType | None = None
-    phone_number: str | None = None
     booking_id: str | None = None
     booking_status: str | None = None
     eta_minutes: int | None = Field(default=None, ge=0)

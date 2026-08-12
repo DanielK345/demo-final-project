@@ -172,7 +172,7 @@ async def test_booking_happy_path_requires_confirmation_before_create_booking():
     assert destination_call.tool_call.tool_name is ToolName.SEARCH_PLACE
     state = apply_action(state, destination_call)
 
-    ask_phone = await workflow.handle(
+    ask_vehicle = await workflow.handle(
         AgentInput(
             session_id="session-001",
             tool_result=place_result(
@@ -182,20 +182,12 @@ async def test_booking_happy_path_requires_confirmation_before_create_booking():
         ),
         state,
     )
-    assert ask_phone.action_type is ActionType.ASK_USER
-    assert ask_phone.state_updates["current_step"] == BookingStep.COLLECT_VEHICLE_TYPE
-    state = apply_action(state, ask_phone)
-
-    ask_phone_number = await workflow.handle(
-        AgentInput(session_id="session-001", transcript="xe 4 chỗ"),
-        state,
-    )
-    assert ask_phone_number.action_type is ActionType.ASK_USER
-    assert ask_phone_number.state_updates["current_step"] == BookingStep.COLLECT_PHONE
-    state = apply_action(state, ask_phone_number)
+    assert ask_vehicle.action_type is ActionType.ASK_USER
+    assert ask_vehicle.state_updates["current_step"] == BookingStep.COLLECT_VEHICLE_TYPE
+    state = apply_action(state, ask_vehicle)
 
     confirmation = await workflow.handle(
-        AgentInput(session_id="session-001", transcript="0901234567"),
+        AgentInput(session_id="session-001", transcript="xe 4 chỗ"),
         state,
     )
     assert confirmation.action_type is ActionType.ASK_USER
@@ -216,7 +208,7 @@ async def test_booking_happy_path_requires_confirmation_before_create_booking():
     assert booking_call.tool_call.params == {
         "pickup_place_id": "pickup-1",
         "destination_place_id": "destination-1",
-        "phone_number": "0901234567",
+        "phone_number": "authenticated_account",
     }
     state = apply_action(state, booking_call)
 
@@ -252,7 +244,6 @@ async def test_booking_does_not_create_booking_for_unclear_confirmation():
             "pickup": {"place_id": "p1", "display_name": "Hồ Gươm"},
             "destination": {"place_id": "p2", "display_name": "Times City"},
             "vehicle_type": "4_SEAT",
-            "phone_number": "0901234567",
         }
     )
     state = booking_state(
@@ -278,7 +269,6 @@ async def test_booking_correction_resets_confirmation_and_resolves_again():
             "pickup": {"place_id": "p1", "display_name": "Hồ Gươm"},
             "destination": {"place_id": "p2", "display_name": "Times City"},
             "vehicle_type": "4_SEAT",
-            "phone_number": "0901234567",
         }
     )
     state = booking_state(

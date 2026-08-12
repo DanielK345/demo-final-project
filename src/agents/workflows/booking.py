@@ -36,7 +36,6 @@ _ROUTE_PATTERN = re.compile(
     r"\btừ\s+(?P<pickup>.+?)\s+(?:đến|tới|về)\s+(?P<destination>.+)$",
     re.IGNORECASE,
 )
-_PHONE_PATTERN = re.compile(r"(?<!\d)(?:\+?84|0)(?:[ .-]?\d){9}(?!\d)")
 _CONFIRM_TERMS = ("đúng", "đồng ý", "xác nhận", "đặt đi", "đặt giúp")
 _REJECT_TERMS = ("không", "chưa", "hủy", "sai rồi")
 _PICKUP_CORRECTION = re.compile(
@@ -58,9 +57,10 @@ _VEHICLE_LABELS: dict[VehicleType, str] = {
     VehicleType.PREMIUM: "xe hạng sang",
 }
 _BOOKING_INTRO = (
-    "Để đặt xe, anh/chị cần cung cấp điểm đón, điểm đến và loại xe "
-    "(4 chỗ, 7 chỗ hoặc hạng sang)."
+    "Em chỉ cần điểm đón, điểm đến và loại xe (4 chỗ, 7 chỗ hoặc hạng sang). "
+    "Em không hỏi số điện thoại, email hay thông tin riêng tư."
 )
+_ACCOUNT_PHONE_PLACEHOLDER = "authenticated_account"
 
 
 class RideBookingWorkflow(BaseWorkflow):
@@ -112,8 +112,6 @@ class RideBookingWorkflow(BaseWorkflow):
             return self._select_candidate(state, data, transcript, pickup=False)
         if step is BookingStep.COLLECT_VEHICLE_TYPE:
             return self._collect_vehicle_type(state, data, transcript, understanding)
-        if step is BookingStep.COLLECT_PHONE:
-            return self._collect_phone(state, data, transcript, understanding)
         if step is BookingStep.CONFIRM:
             return self._handle_confirmation(
                 state,
@@ -152,8 +150,6 @@ class RideBookingWorkflow(BaseWorkflow):
             data.destination_query = understanding.destination_query
             if understanding.vehicle_type:
                 data.vehicle_type = self._normalize_vehicle_type(understanding.vehicle_type)
-            if understanding.phone_number:
-                data.phone_number = understanding.phone_number
             return self._request_place(
                 state,
                 data,
@@ -200,8 +196,6 @@ class RideBookingWorkflow(BaseWorkflow):
             data.destination_query = understanding.destination_query
         if understanding is not None and understanding.vehicle_type:
             data.vehicle_type = self._normalize_vehicle_type(understanding.vehicle_type)
-        if understanding is not None and understanding.phone_number:
-            data.phone_number = understanding.phone_number
         if not pickup:
             return self._retry_ask(
                 state,
@@ -232,8 +226,6 @@ class RideBookingWorkflow(BaseWorkflow):
             if understanding is not None and understanding.destination_query
             else transcript
         )
-        if understanding is not None and understanding.phone_number:
-            data.phone_number = understanding.phone_number
         if not destination:
             return self._retry_ask(
                 state,
@@ -469,15 +461,6 @@ class RideBookingWorkflow(BaseWorkflow):
                 reason="Vehicle type is required before confirmation.",
                 clear_pending=clear_pending,
             )
-        if not data.phone_number:
-            return self._ask(
-                state,
-                data,
-                step=BookingStep.COLLECT_PHONE,
-                message="Anh/chị vui lòng cung cấp số điện thoại đặt xe.",
-                reason="A phone number is required before confirmation.",
-                clear_pending=clear_pending,
-            )
         return self._confirmation_action(state, data, clear_pending=clear_pending)
 
     def _collect_vehicle_type(
@@ -503,36 +486,6 @@ class RideBookingWorkflow(BaseWorkflow):
                 ),
             )
         data.vehicle_type = vehicle_type
-        if not data.phone_number:
-            return self._ask(
-                state,
-                data,
-                step=BookingStep.COLLECT_PHONE,
-                message="Anh/chị vui lòng cung cấp số điện thoại đặt xe.",
-                reason="A phone number is required before confirmation.",
-            )
-        return self._confirmation_action(state, data)
-
-    def _collect_phone(
-        self,
-        state: AgentState,
-        data: BookingData,
-        transcript: str,
-        understanding: UnderstandingResult | None,
-    ) -> AgentAction:
-        phone = (
-            understanding.phone_number
-            if understanding is not None and understanding.phone_number
-            else self._extract_phone(transcript)
-        )
-        if phone is None:
-            return self._retry_ask(
-                state,
-                data,
-                BookingStep.COLLECT_PHONE,
-                "Số điện thoại chưa hợp lệ. Bạn vui lòng đọc lại.",
-            )
-        data.phone_number = phone
         return self._confirmation_action(state, data)
 
     def _confirmation_action(
@@ -581,7 +534,7 @@ class RideBookingWorkflow(BaseWorkflow):
                 state,
                 data,
                 step=BookingStep.CONFIRM,
-                message="Bạn muốn sửa điểm đón hay điểm đến?",
+                message="Anh/chị muốn sửa điểm đón, điểm đến hay loại xe?",
                 reason="The user rejected the booking details.",
                 confirmation=ConfirmationStatus.REJECTED,
             )
@@ -593,7 +546,7 @@ class RideBookingWorkflow(BaseWorkflow):
                 "Bạn vui lòng xác nhận đồng ý hoặc nói thông tin cần sửa.",
                 confirmation=ConfirmationStatus.AWAITING_CONFIRMATION,
             )
-        if data.pickup is None or data.destination is None or data.vehicle_type is None or data.phone_number is None:
+        if data.pickup is None or data.destination is None or data.vehicle_type is None:
             return AgentAction(
                 action_type=ActionType.HANDOFF,
                 message="Tôi sẽ chuyển bạn tới tổng đài viên để kiểm tra thông tin.",
@@ -616,7 +569,7 @@ class RideBookingWorkflow(BaseWorkflow):
             call_id,
             pickup_place_id=data.pickup.place_id,
             destination_place_id=data.destination.place_id,
-            phone_number=data.phone_number,
+            phone_number=_ACCOUNT_PHONE_PLACEHOLDER,
         )
         return AgentAction(
             action_type=ActionType.CALL_TOOL,
@@ -781,16 +734,6 @@ class RideBookingWorkflow(BaseWorkflow):
             return BookingStep(state.current_step)
         except ValueError:
             return None
-
-    @staticmethod
-    def _extract_phone(transcript: str) -> str | None:
-        match = _PHONE_PATTERN.search(transcript)
-        if match is None:
-            return None
-        phone = re.sub(r"\D", "", match.group())
-        if phone.startswith("84"):
-            phone = f"0{phone[2:]}"
-        return phone
 
     @staticmethod
     def _extract_correction(transcript: str) -> tuple[str, str] | None:

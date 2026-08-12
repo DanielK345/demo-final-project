@@ -1,5 +1,6 @@
 import re
 
+from src.agents.schemas import WorkflowType
 from src.agents.understanding.models import (
     ConfirmationIntent,
     Correction,
@@ -59,7 +60,6 @@ class RuleBasedUnderstanding:
         transcript: str,
         context: UnderstandingContext,
     ) -> UnderstandingResult:
-        del context
         normalized = transcript.casefold().strip()
         intent = UnderstandingIntent.UNKNOWN
         if any(term in normalized for term in self._HANDOFF_TERMS):
@@ -73,7 +73,9 @@ class RuleBasedUnderstanding:
 
         vehicle_type = self._parse_vehicle_type(normalized)
         route = _ROUTE_PATTERN.search(transcript)
-        phone_match = _PHONE_PATTERN.search(transcript)
+        phone_match = None
+        if context.current_workflow is not WorkflowType.RIDE_BOOKING:
+            phone_match = _PHONE_PATTERN.search(transcript)
         booking_match = _BOOKING_ID_PATTERN.search(transcript)
         corrections: list[Correction] = []
         pickup_correction = _PICKUP_CORRECTION.search(transcript)
