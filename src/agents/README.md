@@ -282,6 +282,17 @@ Backend; workflow chỉ quyết định business retry/handoff.
 Router chỉ chọn workflow. Router không thu thập pickup, không xác nhận booking và
 không diễn giải tool result.
 
+`graph.py` hiện compose một turn bằng LangGraph:
+
+```text
+normalize_input → invoke_core_agent → format_output
+```
+
+Graph không có checkpointer và không sở hữu business state. Nó chỉ là adapter
+orchestration giữ API `ainvoke` của starter template; Backend vẫn truyền
+`AgentState`, apply/persist `state_updates` và thực thi `AgentAction`. Graph không
+tự gọi tool và kết thúc sau đúng một action.
+
 ## 6. Quy tắc chỉnh shared files
 
 Các file sau ảnh hưởng nhiều feature và cần Agentic AI lead review:

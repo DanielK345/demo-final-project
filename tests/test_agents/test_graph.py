@@ -96,3 +96,44 @@ async def test_graph_passes_tool_result_to_agent():
     assert recording_agent.received_input is not None
     assert recording_agent.received_input.transcript == ""
     assert recording_agent.received_input.tool_result == tool_result
+
+
+@pytest.mark.asyncio
+async def test_graph_passes_stt_confidence_to_core_agent():
+    recording_agent = RecordingAgent()
+    graph = AgentGraphAdapter(llm_agent=recording_agent)
+
+    await graph.ainvoke(
+        {
+            "query": "Tôi muốn đặt xe",
+            "session_id": "session-001",
+            "stt_confidence": 0.91,
+        }
+    )
+
+    assert recording_agent.received_input is not None
+    assert recording_agent.received_input.stt_confidence == 0.91
+
+
+@pytest.mark.asyncio
+async def test_graph_uses_langgraph_without_owning_persistent_state():
+    graph = AgentGraphAdapter(llm_agent=RecordingAgent())
+
+    assert graph.compiled_graph is not None
+    assert graph.compiled_graph.checkpointer is None
+
+
+@pytest.mark.asyncio
+async def test_graph_preserves_adapter_input_fields():
+    graph = AgentGraphAdapter(llm_agent=RecordingAgent())
+
+    result = await graph.ainvoke(
+        {
+            "query": "Tôi muốn đặt xe",
+            "session_id": "session-001",
+            "request_id": "request-001",
+        }
+    )
+
+    assert result["request_id"] == "request-001"
+    assert result["action"]["action_type"] == ActionType.ASK_USER
