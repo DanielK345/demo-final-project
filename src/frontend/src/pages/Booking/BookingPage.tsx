@@ -8,9 +8,12 @@ import {
   Briefcase,
   MapPin,
   Clock,
+  AlertCircle,
 } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { MOCK_SERVICES_CATALOG, type ServiceOptionItem } from "@/features/booking/mockData";
+import { createBookingViaForm } from "@/features/booking/api";
+import { redirectToLoginIfUnauthorized } from "@/features/auth/sessionGuard";
 
 export const BookingPage: React.FC = () => {
   const location = useLocation();
@@ -33,6 +36,8 @@ export const BookingPage: React.FC = () => {
   const [isModalOpen, setIsModalOpen] = useState<boolean>(routeState?.openModal ?? false);
   const [isConfirmedSuccess, setIsConfirmedSuccess] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [confirmedFare, setConfirmedFare] = useState<number | null>(null);
 
   // Sync state if coming from navigation state
   useEffect(() => {
@@ -52,25 +57,38 @@ export const BookingPage: React.FC = () => {
 
   const handleOpenConfirmModal = (serviceId: "taxi" | "plus" | "premium") => {
     setSelectedServiceId(serviceId);
+    setError(null);
     setIsModalOpen(true);
   };
 
-  const handleConfirmRide = () => {
+  const handleConfirmRide = async () => {
     setIsLoading(true);
-    setTimeout(() => {
-      setIsLoading(false);
+    setError(null);
+    try {
+      const { booking, sessionId } = await createBookingViaForm(
+        pickup,
+        dropoff,
+        selectedServiceId as "taxi" | "plus" | "premium",
+      );
+      setConfirmedFare(booking.estimated_fare);
       setIsConfirmedSuccess(true);
       setTimeout(() => {
         setIsModalOpen(false);
         setIsConfirmedSuccess(false);
-        navigate("/tracking");
+        navigate("/tracking", { state: { sessionId, bookingId: booking.booking_id, pickup, destination: dropoff } });
       }, 1500);
-    }, 1000);
+    } catch (cause) {
+      if (redirectToLoginIfUnauthorized(cause, navigate)) return;
+      setError(cause instanceof Error ? cause.message : "Không thể đặt xe, vui lòng thử lại.");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleCloseModal = () => {
     setIsModalOpen(false);
     setIsConfirmedSuccess(false);
+    setError(null);
   };
 
   return (
@@ -223,7 +241,8 @@ export const BookingPage: React.FC = () => {
                       type="text"
                       value={pickup}
                       onChange={(e) => setPickup(e.target.value)}
-                      className="w-full text-sm font-bold text-[#191C1E] bg-transparent focus:outline-none focus:border-b focus:border-[#00D1C1] truncate"
+                      disabled={isLoading}
+                      className="w-full text-sm font-bold text-[#191C1E] bg-transparent focus:outline-none focus:border-b focus:border-[#00D1C1] truncate disabled:opacity-60"
                     />
                   </div>
 
@@ -239,7 +258,8 @@ export const BookingPage: React.FC = () => {
                       type="text"
                       value={dropoff}
                       onChange={(e) => setDropoff(e.target.value)}
-                      className="w-full text-sm font-bold text-[#191C1E] bg-transparent focus:outline-none focus:border-b focus:border-[#00D1C1] truncate"
+                      disabled={isLoading}
+                      className="w-full text-sm font-bold text-[#191C1E] bg-transparent focus:outline-none focus:border-b focus:border-[#00D1C1] truncate disabled:opacity-60"
                     />
                   </div>
                 </div>
@@ -253,12 +273,12 @@ export const BookingPage: React.FC = () => {
                     <div className="flex justify-between items-start mb-1">
                       <h3 className="text-sm font-bold text-[#191C1E]">{selectedService.name}</h3>
                       <p className="text-sm font-extrabold text-[#191C1E]">
-                        {selectedService.startingPrice === "50.000đ" ? "250,000 ₫" : selectedService.startingPrice}
+                        Từ {selectedService.startingPrice}
                       </p>
                     </div>
                     <p className="text-xs text-slate-500 font-medium flex items-center gap-1">
                       <Clock className="w-3.5 h-3.5 text-[#00D1C1]" />
-                      <span>4 mins away • Premium EV</span>
+                      <span>Giá cuối cùng do hệ thống tính khi xác nhận</span>
                     </p>
                   </div>
                 </div>
@@ -279,6 +299,13 @@ export const BookingPage: React.FC = () => {
                   </div>
                 </div>
 
+                {error && (
+                  <p className="flex items-start gap-2 text-sm text-rose-700 bg-rose-50 border border-rose-200 rounded-xl p-3">
+                    <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                    <span>{error}</span>
+                  </p>
+                )}
+
                 {/* Footer Actions */}
                 <div className="pt-2 flex flex-col gap-3">
                   <button
@@ -293,7 +320,8 @@ export const BookingPage: React.FC = () => {
                   <button
                     type="button"
                     onClick={handleCloseModal}
-                    className="w-full h-12 bg-transparent text-slate-600 border border-slate-300 font-bold text-sm rounded-xl hover:bg-slate-100 transition-all active:scale-[0.98] cursor-pointer"
+                    disabled={isLoading}
+                    className="w-full h-12 bg-transparent text-slate-600 border border-slate-300 font-bold text-sm rounded-xl hover:bg-slate-100 transition-all active:scale-[0.98] cursor-pointer disabled:opacity-50"
                   >
                     Hủy
                   </button>
@@ -312,6 +340,11 @@ export const BookingPage: React.FC = () => {
                   <h3 className="text-2xl font-extrabold text-[#191C1E] mt-1">
                     Đang tìm tài xế AloSM!
                   </h3>
+                  {confirmedFare !== null && (
+                    <p className="text-sm font-bold text-[#191C1E] mt-2">
+                      Giá cước: {confirmedFare.toLocaleString("vi-VN")} ₫
+                    </p>
+                  )}
                   <p className="text-xs text-slate-500 mt-1">
                     Hệ thống đang chuyển bạn tới màn hình Theo Dõi Chuyến Đi (Live Tracking)...
                   </p>

@@ -3,11 +3,19 @@ import { Search, Bell, User, LogOut, Wallet, Shield } from "lucide-react";
 import { IconButton } from "@/components/ui/IconButton";
 import logoSvg from "@/assets/logo.svg";
 import { NavLink, useNavigate } from "react-router-dom";
+import { clearAuthSession, getUserName } from "@/features/auth/storage";
 
 export const Topbar: React.FC = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
+  const userName = getUserName();
+  const initials = userName
+    .split(" ")
+    .filter(Boolean)
+    .slice(-2)
+    .map((part) => part[0]?.toUpperCase())
+    .join("") || "?";
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -22,6 +30,9 @@ export const Topbar: React.FC = () => {
 
   const handleLogout = () => {
     setIsMenuOpen(false);
+    // BUG thật đã sửa: bản cũ chỉ navigate("/login") mà KHÔNG xoá session — token vẫn
+    // còn trong localStorage, RequireAuth vẫn coi là đã đăng nhập.
+    clearAuthSession();
     navigate("/login");
   };
 
@@ -76,16 +87,10 @@ export const Topbar: React.FC = () => {
               {/* User Header */}
               <div className="px-4 py-3 border-b border-slate-100 flex items-center gap-3">
                 <div className="w-10 h-10 rounded-full bg-[#00D1C1]/20 text-[#006a62] flex items-center justify-center font-bold text-sm shrink-0">
-                  NV
+                  {initials}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-1.5">
-                    <p className="text-sm font-bold text-[#191C1E] truncate">Nguyễn Văn Việt</p>
-                    <span className="bg-amber-100 text-amber-700 text-[9px] font-bold px-1.5 py-0.5 rounded">
-                      Gold
-                    </span>
-                  </div>
-                  <p className="text-xs text-slate-400 truncate">viet.nguyen@alosm.vn</p>
+                  <p className="text-sm font-bold text-[#191C1E] truncate">{userName}</p>
                 </div>
               </div>
 

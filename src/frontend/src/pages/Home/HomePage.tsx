@@ -1,18 +1,41 @@
-import React from "react";
-import { NavLink } from "react-router-dom";
+import React, { useEffect, useState } from "react";
+import { NavLink, useNavigate } from "react-router-dom";
 import {
   Sparkles,
   ArrowRight,
   Car,
   Crown,
   PlaneTakeoff,
-  Home as HomeIcon,
   Briefcase,
   RotateCcw,
   MoreHorizontal,
 } from "lucide-react";
+import { getUserName } from "@/features/auth/storage";
+import { listBookings, locationLabel, type BookingSummary } from "@/features/activity/api";
+import { redirectToLoginIfUnauthorized } from "@/features/auth/sessionGuard";
 
 export const HomePage: React.FC = () => {
+  const navigate = useNavigate();
+  const userName = getUserName();
+  const [recentBookings, setRecentBookings] = useState<BookingSummary[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    listBookings()
+      .then((data) => {
+        if (!cancelled) setRecentBookings(data.slice(0, 2));
+      })
+      .catch((cause) => {
+        if (cancelled) return;
+        redirectToLoginIfUnauthorized(cause, navigate);
+        // Danh sách chuyến gần đây không phải nội dung thiết yếu của trang chủ — lỗi
+        // tải được bỏ qua lặng lẽ ở đây (không chặn phần còn lại của trang), khác với
+        // ActivityPage nơi đây LÀ nội dung chính, phải báo lỗi rõ ràng.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [navigate]);
   const heroEvBg =
     "https://lh3.googleusercontent.com/aida-public/AB6AXuDz__xU-VKyGvWrkMn6EuJ7j_L7aaVl3Ophlb-0dJM7tNhsDU9oVMOFtKU8tqDydyYMKhcg-rllg1Pk7VRhGAx6lMEU8gAq7ejasrB6RGO8b31U6Z6RM8jnBhbIuOBQrAydBBLWmBc7bHvxORcHrSnj6s99C7qpemBbFyxNiKDBRGhf_Gp1GjHusOvf-2loVNBIcTbKD0UaVymNzeRbziJ6J49JyPncxbTsPnhpkNHaU-Dn6Su7z-Yz";
 
@@ -31,7 +54,7 @@ export const HomePage: React.FC = () => {
       <section className="flex justify-between items-end">
         <div>
           <h1 className="text-3xl md:text-4xl font-extrabold text-[#191C1E] tracking-tight">
-            Chào buổi sáng, Nguyễn.
+            Chào {userName},
           </h1>
           <p className="text-base md:text-lg text-slate-500 mt-2">
             Bạn muốn đi đâu hôm nay?
@@ -217,41 +240,44 @@ export const HomePage: React.FC = () => {
               </button>
             </div>
 
-            <div className="flex flex-col gap-4">
-              {/* Activity Item 1 */}
-              <div className="flex items-center gap-4 p-3 rounded-xl hover:bg-slate-50 transition-colors cursor-pointer">
-                <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center text-slate-600 shrink-0">
-                  <HomeIcon className="w-5 h-5" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs font-bold text-[#191C1E]">Về nhà</p>
-                  <p className="text-[10px] text-slate-400 truncate">Hôm qua, 18:30 • Vincom Center</p>
-                </div>
-                <button
-                  type="button"
-                  className="text-[#00D1C1] hover:bg-[#00D1C1]/10 p-2 rounded-full transition-colors cursor-pointer"
-                >
-                  <RotateCcw className="w-4 h-4" />
-                </button>
+            {recentBookings.length === 0 ? (
+              <p className="text-xs text-slate-400 py-4 text-center">Chưa có chuyến đi nào gần đây.</p>
+            ) : (
+              <div className="flex flex-col gap-4">
+                {recentBookings.map((booking) => (
+                  <div
+                    key={booking.booking_id}
+                    className="flex items-center gap-4 p-3 rounded-xl hover:bg-slate-50 transition-colors cursor-pointer"
+                  >
+                    <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center text-slate-600 shrink-0">
+                      <Briefcase className="w-5 h-5" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-bold text-[#191C1E] truncate">
+                        {locationLabel(booking.destination, "Chưa rõ điểm đến")}
+                      </p>
+                      <p className="text-[10px] text-slate-400 truncate">
+                        {locationLabel(booking.pickup, "Chưa rõ điểm đón")}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        navigate("/booking", {
+                          state: {
+                            pickup: locationLabel(booking.pickup, ""),
+                            dropoff: locationLabel(booking.destination, ""),
+                          },
+                        })
+                      }
+                      className="text-[#00D1C1] hover:bg-[#00D1C1]/10 p-2 rounded-full transition-colors cursor-pointer"
+                    >
+                      <RotateCcw className="w-4 h-4" />
+                    </button>
+                  </div>
+                ))}
               </div>
-
-              {/* Activity Item 2 */}
-              <div className="flex items-center gap-4 p-3 rounded-xl hover:bg-slate-50 transition-colors cursor-pointer">
-                <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center text-slate-600 shrink-0">
-                  <Briefcase className="w-5 h-5" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs font-bold text-[#191C1E]">Đến văn phòng</p>
-                  <p className="text-[10px] text-slate-400 truncate">T3, 08:15 • Landmark 81</p>
-                </div>
-                <button
-                  type="button"
-                  className="text-[#00D1C1] hover:bg-[#00D1C1]/10 p-2 rounded-full transition-colors cursor-pointer"
-                >
-                  <RotateCcw className="w-4 h-4" />
-                </button>
-              </div>
-            </div>
+            )}
           </div>
 
           <NavLink to="/activity" className="block mt-6">
