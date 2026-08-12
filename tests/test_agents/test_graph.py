@@ -27,7 +27,7 @@ class RecordingAgent:
         self.received_state = state
         return AgentAction(
             action_type=ActionType.ASK_USER,
-            message="Bạn muốn đón ở đâu?",
+            message="Để đặt xe, anh/chị cần cung cấp điểm đón, điểm đến và loại xe",
             reason="Test response.",
         )
 

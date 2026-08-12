@@ -1,5 +1,6 @@
 import React from "react";
 import { Navigate } from "react-router-dom";
+import { LlmStatusNote } from "@/features/ai-assistant/components/LlmStatusNote";
 import { LoginForm } from "@/features/auth/components/LoginForm";
 import { isAuthenticated } from "@/features/auth/storage";
 
@@ -24,7 +25,10 @@ export const LoginPage: React.FC = () => {
       <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] rounded-full bg-[#006a62]/10 blur-[100px] pointer-events-none" />
 
       {/* Centered Login Form Card */}
-      <LoginForm />
+      <div className="relative z-10 w-full max-w-md space-y-4">
+        <LoginForm />
+        <LlmStatusNote />
+      </div>
     </div>
   );
 };

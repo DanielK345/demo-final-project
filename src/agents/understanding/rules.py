@@ -1,5 +1,6 @@
 import re
 
+from src.agents.schemas import WorkflowType
 from src.agents.understanding.models import (
     ConfirmationIntent,
     Correction,
@@ -11,6 +12,10 @@ from src.agents.understanding.models import (
 
 _ROUTE_PATTERN = re.compile(
     r"\btừ\s+(?P<pickup>.+?)\s+(?:đến|tới|về)\s+(?P<destination>.+)$",
+    re.IGNORECASE,
+)
+_DESTINATION_ONLY = re.compile(
+    r"^(?:tôi\s+)?(?:muốn\s+)?(?:đi|tới|đến|về)\s+(?P<destination>.+)$",
     re.IGNORECASE,
 )
 _PHONE_PATTERN = re.compile(r"(?<!\d)(?:\+?84|0)(?:[ .-]?\d){9}(?!\d)")
@@ -48,13 +53,17 @@ class RuleBasedUnderstanding:
     _FAQ_TERMS = ("dịch vụ", "giá", "thanh toán", "chính sách", "hoạt động")
     _CONFIRM_TERMS = ("đúng", "đồng ý", "xác nhận", "đặt đi", "đặt giúp")
     _REJECT_TERMS = ("không", "chưa", "hủy", "sai rồi")
+    _VEHICLE_TERMS: dict[str, tuple[str, ...]] = {
+        "4_SEAT": ("4 chỗ", "xe 4", "bốn chỗ", "sedan"),
+        "7_SEAT": ("7 chỗ", "xe 7", "bảy chỗ", "suv"),
+        "PREMIUM": ("hạng sang", "premium", "luxury", "vip"),
+    }
 
     async def understand(
         self,
         transcript: str,
         context: UnderstandingContext,
     ) -> UnderstandingResult:
-        del context
         normalized = transcript.casefold().strip()
         intent = UnderstandingIntent.UNKNOWN
         if any(term in normalized for term in self._HANDOFF_TERMS):
@@ -66,8 +75,12 @@ class RuleBasedUnderstanding:
         elif any(term in normalized for term in self._FAQ_TERMS):
             intent = UnderstandingIntent.FAQ
 
+        vehicle_type = self._parse_vehicle_type(normalized)
         route = _ROUTE_PATTERN.search(transcript)
-        phone_match = _PHONE_PATTERN.search(transcript)
+        dest_only = _DESTINATION_ONLY.match(transcript.strip())
+        phone_match = None
+        if context.current_workflow is not WorkflowType.RIDE_BOOKING:
+            phone_match = _PHONE_PATTERN.search(transcript)
         booking_match = _BOOKING_ID_PATTERN.search(transcript)
         corrections: list[Correction] = []
         pickup_correction = _PICKUP_CORRECTION.search(transcript)
@@ -97,8 +110,15 @@ class RuleBasedUnderstanding:
             intent=intent,
             pickup_query=(route.group("pickup").strip(" .") if route else None),
             destination_query=(
-                route.group("destination").strip(" .") if route else None
+                route.group("destination").strip(" .")
+                if route
+                else (
+                    dest_only.group("destination").strip(" .")
+                    if dest_only
+                    else None
+                )
             ),
+            vehicle_type=vehicle_type,
             phone_number=(
                 self._normalize_phone(phone_match.group()) if phone_match else None
             ),
@@ -112,3 +132,10 @@ class RuleBasedUnderstanding:
     def _normalize_phone(value: str) -> str:
         phone = re.sub(r"\D", "", value)
         return f"0{phone[2:]}" if phone.startswith("84") else phone
+
+    @classmethod
+    def _parse_vehicle_type(cls, normalized: str) -> str | None:
+        for vehicle_type, terms in cls._VEHICLE_TERMS.items():
+            if any(term in normalized for term in terms):
+                return vehicle_type
+        return None

@@ -2,7 +2,7 @@ from src.agents.understanding.base import LanguageUnderstandingPort
 from src.agents.understanding.openai import OpenAIUnderstandingAdapter
 from src.agents.understanding.rules import RuleBasedUnderstanding
 from src.agents.understanding.service import ResilientUnderstandingService
-from src.backend.config import Settings, get_settings
+from src.config import Settings, get_settings
 
 
 def build_understanding_service(

@@ -1,7 +1,7 @@
 from functools import lru_cache
 from typing import Literal
 
-from pydantic import Field
+from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -26,12 +26,24 @@ class Settings(BaseSettings):
     llm_temperature: float = Field(default=0.7, ge=0.0, le=2.0)
 
     # Core Agent language understanding
-    agent_llm_enabled: bool = False
+    agent_llm_enabled: bool = True
     agent_llm_provider: Literal["openai"] = "openai"
     agent_llm_model: str = "gpt-5.6-luna"
     agent_llm_base_url: str | None = None
     agent_llm_timeout_seconds: float = Field(default=5.0, gt=0)
     agent_llm_reasoning_effort: Literal["none", "low", "medium"] = "none"
+
+    # Voice prototype (STT/TTS)
+    google_api_key: str = Field(
+        default="",
+        validation_alias=AliasChoices("GOOGLE_API_KEY", "GEMINI_API_KEY"),
+    )
+    voice_provider: Literal["auto", "openai", "gemini"] = "auto"
+    voice_stt_model: str = "whisper-1"
+    voice_tts_model: str = "tts-1"
+    voice_tts_voice: str = "nova"
+    voice_gemini_model: str = "gemini-2.0-flash"
+    voice_timeout_seconds: float = Field(default=30.0, gt=0)
 
     # Database
     database_url: str = "sqlite:///./data/app.db"
