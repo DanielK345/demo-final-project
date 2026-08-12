@@ -45,8 +45,12 @@ class Settings(BaseSettings):
     voice_gemini_model: str = "gemini-2.0-flash"
     voice_timeout_seconds: float = Field(default=30.0, gt=0)
 
-    # Database
+    # Database — DATABASE_URL dùng cho app runtime (Supabase Transaction Pooler,
+    # cổng 6543, driver async asyncpg khi deploy thật — xem docs/database_supabase.md).
+    # DATABASE_URL_MIGRATIONS (optional) dùng riêng cho Alembic (Direct Connection,
+    # cổng 5432, driver sync psycopg2) — để trống thì Alembic dùng lại DATABASE_URL.
     database_url: str = "sqlite:///./data/app.db"
+    database_url_migrations: str = ""
 
     # Vector Store
     chroma_persist_dir: str = "./data/chroma"

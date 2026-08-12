@@ -101,9 +101,10 @@ class AuthService:
         return datetime.now(UTC) - issued_at > timedelta(seconds=_TOKEN_TTL_SECONDS)
 
     def bind_session_to_token(self, token: str, session_id: str) -> None:
-        if token not in self.tokens:
+        record = self.tokens.get(token)
+        if record is None:
             raise ValueError("Token không hợp lệ")
-        self.token_sessions[token] = session_id
+        record["session_id"] = session_id
 
     def _auth_response(self, user: dict[str, str]) -> dict[str, object]:
         session = self._session_service.create_session(user["user_id"], "WEB_VOICE", "browser")

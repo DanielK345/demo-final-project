@@ -61,13 +61,22 @@ def test_voice_ws_full_call_roundtrip():
         audio_frame = ws.receive()
         assert audio_frame.get("bytes") is not None
 
-        # có thể còn 1 status cuối trước khi session kết thúc
+        # FakeASRProvider trả transcript demo cố định ("[demo] đã nhận ...ms audio"),
+        # không phải câu đặt xe thật — Core Agent thật (LLMAgent + AgentGuardrails,
+        # xem src/backend/services/session_service.py) có thể coi input không hiểu
+        # được này là cần handoff ngay (khác rule-engine cũ, vốn có 1 câu trả lời mặc
+        # định chung chung). Vì vậy chỉ còn lại 0-1 event "status"/"handoff" trước khi
+        # session thực sự kết thúc — verify roundtrip WS chạy hết vòng đời, không ép
+        # cứng 1 nhánh nghiệp vụ cụ thể.
         trailing = ws.receive_json()
-        if trailing["type"] != "session_ended":
-            assert trailing["type"] == "status"
+        assert trailing["type"] in {"session_ended", "status", "handoff"}
 
         ws.send_json({"type": "end_call", "payload": {}})
         ended = ws.receive_json()
+        for _ in range(5):  # bound chống treo — drain tối đa 5 event leftover
+            if ended["type"] in {"session_ended", "error"}:
+                break
+            ended = ws.receive_json()
         assert ended["type"] == "session_ended"
 
 

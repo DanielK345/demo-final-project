@@ -63,9 +63,15 @@ class SessionBridge:
         stt_confidence: float | None = None,
     ) -> SessionTurnResult | None:
         """Trả None nếu session không tồn tại hoặc đã kết thúc — gateway tự xử lý
-        (không raise để khỏi ép gateway phải try/except riêng cho từng loại lỗi)."""
+        (không raise để khỏi ép gateway phải try/except riêng cho từng loại lỗi).
+
+        LƯU Ý (13/08/2026): `SessionService.process_message` đã đổi thành `async def`
+        khi Core Agent thật (`src.agents.agent.LLMAgent`) được nối vào — trước đó là
+        state machine rule-based đồng bộ. Contract phần response (`action`/`message`/
+        `state`/`booking`) không đổi, chỉ cần `await` thêm — xem
+        `src/backend/services/session_service.py::process_message`."""
         try:
-            result = self._service.process_message(session_id, text, stt_confidence)
+            result = await self._service.process_message(session_id, text, stt_confidence)
         except (KeyError, ValueError):
             return None
         return SessionTurnResult(
