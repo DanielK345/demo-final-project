@@ -29,7 +29,7 @@ export const AssistantPage: React.FC = () => {
   useEffect(() => {
     const token = localStorage.getItem("alosm_access_token");
     const userId = localStorage.getItem("alosm_user_id");
-    if (!token || !userId) {
+    if (!token || !userId || !userId.trim()) {
       navigate("/login");
       return;
     }
@@ -88,6 +88,7 @@ export const AssistantPage: React.FC = () => {
     if (sessionId) await endRideSession(sessionId).catch(() => undefined);
     localStorage.removeItem("alosm_access_token");
     localStorage.removeItem("alosm_user_name");
+    localStorage.removeItem("alosm_user_id");
     navigate("/login");
   };
 
