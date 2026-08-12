@@ -537,6 +537,15 @@ khác vào context.
 
 **Không làm:** không trả lời ngoài retrieved context và không tạo nguồn giả.
 
+**Implementation hiện tại:** FAQ state được validate bằng `FAQData` và lưu dưới
+`collected_data["faq"]`. Workflow phát `retrieve_knowledge`, validate lifecycle
+và typed documents, sau đó lọc theo configurable score threshold/top-k.
+`GroundedAnswerGenerator` là provider-independent port; mặc định dùng
+`ExtractiveAnswerGenerator` deterministic nên chỉ có thể trả retrieved content.
+Không có source đủ điểm thì trả fallback trung thực; retrieval error critical,
+mismatched hoặc invalid result được handoff. Vector store, ingestion và dữ liệu
+chính sách thật thuộc Backend/Knowledge Service.
+
 ### F8 — Prompt, Guardrails & Evaluation
 
 **Mục tiêu:** kiểm soát hành vi xuyên suốt và đo chất lượng agent.
