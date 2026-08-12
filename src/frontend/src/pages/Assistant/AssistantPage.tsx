@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { getCurrentUser } from "@/features/auth/api";
 import { clearAuthSession, getAccessToken, getSessionId, getUserName, saveAuthSession } from "@/features/auth/storage";
 import { createRideSession, endRideSession, sendRideMessage } from "@/features/ride/api";
+import { API_BASE_URL, ApiError } from "@/app/config/api";
 
 type Message = { id: string; role: "user" | "assistant"; text: string };
 type BrowserRecognition = {
@@ -25,6 +26,7 @@ export const AssistantPage: React.FC = () => {
   const [isListening, setIsListening] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const recognitionRef = useRef<BrowserRecognition | null>(null);
+  const currentAudioRef = useRef<HTMLAudioElement | null>(null);
   const navigate = useNavigate();
   const userName = getUserName();
 
@@ -77,12 +79,37 @@ export const AssistantPage: React.FC = () => {
     };
   }, [navigate]);
 
-  const speak = (reply: string) => {
+  const speakWithBrowserFallback = (reply: string) => {
+    // Fallback duy nhất khi backend TTS lỗi (vd mất mạng) — chất lượng phụ thuộc máy
+    // người dùng (giọng/ngôn ngữ không kiểm soát được), chỉ dùng khi không còn cách nào
+    // khác, không phải đường đi chính.
     if ("speechSynthesis" in window) {
       window.speechSynthesis.cancel();
       const utterance = new SpeechSynthesisUtterance(reply);
       utterance.lang = "vi-VN";
       window.speechSynthesis.speak(utterance);
+    }
+  };
+
+  const speak = async (reply: string) => {
+    currentAudioRef.current?.pause();
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/v1/voice/speak`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: reply }),
+      });
+      if (!response.ok) throw new Error(`TTS request failed: ${response.status}`);
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const audio = new Audio(url);
+      currentAudioRef.current = audio;
+      audio.addEventListener("ended", () => URL.revokeObjectURL(url));
+      audio.addEventListener("error", () => URL.revokeObjectURL(url));
+      await audio.play();
+    } catch (error) {
+      console.error("Không phát được giọng nói từ backend, dùng giọng trình duyệt:", error);
+      speakWithBrowserFallback(reply);
     }
   };
 
@@ -95,14 +122,20 @@ export const AssistantPage: React.FC = () => {
     try {
       const result = await sendRideMessage(sessionId, message, source, source === "VOICE" ? 0.9 : undefined);
       setMessages((items) => [...items, { id: result.message_id, role: "assistant", text: result.message }]);
-      speak(result.message);
+      void speak(result.message);
       if (result.action === "HANDOFF") setNotice("Yêu cầu đã được chuyển đến tổng đài viên.");
       if (result.action === "END_SESSION") {
         setSessionId(null);
         localStorage.removeItem("alosm_session_id");
       }
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : "Không thể gửi tin nhắn.");
+      if (error instanceof ApiError && error.status === 404) {
+        setNotice("Phiên làm việc đã hết hạn do máy chủ khởi động lại. Đang tải lại trang...");
+        localStorage.removeItem("alosm_session_id");
+        setTimeout(() => window.location.reload(), 2000);
+      } else {
+        setNotice(error instanceof Error ? error.message : "Không thể gửi tin nhắn.");
+      }
     } finally {
       setIsSending(false);
     }

@@ -17,6 +17,16 @@ function extractErrorMessage(errorBody: unknown, status: number): string {
   return `Request failed with status ${status}`;
 }
 
+export class ApiError extends Error {
+  status: number;
+
+  constructor(status: number, message: string) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+  }
+}
+
 export async function fetchApi<T>(endpoint: string, options?: RequestInit): Promise<T> {
   const url = `${API_BASE_URL}${endpoint}`;
   const response = await fetch(url, {
@@ -29,7 +39,7 @@ export async function fetchApi<T>(endpoint: string, options?: RequestInit): Prom
 
   if (!response.ok) {
     const errorBody = await response.json().catch(() => null);
-    throw new Error(extractErrorMessage(errorBody, response.status));
+    throw new ApiError(response.status, extractErrorMessage(errorBody, response.status));
   }
 
   return response.json();
