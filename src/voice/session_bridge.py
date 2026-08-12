@@ -6,7 +6,7 @@ COLLECT_PICKUP → COLLECT_DESTINATION → CONFIRM → BOOKED, xử lý `stt_con
 BR-003-tương-đương qua `failed_count`) — **không phải** `src/agents/graph.py`
 (LangGraph agent đó chỉ còn phục vụ route `/chat` legacy, xem
 `src/backend/api/routes/__init__.py`). Xác nhận bằng cách đọc code thật, không đoán
-— xem `docs/prompt_voice_integration_real_be_fe.md`.
+— xem `docs/voice-ai/prompt_voice_integration_real_be_fe.md`.
 
 Gọi thẳng `SessionService()` bằng Python (cùng process) — không qua HTTP, không cần
 token auth: `SessionService.sessions` là **class attribute**, mọi instance

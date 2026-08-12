@@ -1,7 +1,7 @@
 """WebSocket + REST route cho Voice AI — file MỚI, thêm additive vào project thật.
 
 Đăng ký trong `src/backend/main.py` (1 import + 1 `include_router`, không đổi route
-nào đã có — xem `docs/prompt_voice_integration_real_be_fe.md`). Không dùng chung
+nào đã có — xem `docs/voice-ai/prompt_voice_integration_real_be_fe.md`). Không dùng chung
 `APIRouter` tổng hợp ở `src/backend/api/routes/__init__.py` để tránh phải sửa file đó.
 
 Protocol WS (xem `src/models/voice_schemas.py`):
@@ -17,7 +17,7 @@ Route REST `POST /speak`: cho trang nào chỉ cần "đưa text vào, nhận au
 không muốn tự quản lý WebSocket (vd. `AssistantPage.tsx` bên frontend — trang đó vốn
 dùng `window.speechSynthesis` của trình duyệt, chất lượng/giọng không kiểm soát được
 và hay lẫn tiếng Anh/Việt tuỳ máy người dùng — xem
-`docs/prompt_voice_integration_real_be_fe.md`).
+`docs/voice-ai/prompt_voice_integration_real_be_fe.md`).
 
 CẬP NHẬT (13/08/2026): file này từng bị 1 commit khác ("test whisper model", nhánh
 `test_speech_model`, tác giả DanielK345) ghi đè hoàn toàn, khiến app không boot được

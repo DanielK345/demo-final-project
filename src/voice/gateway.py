@@ -213,7 +213,7 @@ class VoiceGateway:
             # Utterance quá nhỏ để có khả năng là tiếng nói thật — KHÔNG gọi ASR.
             # Phát hiện qua test tay với GROQ_API_KEY thật: audio gần như im lặng
             # khiến Whisper "bịa" ra câu hoàn chỉnh với confidence CAO — xem
-            # docs/mustdo_voice.md.
+            # docs/voice-ai/mustdo_voice.md.
             logger.info("Utterance RMS quá thấp, bỏ qua ASR (session=%s)", session_id)
             return ASRResult(text="", confidence=0.0)
 
@@ -275,7 +275,7 @@ class VoiceGateway:
         # override (vd "Landmark 81" -> "Len Mác Tám Mươi Mốt") match theo đúng chuỗi
         # số gốc; nếu formatter (số -> chữ) chạy trước, nó "ăn mất" con số đó thành chữ
         # ("Landmark tám mươi mốt") và pronunciation không còn tìm thấy chuỗi để khớp
-        # nữa — bug thật đã tự phát hiện qua test, xem docs/mustdo_voice.md.
+        # nữa — bug thật đã tự phát hiện qua test, xem docs/voice-ai/mustdo_voice.md.
         spoken_text = text
         if self.tts_pronunciation:
             spoken_text = self.tts_pronunciation(spoken_text)

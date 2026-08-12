@@ -1,11 +1,11 @@
-"""Voice Activity Detection + endpointing — Phần 1 (`docs/voice_ai_overview.md` §4/§6).
+"""Voice Activity Detection + endpointing — Phần 1 (`docs/voice-ai/voice_ai_overview.md` §4/§6).
 
 Hai lớp trách nhiệm tách biệt:
 
 - `VADProvider` (Protocol): "đoạn audio 20-30ms này có phải tiếng nói không?"
   Có 2 implementation: `EnergyVAD` (không phụ thuộc gì, dùng mặc định cho
   dev/test/CI) và `SileroVAD` (ONNX, chốt kỹ thuật D4 — dùng khi có model
-  weight thật, xem `docs/mustdo_voice.md`).
+  weight thật, xem `docs/voice-ai/mustdo_voice.md`).
 - `EndpointScorer`: state machine "utterance đã nói xong chưa?" dựa trên
   ngưỡng im lặng cố định 900ms (D3). Không quan tâm VAD phía sau là gì.
 
@@ -52,7 +52,7 @@ class SileroVAD:
 
     CHƯA test end-to-end trong môi trường này (không tải được model
     weight thật / không có `onnxruntime` cài sẵn) — xem
-    `docs/mustdo_voice.md` mục Silero VAD trước khi bật
+    `docs/voice-ai/mustdo_voice.md` mục Silero VAD trước khi bật
     `voice_vad_backend=silero`.
 
     Cách lấy model: tải `silero_vad.onnx` từ repo chính thức
@@ -64,7 +64,7 @@ class SileroVAD:
         if not model_path:
             raise ValueError(
                 "SileroVAD cần voice_silero_model_path trỏ tới silero_vad.onnx "
-                "(xem docs/mustdo_voice.md). Dùng backend='energy' nếu chưa có model."
+                "(xem docs/voice-ai/mustdo_voice.md). Dùng backend='energy' nếu chưa có model."
             )
         try:
             import onnxruntime as ort  # noqa: PLC0415

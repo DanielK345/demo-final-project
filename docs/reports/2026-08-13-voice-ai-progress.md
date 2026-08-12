@@ -18,10 +18,10 @@ làm chung, chia 8 phần công việc. Mục tiêu: demo đặt xe bằng giọ
 Ngân sách ~$0 — chỉ dùng API free tier (Groq Whisper, Edge-TTS).
 
 Tài liệu gốc của team (đọc để hiểu yêu cầu, không sửa):
-- `docs/voice_ai_overview.md` — kiến trúc, tech stack, 8 phần việc, business rules
+- `docs/voice-ai/voice_ai_overview.md` — kiến trúc, tech stack, 8 phần việc, business rules
   (BR-001 xác nhận trước khi đặt xe, BR-002 không tự suy diễn, BR-003 2 lần ASR fail →
   handoff).
-- `docs/voice_todo_list.md` — chi tiết task/branch theo tuần.
+- `docs/voice-ai/voice_todo_list.md` — chi tiết task/branch theo tuần.
 
 ---
 
@@ -98,7 +98,7 @@ vào mà **không ảnh hưởng gì việc người khác đã làm**.
 - `SessionMessageDTO` đã có sẵn `source: "VOICE"` + `stt_confidence` — backend **đã chủ
   động thiết kế sẵn** để nhận input giọng nói qua REST `/sessions/{id}/messages`.
 
-**Quyết định kiến trúc (ghi trong `docs/prompt_voice_integration_real_be_fe.md`):**
+**Quyết định kiến trúc (ghi trong `docs/voice-ai/prompt_voice_integration_real_be_fe.md`):**
 Voice Gateway gọi thẳng `SessionService` làm dialogue engine duy nhất — **bỏ hẳn**
 Redis + LangGraph agent + state machine BR-003 riêng của Voice (tránh 2 nguồn sự thật).
 
@@ -220,7 +220,7 @@ này, nên verify bằng round-trip thật (script trong lịch sử chat có m�
 - `AssistantPage.tsx` giờ dùng giọng đọc thật (Edge-TTS qua `/speak`), không còn
   `window.speechSynthesis` làm đường chính.
 
-## 5. Việc còn lại (xem đầy đủ trong `docs/mustdo_voice.md`, phần này có thể hơi cũ vì
+## 5. Việc còn lại (xem đầy đủ trong `docs/voice-ai/mustdo_voice.md`, phần này có thể hơi cũ vì
 viết trước Giai đoạn D-G — ưu tiên đọc file `tientrinh.md` này trước)
 
 - Chưa test bằng **mic + loa người thật** qua `demo/index.html` hoặc `AssistantPage.tsx`

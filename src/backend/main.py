@@ -13,7 +13,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-# --- Voice AI (additive — xem docs/prompt_voice_integration_real_be_fe.md) ---
+# --- Voice AI (additive — xem docs/voice-ai/prompt_voice_integration_real_be_fe.md) ---
 # import router riêng vào đây, không đụng src/backend/api/routes/__init__.py hay
 # bất kỳ route nào đã có.
 from src.backend.api.routes import health_router, router
@@ -37,7 +37,7 @@ async def lifespan(app: FastAPI):
         # thật 3 lần tuần tự — đã tự đo mất ~15-18s. `await` trực tiếp ở đây từng khiến
         # uvicorn không bind/accept connection nào suốt khoảng thời gian đó (server có
         # vẻ "sập" từ ngoài nhìn vào, browser báo "Failed to fetch") — phát hiện thật
-        # khi debug live server, xem docs/mustdo_voice.md.
+        # khi debug live server, xem docs/voice-ai/mustdo_voice.md.
         asyncio.create_task(prewarm_tts_cache())
     yield
     print("Shutting down...")

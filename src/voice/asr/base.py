@@ -1,4 +1,4 @@
-"""ASR provider contract — sở hữu chính thức: Phần 3 (`docs/voice_ai_overview.md` §5).
+"""ASR provider contract — sở hữu chính thức: Phần 3 (`docs/voice-ai/voice_ai_overview.md` §5).
 
 Định nghĩa ở đây trước (Phần 1/2) chỉ để `gateway.py` có type để lập trình
 theo và để CI có thể chạy end-to-end bằng fake provider ngay từ Tuần 1.

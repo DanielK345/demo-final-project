@@ -54,11 +54,11 @@
 
 **Tiêu chí hoàn thành:** CI xanh với FakeASR + FakeTTS, schemas định nghĩa đủ field.
 
-¹ *Code trực tiếp trên `feature/voice-ai` (không tách branch/PR riêng từng task) trong 3 phiên làm việc 2026-08-12: phiên 1 làm Phần 1+2 (S0-1, S0-5, S0-7, S0-6, S1-9); phiên 2 làm Phần 3+4 (S1-3, S1-5, S1-6, S0-9, S2-1, S2-2) + audit lại Phần 1+2; phiên 3 làm Phần 5-8 (đánh dấu ²). Việc tách lại thành PR riêng theo đúng git flow §E (nếu team muốn giữ lịch sử PR-per-task) là việc còn lại — xem `docs/mustdo_voice.md`.*
+¹ *Code trực tiếp trên `feature/voice-ai` (không tách branch/PR riêng từng task) trong 3 phiên làm việc 2026-08-12: phiên 1 làm Phần 1+2 (S0-1, S0-5, S0-7, S0-6, S1-9); phiên 2 làm Phần 3+4 (S1-3, S1-5, S1-6, S0-9, S2-1, S2-2) + audit lại Phần 1+2; phiên 3 làm Phần 5-8 (đánh dấu ²). Việc tách lại thành PR riêng theo đúng git flow §E (nếu team muốn giữ lịch sử PR-per-task) là việc còn lại — xem `docs/voice-ai/mustdo_voice.md`.*
 
 ² *Phiên 3 (2026-08-12): Phần 5 (`edge_tts_provider.py`), Phần 6 (`formatter.py`, `pronunciation.py`, `cache.py`), Phần 7 (`demo/`, mount static + nối đủ Phần 3-6 vào `voice_routes.py`), Phần 8 (CI trigger thêm `feature/voice-ai`, `deploy.yml` scaffold, `FailingASRProvider`/`FailingTTSProvider`, `voice_local_dev.md`) — xem [prompt_voice_phan5_8.md](prompt_voice_phan5_8.md) cho prompt đã dùng.*
 
-³ *Phiên 4 (2026-08-12): người dùng cung cấp `GROQ_API_KEY` thật, set vào `.env` (không track git). Verify bằng round-trip thật (edge-tts tạo audio → ffmpeg decode → `GroqASRProvider` thật) — phát hiện Whisper hallucinate câu hoàn chỉnh với confidence cao khi audio gần như im lặng; đã sửa bằng `utterance_rms()` pre-check (`config.py::voice_min_utterance_rms`) + `is_known_hallucination()` blocklist — xem `docs/mustdo_voice.md` §4 cho chi tiết đầy đủ.*
+³ *Phiên 4 (2026-08-12): người dùng cung cấp `GROQ_API_KEY` thật, set vào `.env` (không track git). Verify bằng round-trip thật (edge-tts tạo audio → ffmpeg decode → `GroqASRProvider` thật) — phát hiện Whisper hallucinate câu hoàn chỉnh với confidence cao khi audio gần như im lặng; đã sửa bằng `utterance_rms()` pre-check (`config.py::voice_min_utterance_rms`) + `is_known_hallucination()` blocklist — xem `docs/voice-ai/mustdo_voice.md` §4 cho chi tiết đầy đủ.*
 
 ---
 

@@ -3,7 +3,7 @@
 Mọi module trong `src/voice/` (audio, asr, tts, text) và route trong
 `src/api/voice_routes.py` phải dùng đúng các model ở đây — không tự định
 nghĩa struct rời rạc để tránh lệch schema giữa các phần (theo Definition
-of Done ở `docs/voice_ai_overview.md` §7).
+of Done ở `docs/voice-ai/voice_ai_overview.md` §7).
 
 Nếu đổi/thêm field hoặc WS event mới: cập nhật file này trước khi merge,
 đúng nguyên tắc "Nếu đổi/thêm WS event → cập nhật bảng schema trước khi

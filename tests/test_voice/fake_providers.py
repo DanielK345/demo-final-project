@@ -1,4 +1,4 @@
-"""Fake ASR/TTS providers — sở hữu chính thức: Phần 8 (`docs/voice_ai_overview.md` §5).
+"""Fake ASR/TTS providers — sở hữu chính thức: Phần 8 (`docs/voice-ai/voice_ai_overview.md` §5).
 
 Tạo sớm ở đây (Tuần 1, theo lịch trình §8) để:
 
@@ -6,7 +6,7 @@ Tạo sớm ở đây (Tuần 1, theo lịch trình §8) để:
 - `gateway.py` (Phần 2) chạy và test được end-to-end trước khi Phần 3/5
   có provider thật.
 - `api/voice_routes.py` dùng làm default provider cho demo khi chưa cấu
-  hình `GROQ_API_KEY` (xem `docs/mustdo_voice.md`).
+  hình `GROQ_API_KEY` (xem `docs/voice-ai/mustdo_voice.md`).
 
 Phần 8 mở rộng thêm khi cần kịch bản test phức tạp hơn (lỗi, timeout,
 độ trễ giả lập...) — không đổi tên 2 class này vì `voice_routes.py` và
@@ -76,7 +76,7 @@ class FakeTTSProvider:
 class FailingASRProvider:
     """Giả lập ASR provider lỗi (Groq sập/timeout...) — dùng test resilience
     của `gateway.py` (try/except quanh `self.asr.transcribe`, xem
-    `docs/mustdo_voice.md`)."""
+    `docs/voice-ai/mustdo_voice.md`)."""
 
     def __init__(self, exc: Exception | None = None) -> None:
         self._exc = exc or RuntimeError("ASR provider tạm thời lỗi")

@@ -126,7 +126,7 @@ nào người khác đã viết.**
    `onnxruntime`) — **không** thêm `redis` (đã bỏ dùng ở tích hợp này).
 10. Thêm block mới cuối `.env.example`: các biến `VOICE_*`/`GROQ_API_KEY` (bỏ
     `REDIS_URL`/`VOICE_SESSION_TTL_SECONDS` vì không dùng nữa).
-11. Copy toàn bộ docs Voice AI đã có sang, viết lại `docs/mustdo_voice.md` phản ánh đúng
+11. Copy toàn bộ docs Voice AI đã có sang, viết lại `docs/voice-ai/mustdo_voice.md` phản ánh đúng
     kiến trúc tích hợp mới (đặc biệt: xoá mục "xung đột kiến trúc session Voice/Backend"
     cũ — giờ đã giải quyết bằng cách dùng thẳng `SessionService`; ghi rõ giới hạn:
     `SessionService.process_message()` hiện là rule-based đơn giản, không phải LLM/Core
