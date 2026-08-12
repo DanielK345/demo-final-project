@@ -454,6 +454,12 @@ từ typed `CreateBookingResult`.
 **Definition of Done:** lookup bằng booking ID, lookup bằng phone, missing
 identifier, not-found và tool-error tests đều pass.
 
+**Implementation hiện tại:** Trip lookup data được validate bằng
+`TripLookupData` và lưu dưới `collected_data["trip_lookup"]`. Workflow nhận mã
+chuyến hoặc phone, phát `lookup_trip`, phân biệt not-found với tool error và chỉ
+đọc status/ETA từ typed `LookupTripResult`. Retryable error được gọi lại có giới
+hạn; critical, mismatched hoặc invalid result được handoff.
+
 ### F5 — Human Handoff Workflow
 
 **Mục tiêu:** xác định handoff và chuẩn bị đủ context cho tổng đài viên.
