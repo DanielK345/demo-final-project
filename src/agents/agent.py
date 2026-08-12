@@ -1,5 +1,6 @@
 from collections.abc import Mapping
 
+from src.agents.guardrails import AgentGuardrails, GuardrailViolationError
 from src.agents.router import (
     AgentRouter,
     ToolResultRoutingError,
@@ -21,8 +22,10 @@ class LLMAgent:
         self,
         router: AgentRouter | None = None,
         workflows: Mapping[WorkflowType, BaseWorkflow] | None = None,
+        guardrails: AgentGuardrails | None = None,
     ) -> None:
         self.router = router or AgentRouter()
+        self.guardrails = guardrails or AgentGuardrails()
         default_workflows = {
             WorkflowType.RIDE_BOOKING: RideBookingWorkflow(),
             WorkflowType.TRIP_LOOKUP: TripLookupWorkflow(),
@@ -45,40 +48,41 @@ class LLMAgent:
         try:
             workflow_type = self.router.route(agent_input, current_state)
         except UnsupportedIntentError:
-            return AgentAction(
+            action = AgentAction(
                 action_type=ActionType.ASK_USER,
                 message="Bạn cần đặt xe, tra cứu chuyến đi hay hỗ trợ vấn đề khác?",
                 reason="The user's intent is not clear enough to select a workflow.",
             )
+            return self._validate_action(agent_input, current_state, action)
         except ToolResultRoutingError as exc:
-            return AgentAction(
-                action_type=ActionType.HANDOFF,
-                message=(
-                    "Tôi chưa thể tiếp tục xử lý tự động. "
-                    "Tôi sẽ chuyển bạn tới tổng đài viên."
-                ),
-                state_updates={
-                    "current_workflow": WorkflowType.HUMAN_HANDOFF,
-                    "current_step": "HANDOFF_REQUIRED",
-                },
-                reason=str(exc),
+            return self._validate_action(
+                agent_input,
+                current_state,
+                self.guardrails.safe_handoff(str(exc)),
             )
 
         workflow = self.workflows.get(workflow_type)
         if workflow is None:
-            return AgentAction(
-                action_type=ActionType.HANDOFF,
-                message=(
-                    "Tôi chưa thể tiếp tục xử lý tự động. "
-                    "Tôi sẽ chuyển bạn tới tổng đài viên."
+            return self._validate_action(
+                agent_input,
+                current_state,
+                self.guardrails.safe_handoff(
+                    f"Workflow is not registered: {workflow_type}"
                 ),
-                state_updates={
-                    "current_workflow": WorkflowType.HUMAN_HANDOFF,
-                    "current_step": "HANDOFF_REQUIRED",
-                },
-                reason=f"Workflow is not registered: {workflow_type}",
             )
-        return await workflow.handle(agent_input, current_state)
+        action = await workflow.handle(agent_input, current_state)
+        return self._validate_action(agent_input, current_state, action)
+
+    def _validate_action(
+        self,
+        agent_input: AgentInput,
+        state: AgentState,
+        action: AgentAction,
+    ) -> AgentAction:
+        try:
+            return self.guardrails.validate_and_sanitize(agent_input, state, action)
+        except GuardrailViolationError as exc:
+            return self.guardrails.safe_handoff(f"Guardrail violation: {exc}")
 
 
 agent = LLMAgent()
