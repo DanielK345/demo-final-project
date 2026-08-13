@@ -1,10 +1,9 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { Bot, Home, LogOut, Mic, Send, Square, Volume2 } from "lucide-react";
-import { NavLink, useNavigate } from "react-router-dom";
+import { Bot, History, Keyboard, Mic, Send, Square, Volume2 } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import { getCurrentUser } from "@/features/auth/api";
 import { redirectToLoginIfUnauthorized } from "@/features/auth/sessionGuard";
 import {
-  clearAuthSession,
   getAccessToken,
   getSessionId,
   getUserName,
@@ -23,6 +22,8 @@ import {
 import type { BookingLifecycleStatus, BookingProgress, RideBooking, RideTurn } from "@/features/ride/api";
 import { playBase64Audio, sendVoiceTurn, speakWithBrowser } from "@/features/voice/api";
 import { useVoiceRecorder } from "@/features/voice/useVoiceRecorder";
+import { HistoryPanel } from "@/features/history/components/HistoryPanel";
+import { TranscriptModal } from "@/features/history/components/TranscriptModal";
 
 type Message = { id: string; role: "user" | "assistant"; text: string };
 
@@ -44,6 +45,9 @@ export const AssistantPage: React.FC = () => {
   const [showOutcomePanel, setShowOutcomePanel] = useState(false);
   const [isSubmittingRating, setIsSubmittingRating] = useState(false);
   const [sessionEnded, setSessionEnded] = useState(false);
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+  const [transcriptSessionId, setTranscriptSessionId] = useState<string | null>(null);
+  const [isTextInputOpen, setIsTextInputOpen] = useState(false);
   const navigate = useNavigate();
   const userName = getUserName();
 
@@ -280,180 +284,196 @@ export const AssistantPage: React.FC = () => {
     await toggleRecording();
   };
 
-  const logout = async () => {
-    if (sessionId) await endRideSession(sessionId).catch(() => undefined);
-    clearAuthSession();
-    navigate("/login");
-  };
-
   const inputDisabled = !sessionId || isSending || sessionEnded;
 
   return (
-    <main className="min-h-screen bg-slate-50 text-[#191C1E]">
-      <header className="min-h-16 px-5 md:px-10 py-3 bg-white border-b border-slate-200 flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <p className="font-extrabold text-xl text-[#006a62]">AloSM Voice</p>
-          <p className="text-xs text-slate-500">Đặt xe an toàn, dễ dàng</p>
+    // Không còn <header>/nút "Trang chủ" tự chế — trang này giờ nằm trong AppLayout
+    // (Sidebar/Topbar/MobileNav thật, xem app/router/index.tsx), có taskbar để sang
+    // màn khác đúng như yêu cầu. Khu vực nội dung của riêng trang này dùng giao diện
+    // tối (dark) — nổi bật như 1 "phòng trò chuyện" giữa dashboard sáng, không đổi cả
+    // bộ khung Sidebar/Topbar sang tối (ảnh hưởng mọi trang khác, ngoài phạm vi yêu
+    // cầu này).
+    <div className="pb-8">
+      <div className="text-center mb-6">
+        <h1 className="text-3xl font-extrabold text-[#191C1E]">Chào {userName}, bạn muốn đi đâu?</h1>
+        <p className="text-slate-500 mt-2">
+          Nói tự nhiên hoặc nhắn tin. AloSM luôn hỏi xác nhận trước khi đặt xe.
+        </p>
+        <div className="mt-4 max-w-xl mx-auto text-left">
+          <LlmStatusNote />
         </div>
-        <div className="flex items-center gap-3">
-          <LlmStatusNote compact />
-          {/* Bug thật đã sửa: trước đây không có cách nào quay lại Home/Booking/...
-              từ trang này ngoài Đăng xuất (mất hết phiên) — trang chỉ có link MỘT
-              CHIỀU từ Home tới đây, không có chiều ngược lại. */}
-          <NavLink
-            to="/"
-            className="flex gap-2 items-center text-sm font-semibold text-slate-600 hover:text-[#006a62]"
-          >
-            <Home className="w-4 h-4" /> Trang chủ
-          </NavLink>
-          <button
-            onClick={logout}
-            className="flex gap-2 items-center text-sm font-semibold text-slate-600 hover:text-rose-600"
-          >
-            <LogOut className="w-4 h-4" /> Đăng xuất
-          </button>
-        </div>
-      </header>
-      <section className="max-w-6xl mx-auto px-4 py-8 md:py-12">
-        <div className="flex flex-col lg:flex-row gap-6 items-start">
-          <div className="flex-1 min-w-0 w-full">
-            <div className="text-center mb-6">
-              <h1 className="text-3xl font-extrabold">Chào {userName}, bạn muốn đi đâu?</h1>
-              <p className="text-slate-500 mt-2">
-                Nói tự nhiên hoặc nhắn tin. AloSM luôn hỏi xác nhận trước khi đặt xe.
-              </p>
-              <div className="mt-4 max-w-xl mx-auto text-left">
-                <LlmStatusNote />
-              </div>
+      </div>
+
+      <div className="flex flex-col lg:flex-row gap-6 items-start">
+        <div className="flex-1 min-w-0 w-full">
+          <div className="bg-[#0B0E11] border border-white/10 shadow-2xl rounded-3xl overflow-hidden">
+            {/* Thanh trên cùng của khu trò chuyện — chỉ còn nút Lịch sử (điều hướng
+                sang trang khác đã có Topbar lo, không lặp lại ở đây) */}
+            <div className="flex items-center justify-between px-5 py-3 border-b border-white/10">
+              <span className="text-xs font-bold text-slate-300 uppercase tracking-wider">AloSM Voice</span>
+              <button
+                type="button"
+                onClick={() => setIsHistoryOpen(true)}
+                className="flex items-center gap-1.5 text-xs font-semibold text-slate-300 hover:text-[#00D1C1] px-3 py-1.5 rounded-full hover:bg-white/10 transition-colors"
+              >
+                <History className="w-3.5 h-3.5" />
+                Lịch sử trò chuyện
+              </button>
             </div>
-            <div className="bg-white border border-slate-200 shadow-lg rounded-3xl overflow-hidden">
-              <div className="p-6 bg-gradient-to-br from-[#006a62] to-[#00D1C1] text-white text-center">
-                <button
-                  onClick={toggleMicrophone}
-                  disabled={inputDisabled}
-                  className="w-28 h-28 mx-auto rounded-full bg-white/20 border-4 border-white/50 flex items-center justify-center hover:scale-105 disabled:opacity-50 transition"
-                  aria-label="Bắt đầu nói"
-                >
-                  {isListening ? <Square className="w-9 h-9 fill-white" /> : <Mic className="w-11 h-11" />}
-                </button>
-                <p className="font-bold mt-4">
-                  {sessionEnded
-                    ? "Phiên đã kết thúc"
-                    : isListening
-                      ? "Đang ghi âm… Nhấn để gửi"
-                      : isSending
-                        ? "Đang xử lý giọng nói…"
-                        : sessionId
-                          ? "Nhấn để nói (Whisper/TTS)"
-                          : "Đang kết nối phiên…"}
-                </p>
-              </div>
-              <div className="p-5 md:p-6">
-                <div className="h-[310px] overflow-y-auto space-y-4 pr-1" aria-live="polite">
-                  {messages.map((message) => (
-                    <div
-                      key={message.id}
-                      className={`flex gap-3 ${message.role === "user" ? "justify-end" : "justify-start"}`}
+
+            {/* Mic — hành động chính, đặt đầu tiên và nổi bật nhất; chat text là lựa
+                chọn phụ, gấp gọn phía dưới (xem nút "Hoặc nhắn tin"). */}
+            <div className="p-8 bg-gradient-to-br from-[#0B3D3A] via-[#0E4F49] to-[#00D1C1]/30 text-white text-center">
+              <button
+                onClick={toggleMicrophone}
+                disabled={inputDisabled}
+                className={`w-32 h-32 mx-auto rounded-full flex items-center justify-center transition disabled:opacity-50 ${
+                  isListening
+                    ? "bg-rose-500/90 border-4 border-rose-300/60 scale-105 animate-pulse"
+                    : "bg-white/10 border-4 border-white/30 hover:scale-105 hover:bg-white/15"
+                }`}
+                aria-label="Bắt đầu nói"
+              >
+                {isListening ? <Square className="w-10 h-10 fill-white" /> : <Mic className="w-12 h-12" />}
+              </button>
+              <p className="font-bold mt-5 text-lg">
+                {sessionEnded
+                  ? "Phiên đã kết thúc"
+                  : isListening
+                    ? "Đang ghi âm… Nhấn để gửi"
+                    : isSending
+                      ? "Đang xử lý giọng nói…"
+                      : sessionId
+                        ? "Nhấn để nói"
+                        : "Đang kết nối phiên…"}
+              </p>
+              <p className="text-xs text-white/70 mt-1 flex items-center justify-center gap-1">
+                <Volume2 className="w-3 h-3" /> Whisper/Gemini STT · OpenAI TTS
+              </p>
+            </div>
+
+            <div className="p-5 md:p-6">
+              <div className="h-[280px] overflow-y-auto space-y-4 pr-1" aria-live="polite">
+                {messages.map((message) => (
+                  <div
+                    key={message.id}
+                    className={`flex gap-3 ${message.role === "user" ? "justify-end" : "justify-start"}`}
+                  >
+                    {message.role === "assistant" && (
+                      <span className="mt-1 w-8 h-8 shrink-0 rounded-full bg-[#00D1C1]/15 text-[#00D1C1] grid place-items-center">
+                        <Bot className="w-4 h-4" />
+                      </span>
+                    )}
+                    <p
+                      className={`max-w-[80%] rounded-2xl px-4 py-3 text-sm leading-6 ${
+                        message.role === "user"
+                          ? "bg-[#00D1C1] text-[#0B0E11] font-medium rounded-tr-sm"
+                          : "bg-white/10 text-slate-100 rounded-tl-sm"
+                      }`}
                     >
-                      {message.role === "assistant" && (
-                        <span className="mt-1 w-8 h-8 shrink-0 rounded-full bg-[#00D1C1]/15 text-[#006a62] grid place-items-center">
-                          <Bot className="w-4 h-4" />
-                        </span>
-                      )}
-                      <p
-                        className={`max-w-[80%] rounded-2xl px-4 py-3 text-sm leading-6 ${
-                          message.role === "user"
-                            ? "bg-[#00D1C1] text-white rounded-tr-sm"
-                            : "bg-slate-100 rounded-tl-sm"
-                        }`}
-                      >
-                        {message.text}
-                      </p>
-                    </div>
-                  ))}
-                  {isSending && (
-                    <p className="text-sm text-slate-500 animate-pulse">AloSM đang xử lý…</p>
-                  )}
+                      {message.text}
+                    </p>
+                  </div>
+                ))}
+                {isSending && (
+                  <p className="text-sm text-slate-400 animate-pulse">AloSM đang xử lý…</p>
+                )}
+              </div>
+
+              {showOutcomePanel && completedBooking && (
+                <BookingSuccessPanel
+                  booking={{
+                    booking_id: completedBooking.booking_id,
+                    estimated_fare: completedBooking.estimated_fare,
+                    lifecycle_status: completedBooking.lifecycle_status ?? "SUCCESS",
+                  }}
+                  onSubmitRating={handleSubmitRating}
+                  onEndSession={handleEndSession}
+                  onNewSession={handleNewSession}
+                  isSubmittingRating={isSubmittingRating}
+                />
+              )}
+
+              {notice && (
+                <p className="mt-4 text-sm bg-amber-500/10 text-amber-300 border border-amber-500/30 rounded-xl p-3">
+                  {notice}
+                </p>
+              )}
+
+              {sessionEnded && (
+                <div className="mt-4">
+                  <button
+                    type="button"
+                    onClick={handleNewSession}
+                    className="rounded-xl bg-[#00D1C1] px-4 py-2 text-sm font-semibold text-[#0B0E11] hover:opacity-90"
+                  >
+                    Bắt đầu phiên mới
+                  </button>
                 </div>
+              )}
 
-                {showOutcomePanel && completedBooking && (
-                  <BookingSuccessPanel
-                    booking={{
-                      booking_id: completedBooking.booking_id,
-                      estimated_fare: completedBooking.estimated_fare,
-                      lifecycle_status: completedBooking.lifecycle_status ?? "SUCCESS",
-                    }}
-                    onSubmitRating={handleSubmitRating}
-                    onEndSession={handleEndSession}
-                    onNewSession={handleNewSession}
-                    isSubmittingRating={isSubmittingRating}
-                  />
-                )}
-
-                {notice && (
-                  <p className="mt-4 text-sm bg-amber-50 text-amber-800 rounded-xl p-3">{notice}</p>
-                )}
-
-                {sessionEnded && (
-                  <div className="mt-4">
+              {!sessionEnded && (
+                <>
+                  <div className="flex flex-wrap gap-2 mt-4">
+                    <button
+                      onClick={() => send("Đặt xe từ Quận 1 đến sân bay Tân Sơn Nhất")}
+                      className="text-xs bg-white/10 text-slate-200 rounded-full px-3 py-2 hover:bg-white/20"
+                    >
+                      Đặt xe ra sân bay
+                    </button>
                     <button
                       type="button"
-                      onClick={handleNewSession}
-                      className="rounded-xl bg-[#00D1C1] px-4 py-2 text-sm font-semibold text-white hover:opacity-90"
+                      onClick={() => setIsTextInputOpen((open) => !open)}
+                      className="flex items-center gap-1.5 text-xs bg-white/10 text-slate-200 rounded-full px-3 py-2 hover:bg-white/20"
                     >
-                      Bắt đầu phiên mới
+                      <Keyboard className="w-3.5 h-3.5" />
+                      {isTextInputOpen ? "Ẩn nhắn tin" : "Hoặc nhắn tin"}
                     </button>
                   </div>
-                )}
 
-                {!sessionEnded && (
-                  <>
-                    <div className="flex flex-wrap gap-2 mt-4">
-                      <button
-                        onClick={() => send("Đặt xe từ Quận 1 đến sân bay Tân Sơn Nhất")}
-                        className="text-xs bg-slate-100 rounded-full px-3 py-2 hover:bg-slate-200"
-                      >
-                        Đặt xe ra sân bay
-                      </button>
-                    </div>
+                  {isTextInputOpen && (
                     <form
                       onSubmit={(event) => {
                         event.preventDefault();
                         send(text);
                       }}
-                      className="flex gap-2 border-t border-slate-100 mt-5 pt-4"
+                      className="flex gap-2 border-t border-white/10 mt-5 pt-4"
                     >
                       <input
                         value={text}
                         onChange={(event) => setText(event.target.value)}
                         disabled={inputDisabled}
-                        className="flex-1 rounded-xl bg-slate-100 px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-[#00D1C1]"
+                        autoFocus
+                        className="flex-1 rounded-xl bg-white/10 text-white placeholder:text-slate-500 px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-[#00D1C1]"
                         placeholder="Nhập điểm đón và điểm đến…"
                       />
                       <button
                         disabled={!text.trim() || inputDisabled}
-                        className="w-12 rounded-xl bg-[#00D1C1] text-white grid place-items-center disabled:opacity-50"
+                        className="w-12 rounded-xl bg-[#00D1C1] text-[#0B0E11] grid place-items-center disabled:opacity-50"
                         aria-label="Gửi"
                       >
                         <Send className="w-5 h-5" />
                       </button>
                     </form>
-                  </>
-                )}
-
-                <p className="mt-3 flex items-center gap-1 text-xs text-slate-400">
-                  <Volume2 className="w-3 h-3" /> Giọng nói dùng Whisper/Gemini STT và OpenAI TTS.
-                </p>
-              </div>
+                  )}
+                </>
+              )}
             </div>
           </div>
-          <BookingProgressSidebar
-            progress={bookingProgress}
-            lifecycleStatus={lifecycleStatus}
-            isProcessing={isSending}
-          />
         </div>
-      </section>
-    </main>
+        <BookingProgressSidebar
+          progress={bookingProgress}
+          lifecycleStatus={lifecycleStatus}
+          isProcessing={isSending}
+        />
+      </div>
+
+      <HistoryPanel
+        isOpen={isHistoryOpen}
+        onClose={() => setIsHistoryOpen(false)}
+        onSelectSession={(id) => setTranscriptSessionId(id)}
+      />
+      <TranscriptModal sessionId={transcriptSessionId} onClose={() => setTranscriptSessionId(null)} />
+    </div>
   );
 };

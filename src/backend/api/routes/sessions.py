@@ -10,15 +10,19 @@ from src.backend.schemas.session import (
     SessionDTO,
     SessionFeedbackDTO,
     SessionFeedbackResponseDTO,
+    SessionHistorySummaryDTO,
     SessionMessageDTO,
     SessionMessageResponseDTO,
     SessionResumeResponseDTO,
+    SessionTranscriptDTO,
     SessionUpdateDTO,
 )
+from src.backend.services.conversation_history_service import ConversationHistoryService
 from src.backend.services.session_service import SessionService
 
 router = APIRouter(prefix="/sessions", tags=["sessions"])
 controller = SessionController()
+_history_service = ConversationHistoryService()
 _SESSION_AUTH_MESSAGE = "Phiên hội thoại không hợp lệ. Vui lòng đăng nhập lại."
 
 
@@ -73,6 +77,28 @@ async def create_session(
     if token:
         auth_service.bind_session_to_token(token, str(created["session_id"]))
     return SessionCreatedDTO(**created)
+
+
+@router.get("/history", response_model=list[SessionHistorySummaryDTO])
+async def list_session_history(authorization: str | None = Header(default=None)) -> list[SessionHistorySummaryDTO]:
+    """Lịch sử toàn bộ cuộc trò chuyện của user hiện tại — không dùng
+    `_require_session_access` (token chỉ bind với ĐÚNG 1 session đang hoạt động,
+    không phải các session cũ), chỉ cần xác thực user qua token là đủ để xem lịch sử
+    của chính mình."""
+    user_id = _user_id_from_header(authorization)
+    return [SessionHistorySummaryDTO(**item) for item in _history_service.list_sessions(user_id)]
+
+
+@router.get("/history/{session_id}", response_model=SessionTranscriptDTO)
+async def get_session_transcript(
+    session_id: str,
+    authorization: str | None = Header(default=None),
+) -> SessionTranscriptDTO:
+    user_id = _user_id_from_header(authorization)
+    transcript = _history_service.get_transcript(user_id, session_id)
+    if transcript is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Không tìm thấy lịch sử hội thoại")
+    return SessionTranscriptDTO(**transcript)
 
 
 @router.get("/{session_id}", response_model=SessionDTO)

@@ -12,24 +12,18 @@ import { PaymentPage } from "@/pages/Payment/PaymentPage";
 import { ProfilePage } from "@/pages/Profile/ProfilePage";
 import { NotFoundPage } from "@/pages/NotFound/NotFoundPage";
 
-// `/login` và `/assistant` đứng riêng, KHÔNG bọc AppLayout — AssistantPage tự quản lý
-// header/logout riêng, đã chạy thật và test kỹ, không đổi để tránh rủi ro không cần
-// thiết. Các trang còn lại (trước đây không route nào trỏ tới, xem mustdo.md mục 1)
-// giờ lồng trong AppLayout (Sidebar + Topbar + MobileNav, xem components/layout/) —
-// đúng thiết kế gốc của Sidebar (nav item "/", "/booking", "/activity", "/payment",
-// "/profile" đã có sẵn, chỉ chưa từng được route tới).
+// `/login` đứng riêng (chưa đăng nhập, chưa có gì để điều hướng tới). Mọi trang sau
+// đăng nhập — kể cả `/assistant` — giờ lồng trong AppLayout (Sidebar/Topbar/
+// MobileNav) để LUÔN có thanh điều hướng sang màn khác, theo đúng yêu cầu (trước đây
+// AssistantPage đứng riêng, chỉ có 1 link "Trang chủ" tự chế — không phải taskbar
+// thật). AssistantPage tự vẽ nền tối riêng cho khu vực nội dung của nó (xem
+// AssistantPage.tsx), Sidebar/Topbar vẫn giữ giao diện sáng nhất quán với các trang
+// khác — tránh đổi nguyên bộ khung sang tối (ảnh hưởng mọi trang, rủi ro/công sức lớn
+// hơn nhiều so với yêu cầu).
 const router = createBrowserRouter([
   {
     path: "/login",
     element: <LoginPage />,
-  },
-  {
-    path: "/assistant",
-    element: (
-      <RequireAuth>
-        <AssistantPage />
-      </RequireAuth>
-    ),
   },
   {
     element: (
@@ -44,6 +38,7 @@ const router = createBrowserRouter([
       { path: "/activity", element: <ActivityPage /> },
       { path: "/payment", element: <PaymentPage /> },
       { path: "/profile", element: <ProfilePage /> },
+      { path: "/assistant", element: <AssistantPage /> },
     ],
   },
   { path: "*", element: <NotFoundPage /> },

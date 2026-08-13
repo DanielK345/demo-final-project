@@ -1,0 +1,69 @@
+from __future__ import annotations
+
+import json
+from pathlib import Path
+from typing import Any
+
+_PROJECT_ROOT = Path(__file__).resolve().parents[3]
+_LOGS_DIR = _PROJECT_ROOT / "logs"
+
+
+class ConversationHistoryService:
+    """Đọc lại log hội thoại do `ConversationLogger` ghi (`logs/*.json`) — phục vụ
+    tính năng "Lịch sử trò chuyện" (list session + xem lại transcript) trên Frontend.
+
+    Đọc trực tiếp từ file thay vì `SessionService.sessions` (in-memory) vì mục đích
+    của tính năng này là xem lại session CŨ, đã kết thúc từ lâu — có thể không còn
+    trong dict in-memory (mất khi server restart), nhưng file log vẫn còn.
+    """
+
+    def __init__(self, logs_dir: Path | None = None) -> None:
+        self.logs_dir = logs_dir or _LOGS_DIR
+
+    def list_sessions(self, user_id: str) -> list[dict[str, Any]]:
+        summaries: list[dict[str, Any]] = []
+        for path in self._iter_logs():
+            payload = self._safe_read(path)
+            if payload is None or payload.get("user_id") != user_id:
+                continue
+            messages = payload.get("messages") or []
+            if not messages:
+                continue  # bỏ qua session rỗng (tạo xong nhưng chưa nói gì)
+            first_user_message = next(
+                (m.get("text", "") for m in messages if m.get("role") == "user"),
+                "",
+            )
+            summaries.append(
+                {
+                    "session_id": payload["session_id"],
+                    "channel": payload.get("channel", "WEB_TEXT"),
+                    "status": payload.get("status", "ACTIVE"),
+                    "created_at": payload.get("created_at"),
+                    "message_count": len(messages),
+                    "preview": first_user_message[:120],
+                }
+            )
+        summaries.sort(key=lambda item: item["created_at"] or "", reverse=True)
+        return summaries
+
+    def get_transcript(self, user_id: str, session_id: str) -> dict[str, Any] | None:
+        for path in self._iter_logs():
+            payload = self._safe_read(path)
+            if payload is None or payload.get("session_id") != session_id:
+                continue
+            if payload.get("user_id") != user_id:
+                return None  # tồn tại nhưng không phải chủ session -> coi như không thấy
+            return payload
+        return None
+
+    def _iter_logs(self) -> list[Path]:
+        if not self.logs_dir.is_dir():
+            return []
+        return sorted(self.logs_dir.glob("*.json"), reverse=True)
+
+    @staticmethod
+    def _safe_read(path: Path) -> dict[str, Any] | None:
+        try:
+            return json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError, UnicodeDecodeError):
+            return None

@@ -82,3 +82,35 @@ class SessionUpdateDTO(BaseModel):
 class SessionResumeResponseDTO(BaseModel):
     session_id: str
     status: str
+
+
+class SessionHistorySummaryDTO(BaseModel):
+    """1 dòng trong danh sách lịch sử trò chuyện — `GET /api/v1/sessions/history`."""
+
+    session_id: str
+    channel: str
+    status: str
+    created_at: str | None = None
+    message_count: int
+    preview: str
+
+
+class SessionHistoryMessageDTO(BaseModel):
+    timestamp: str
+    role: Literal["user", "agent"]
+    text: str
+    source: str | None = None
+    stt_confidence: float | None = None
+    action: str | None = None
+
+
+class SessionTranscriptDTO(BaseModel):
+    """Toàn bộ nội dung 1 cuộc trò chuyện —
+    `GET /api/v1/sessions/history/{session_id}`."""
+
+    session_id: str
+    channel: str
+    status: str
+    created_at: str | None = None
+    ended_at: str | None = None
+    messages: list[SessionHistoryMessageDTO]

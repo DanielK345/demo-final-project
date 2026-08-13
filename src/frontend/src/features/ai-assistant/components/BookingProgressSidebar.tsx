@@ -82,12 +82,14 @@ export const BookingProgressSidebar: React.FC<Props> = ({
   ];
 
   return (
+    // Giao diện tối, đồng bộ với khu trò chuyện bên cạnh (AssistantPage.tsx) — trước
+    // đây là card nền trắng, đặt cạnh panel tối trông lệch tông.
     <aside className="w-full lg:w-72 shrink-0">
-      <div className="bg-white border border-slate-200 rounded-2xl shadow-sm p-5 sticky top-6">
-        <h2 className="text-sm font-bold text-slate-800 uppercase tracking-wide">
+      <div className="bg-[#0B0E11] border border-white/10 rounded-2xl shadow-2xl p-5 sticky top-6">
+        <h2 className="text-sm font-bold text-white uppercase tracking-wide">
           Thông tin đặt xe
         </h2>
-        <p className="text-xs text-slate-500 mt-1">
+        <p className="text-xs text-slate-400 mt-1">
           Agent chỉ hỏi thông tin còn thiếu.
         </p>
         {status && (
@@ -108,23 +110,23 @@ export const BookingProgressSidebar: React.FC<Props> = ({
                 key={key}
                 className={`rounded-xl border p-3 transition ${
                   status.active
-                    ? "border-[#00D1C1] bg-[#00D1C1]/5"
-                    : "border-slate-100 bg-slate-50"
+                    ? "border-[#00D1C1] bg-[#00D1C1]/10"
+                    : "border-white/10 bg-white/5"
                 }`}
               >
-                <div className="flex items-center gap-2 text-xs font-semibold text-slate-500">
+                <div className="flex items-center gap-2 text-xs font-semibold text-slate-400">
                   <Icon className="w-3.5 h-3.5" />
                   {FIELD_LABELS[key]}
                 </div>
                 <p
                   className={`mt-1 text-sm font-medium ${
-                    status.pending ? "text-slate-400 italic" : "text-slate-800"
+                    status.pending ? "text-slate-500 italic" : "text-slate-100"
                   }`}
                 >
                   {status.value}
                 </p>
                 {status.active && (
-                  <p className="mt-1 text-[11px] font-semibold text-[#006a62]">
+                  <p className="mt-1 text-[11px] font-semibold text-[#00D1C1]">
                     Đang chờ thông tin này
                   </p>
                 )}

@@ -85,7 +85,7 @@ cả `Sidebar`/`Topbar`/`MobileNav`/`AssistantPage` và các component con) — 
 | 4 | Nút chuông Thông báo bấm không có phản ứng gì (không có `onClick`) | `Topbar.tsx` | Thêm dropdown "Chưa có thông báo mới" |
 | 5 | Nút Đăng xuất cũ **không xoá session** — token cũ vẫn hợp lệ sau khi "đăng xuất" | `Topbar.tsx` | Gọi `clearAuthSession()` |
 | 6 | Filter "Tháng trước" ở Activity không lọc được gì — không có nhánh xử lý, rơi xuống `return true` giống "Tất cả" | `ActivityList.tsx` | Thêm lọc theo `created_at` (30 ngày) |
-| 7 | Vào `/assistant` không có đường quay lại Home/Booking/... — chỉ có Đăng xuất (mất hết phiên) | `AssistantPage.tsx` | Thêm link "Trang chủ" |
+| 7 | Vào `/assistant` không có đường quay lại Home/Booking/... — chỉ có Đăng xuất (mất hết phiên) | `AssistantPage.tsx` | Thêm link "Trang chủ" (tạm thời — xem mục 6: sau đó thay hẳn bằng taskbar thật theo yêu cầu tiếp theo) |
 | 8 | Khi hội thoại tự kết thúc (agent trả `END_SESSION`, vd khách nói "hủy"), code **đăng xuất khỏi cả tài khoản** — trong khi nút "Kết thúc phiên" tường minh chỉ reset hội thoại, không đăng xuất. 2 đường xử lý cùng 1 tình huống khác hẳn nhau | `AssistantPage.tsx` (2 chỗ) | Đồng bộ theo `handleEndSession` |
 
 Cũng dọn thêm code chết phát hiện trong lúc audit (không dùng ở đâu, gây lỗi lint
@@ -101,7 +101,39 @@ Và 1 lớp bảo vệ logic: `createBookingViaForm` (BookingPage) giờ chỉ g
 agent thật sự đang ở bước `CONFIRM` — tránh gửi xác nhận mù quáng nếu agent hỏi lại
 điều gì khác (địa điểm chưa rõ, loại xe chưa nhận diện được).
 
-## 6. Trạng thái hiện tại (đã verify)
+## 6. AssistantPage: taskbar thật, giao diện tối, lịch sử trò chuyện
+
+Theo yêu cầu trực tiếp: trước đây `/assistant` đứng riêng ngoài `AppLayout`, chỉ có
+1 link "Trang chủ" tự chế để quay lại — không phải taskbar thật. Đã sửa tận gốc:
+
+- **Router**: `/assistant` giờ lồng trong `AppLayout` như mọi trang khác — có đầy đủ
+  Sidebar/Topbar/MobileNav để chuyển màn, không còn đường cụt.
+- **Giao diện tối**: khu vực trò chuyện (panel chính + `BookingProgressSidebar`) vẽ
+  lại theo tông tối (`#0B0E11`, chữ trắng/slate sáng, nhấn `#00D1C1`) — nổi bật như 1
+  "phòng trò chuyện" giữa dashboard sáng. Sidebar/Topbar/MobileNav giữ nguyên sáng
+  (đồng bộ với mọi trang khác — đổi cả bộ khung sang tối là việc khác, lớn hơn nhiều,
+  ngoài phạm vi yêu cầu lần này).
+- **Voice-first**: nút mic đặt đầu tiên, to, nổi bật (gradient tối, phóng to khi đang
+  ghi âm). Chat text gấp gọn phía sau nút "Hoặc nhắn tin" — vẫn dùng được đầy đủ,
+  không phải bắt buộc nhìn thấy ngay như trước. (Lưu ý: trình duyệt bắt buộc phải có
+  thao tác bấm của người dùng mới được xin quyền micro — không thể "tự chạy" mic mà
+  không cần bấm gì, đây là giới hạn bảo mật trình duyệt, không phải thiếu sót.)
+- **Lịch sử trò chuyện (tính năng mới)**: nút "Lịch sử trò chuyện" mở panel liệt kê
+  toàn bộ session cũ của user (mới nhất trước, có preview + số tin nhắn), bấm vào 1
+  session hiện popup toàn bộ nội dung dạng bong bóng chat dễ đọc.
+  - Backend: `GET /api/v1/sessions/history` (list) + `GET /api/v1/sessions/history/
+    {session_id}` (transcript) — đọc trực tiếp từ `logs/*.json`, nơi
+    `ConversationLogger` (đã có sẵn từ trước, chưa từng được khai thác) ghi lại từng
+    lượt hội thoại. Verify quyền sở hữu (user A không xem được lịch sử user B).
+  - Phát hiện + sửa tác dụng phụ: mỗi lần `pytest` chạy, `SessionService.
+    _conversation_logger` (class attribute dùng chung) ghi file log THẬT vào `logs/`
+    — trước khi có tính năng này chỉ là rác vô hại, giờ sẽ LẪN VÀO lịch sử trò chuyện
+    thật nếu ai chạy `pytest` trên máy đang chạy server thật. Thêm fixture
+    `autouse` trong `tests/conftest.py` trỏ logger sang thư mục tạm (`tmp_path`) cho
+    mọi test — không đụng `tests/test_backend/test_conversation_logger.py` (tự inject
+    logger riêng, không phụ thuộc mặc định).
+
+## 7. Trạng thái hiện tại (đã verify, tính đến mục 6)
 
 - `pytest`: 262 passed / 4 skipped / 0 failed
 - `tsc -b`: sạch
@@ -109,8 +141,11 @@ agent thật sự đang ở bước `CONFIRM` — tránh gửi xác nhận mù q
 - `oxlint`: **sạch hoàn toàn** (2 warning tồn đọng từ trước — thuộc cụm code chết vừa
   xoá ở mục 5 — đã biến mất theo)
 - Boot server thật: `/health`, `/api/v1/voice/health` đều 200
+- `GET /api/v1/sessions/history` + `GET /api/v1/sessions/history/{id}`: verify thật —
+  đăng nhập → gửi tin nhắn → xuất hiện trong list → xem transcript đúng nội dung →
+  session không phải của mình trả 404 (không rò rỉ dữ liệu chéo user)
 
-## 7. Việc còn lại (`mustdo.md` — cần người/credential thật)
+## 8. Việc còn lại (`mustdo.md` — cần người/credential thật)
 
 1. Tạo project Supabase thật (database production).
 2. Chọn 1 trong 2 hệ thống Voice AI để giữ lâu dài (không chặn, chỉ nên dọn sau).
@@ -119,7 +154,7 @@ agent thật sự đang ở bước `CONFIRM` — tránh gửi xác nhận mù q
 5. 2FA thật (TOTP/SMS) — hiện chỉ persist lựa chọn, chưa enforce lúc đăng nhập.
 6. `OPENAI_API_KEY` thật nếu muốn bật LLM hiểu ngôn ngữ tự nhiên đầy đủ.
 
-## 8. Lệnh kiểm tra nhanh
+## 9. Lệnh kiểm tra nhanh
 
 ```bash
 # Backend
