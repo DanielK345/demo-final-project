@@ -98,7 +98,7 @@ async def booking_demo() -> None:
             {"candidates": [{"place_id": "p2", "display_name": "Times City"}]},
         )
     )
-    await session.user("0901234567")
+    await session.user("xe 4 chỗ")
     booking = await session.user("Đúng, đặt giúp tôi")
     await session.tool(
         success(

@@ -8,6 +8,8 @@ from src.backend.schemas.session import (
     EndSessionResponseDTO,
     SessionCreatedDTO,
     SessionDTO,
+    SessionFeedbackDTO,
+    SessionFeedbackResponseDTO,
     SessionMessageDTO,
     SessionMessageResponseDTO,
     SessionResumeResponseDTO,
@@ -130,6 +132,31 @@ async def send_message(
                 session_id,
                 request.message,
                 request.stt_confidence,
+                source=request.source,
+            )
+        )
+    except KeyError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=_SESSION_AUTH_MESSAGE,
+        ) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
+@router.post("/{session_id}/feedback", response_model=SessionFeedbackResponseDTO)
+async def submit_feedback(
+    session_id: str,
+    request: SessionFeedbackDTO,
+    authorization: str | None = Header(default=None),
+) -> SessionFeedbackResponseDTO:
+    _require_session_access(session_id, authorization)
+    try:
+        return SessionFeedbackResponseDTO(
+            **controller.service.submit_feedback(
+                session_id,
+                request.rating,
+                request.comment,
             )
         )
     except KeyError as exc:

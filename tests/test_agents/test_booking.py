@@ -15,7 +15,7 @@ from src.agents.understanding.models import (
     UnderstandingResult,
 )
 from src.agents.workflows.booking import RideBookingWorkflow
-from src.agents.workflows.booking_models import BookingData, BookingStep
+from src.agents.workflows.booking_models import BookingData, BookingLifecycleStatus, BookingStep
 
 
 def apply_action(state: AgentState, action) -> AgentState:
@@ -44,6 +44,27 @@ def booking_state(
         collected_data={"booking": (data or BookingData()).model_dump(mode="json")},
         confirmation=confirmation,
     )
+
+
+@pytest.mark.asyncio
+async def test_booking_recognizes_destination_when_asked_for_pickup():
+    workflow = RideBookingWorkflow()
+    state = booking_state(step=BookingStep.COLLECT_PICKUP)
+
+    action = await workflow.handle(
+        AgentInput(
+            session_id="session-001",
+            transcript="TÔI MUỐN ĐI PHỤ CỦ HÀ NộI",
+        ),
+        state,
+    )
+
+    assert action.action_type is ActionType.ASK_USER
+    assert action.state_updates["current_step"] == BookingStep.COLLECT_PICKUP
+    assert action.message == "Anh/chị muốn đón ở đâu?"
+    data = BookingData.model_validate(action.state_updates["collected_data"]["booking"])
+    assert data.destination_query == "PHỤ CỦ HÀ NộI"
+    assert data.pickup is None
 
 
 @pytest.mark.asyncio
@@ -197,7 +218,7 @@ async def test_booking_happy_path_requires_confirmation_before_create_booking():
     assert destination_call.tool_call.tool_name is ToolName.SEARCH_PLACE
     state = apply_action(state, destination_call)
 
-    ask_phone = await workflow.handle(
+    ask_vehicle = await workflow.handle(
         AgentInput(
             session_id="session-001",
             turn_id="turn-001",
@@ -208,9 +229,9 @@ async def test_booking_happy_path_requires_confirmation_before_create_booking():
         ),
         state,
     )
-    assert ask_phone.action_type is ActionType.ASK_USER
-    assert ask_phone.state_updates["current_step"] == BookingStep.COLLECT_VEHICLE_TYPE
-    state = apply_action(state, ask_phone)
+    assert ask_vehicle.action_type is ActionType.ASK_USER
+    assert ask_vehicle.state_updates["current_step"] == BookingStep.COLLECT_VEHICLE_TYPE
+    state = apply_action(state, ask_vehicle)
 
     ask_phone_number = await workflow.handle(
         AgentInput(
@@ -240,11 +261,10 @@ async def test_booking_happy_path_requires_confirmation_before_create_booking():
     assert booking_call.action_type is ActionType.CALL_TOOL
     assert booking_call.tool_call is not None
     assert booking_call.tool_call.tool_name is ToolName.CREATE_BOOKING
-    assert booking_call.tool_call.params == {
-        "pickup_place_id": "pickup-1",
-        "destination_place_id": "destination-1",
-        "phone_number": "0901234567",
-    }
+    pending_data = BookingData.model_validate(
+        booking_call.state_updates["collected_data"]["booking"]
+    )
+    assert pending_data.lifecycle_status is BookingLifecycleStatus.PENDING
     state = apply_action(state, booking_call)
 
     completed = await workflow.handle(
@@ -268,9 +288,53 @@ async def test_booking_happy_path_requires_confirmation_before_create_booking():
     assert completed.action_type is ActionType.RESPOND
     assert "5 phút" in completed.message
     assert completed.state_updates["current_workflow"] is None
+    assert completed.state_updates["current_step"] is None
     assert completed.state_updates["pending_tool_call_id"] is None
     data = BookingData.model_validate(completed.state_updates["collected_data"]["booking"])
     assert data.booking_id == "booking-001"
+    assert data.lifecycle_status is BookingLifecycleStatus.SUCCESS
+
+
+@pytest.mark.asyncio
+async def test_booking_marks_failed_when_create_booking_errors():
+    workflow = RideBookingWorkflow()
+    data = BookingData.model_validate(
+        {
+            "pickup": {"place_id": "p1", "display_name": "Hồ Gươm"},
+            "destination": {"place_id": "p2", "display_name": "Times City"},
+            "vehicle_type": "4_SEAT",
+            "lifecycle_status": "PENDING",
+        }
+    )
+    state = booking_state(
+        step=BookingStep.WAITING_FOR_BOOKING_RESULT,
+        data=data,
+        confirmation=ConfirmationStatus.CONFIRMED,
+    )
+    state = state.model_copy(
+        update={
+            "pending_tool_call_id": "call_booking_1",
+            "pending_tool_name": ToolName.CREATE_BOOKING,
+        }
+    )
+
+    action = await workflow.handle(
+        AgentInput(
+            session_id="session-001",
+            tool_result=ToolResult(
+                tool_name=ToolName.CREATE_BOOKING,
+                call_id="call_booking_1",
+                status=ToolStatus.ERROR,
+                data={},
+                error="provider down",
+            ),
+        ),
+        state,
+    )
+
+    assert action.action_type is ActionType.RESPOND
+    failed = BookingData.model_validate(action.state_updates["collected_data"]["booking"])
+    assert failed.lifecycle_status is BookingLifecycleStatus.FAILED
 
 
 @pytest.mark.asyncio
@@ -280,7 +344,6 @@ async def test_booking_does_not_create_booking_for_unclear_confirmation():
             "pickup": {"place_id": "p1", "display_name": "Hồ Gươm"},
             "destination": {"place_id": "p2", "display_name": "Times City"},
             "vehicle_type": "4_SEAT",
-            "phone_number": "0901234567",
         }
     )
     state = booking_state(
@@ -306,7 +369,6 @@ async def test_booking_correction_resets_confirmation_and_resolves_again():
             "pickup": {"place_id": "p1", "display_name": "Hồ Gươm"},
             "destination": {"place_id": "p2", "display_name": "Times City"},
             "vehicle_type": "4_SEAT",
-            "phone_number": "0901234567",
         }
     )
     state = booking_state(

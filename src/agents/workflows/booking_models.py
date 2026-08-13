@@ -27,6 +27,12 @@ class VehicleType(StrEnum):
     PREMIUM = "PREMIUM"
 
 
+class BookingLifecycleStatus(StrEnum):
+    PENDING = "PENDING"
+    FAILED = "FAILED"
+    SUCCESS = "SUCCESS"
+
+
 class BookingData(BaseModel):
     pickup_query: str | None = None
     pickup: PlaceCandidate | None = None

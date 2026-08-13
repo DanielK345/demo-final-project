@@ -42,6 +42,12 @@ export const LlmStatusNote: React.FC<LlmStatusNoteProps> = ({ compact = false })
     ? "Web chat đang dùng Core Agent với OpenAI hiểu ngôn ngữ."
     : "Web chat dùng Core Agent với rule-based fallback (bật OPENAI_API_KEY để dùng LLM).";
 
+  const voiceNote = status.voice_provider
+    ? status.voice_tts_enabled
+      ? `Voice: ${status.voice_provider} STT (${status.voice_stt_model}) + OpenAI TTS.`
+      : `Voice: ${status.voice_provider} STT (${status.voice_stt_model}), TTS fallback trình duyệt.`
+    : null;
+
   if (compact) {
     return (
       <span
@@ -67,6 +73,7 @@ export const LlmStatusNote: React.FC<LlmStatusNoteProps> = ({ compact = false })
         {title}
       </p>
       <p className="mt-1 opacity-90">{detail}</p>
+      {voiceNote && <p className="mt-1 opacity-90">{voiceNote}</p>}
       {!llmActive && (
         <p className="mt-1 opacity-80">
           Bật trong <code className="font-mono">.env</code>:{" "}

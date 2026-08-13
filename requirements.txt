@@ -1,6 +1,7 @@
 # Core
 fastapi>=0.115.0
 uvicorn[standard]>=0.34.0
+python-multipart>=0.0.9
 pydantic>=2.10.0
 pydantic-settings>=2.7.0
 python-dotenv>=1.0.0
@@ -16,6 +17,7 @@ psycopg2-binary>=2.9.0
 langchain>=0.3.0
 langchain-openai>=0.3.0
 langgraph>=0.2.0
+openai>=1.60.0
 
 #Vector Store (uncomment as needed)
 chromadb>=0.5.0
@@ -25,3 +27,11 @@ ruff>=0.8.0
 pytest>=8.0.0
 pytest-asyncio>=0.24.0
 httpx>=0.28.0
+
+# Voice AI (docs/prompt_voice_integration_real_be_fe.md) — additive, không sửa dòng nào ở trên
+numpy>=1.26.0            # src/voice/audio/codec.py — resample PCM16
+rapidfuzz>=3.9.0          # src/voice/asr/biasing.py — fuzzy correction địa danh
+edge-tts>=6.1.0           # src/voice/tts/edge_tts_provider.py
+# onnxruntime>=1.18.0     # src/voice/audio/vad.py SileroVAD — bật khi có model .onnx thật
+# asr/groq_provider.py gọi Groq qua httpx trực tiếp (OpenAI-compatible REST) — không
+# cần SDK `groq` riêng, dùng chung httpx đã có ở trên.
