@@ -8,16 +8,22 @@ const SIDEBAR_COLLAPSED_KEY = "alosm_sidebar_collapsed";
 
 function readStoredCollapsed(): boolean {
   try {
-    return window.localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === "1";
+    const stored = window.localStorage.getItem(SIDEBAR_COLLAPSED_KEY);
+    // Chưa từng lưu gì (lần đầu mở app) -> mặc định dải hẹp + tự mở khi rê chuột
+    // qua (xem Sidebar.tsx) — đúng hành vi "tự động theo lướt chuột" được yêu cầu,
+    // thay vì luôn mở to như trước. "0" nghĩa là người dùng đã bấm ghim mở cố định.
+    return stored !== "0";
   } catch {
-    return false;
+    return true;
   }
 }
 
 export const AppLayout: React.FC = () => {
   // Trạng thái thu/phóng sống ở đây (cha chung của Sidebar + khu nội dung chính) —
   // không cần Context riêng vì chỉ 2 component dùng. Nhớ lựa chọn qua localStorage
-  // giống ThemeProvider, để không phải thu lại mỗi lần chuyển trang/tải lại.
+  // giống ThemeProvider, để không phải thu lại mỗi lần chuyển trang/tải lại. Đây chỉ
+  // là trạng thái "ghim" — khi collapsed=true, việc mở rộng lúc rê chuột là hiệu ứng
+  // CSS thuần (:hover/:focus-within trong Sidebar.tsx), không đi qua state này.
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(readStoredCollapsed);
 
   const toggleSidebar = () => {
