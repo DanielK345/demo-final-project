@@ -3,17 +3,24 @@ from collections.abc import Mapping
 from src.agents.context import ConversationContextBuilder
 from src.agents.guardrails import AgentGuardrails, GuardrailViolationError
 from src.agents.history import record_turn_history
+from src.agents.repair import ConversationRepairHandler, DialogueActDetector
 from src.agents.router import (
     AgentRouter,
     ToolResultRoutingError,
     UnsupportedIntentError,
 )
-from src.agents.schemas import ActionType, AgentAction, AgentInput, WorkflowType
-from src.agents.state import AgentState
+from src.agents.schemas import (
+    ActionType,
+    AgentAction,
+    AgentInput,
+    ToolName,
+    WorkflowType,
+)
+from src.agents.state import AgentState, ConfirmationStatus
 from src.agents.understanding.base import LanguageUnderstandingPort
 from src.agents.understanding.factory import build_understanding_service
 from src.agents.understanding.interpretation import TurnInterpretation
-from src.agents.understanding.models import UnderstandingContext
+from src.agents.understanding.models import UnderstandingContext, UnderstandingIntent
 from src.agents.understanding.rewrite_base import ContextualMessageRewriter
 from src.agents.understanding.rewrite_factory import build_contextual_rewriter
 from src.agents.understanding.rewrite_gate import ContextualRewriteGate
@@ -38,6 +45,8 @@ class LLMAgent:
         context_builder: ConversationContextBuilder | None = None,
         rewrite_gate: ContextualRewriteGate | None = None,
         message_rewriter: ContextualMessageRewriter | None = None,
+        dialogue_act_detector: DialogueActDetector | None = None,
+        repair_handler: ConversationRepairHandler | None = None,
     ) -> None:
         self.router = router or AgentRouter()
         self.guardrails = guardrails or AgentGuardrails()
@@ -45,6 +54,8 @@ class LLMAgent:
         self.context_builder = context_builder or ConversationContextBuilder()
         self.rewrite_gate = rewrite_gate or ContextualRewriteGate()
         self.message_rewriter = message_rewriter or build_contextual_rewriter()
+        self.dialogue_act_detector = dialogue_act_detector or DialogueActDetector()
+        self.repair_handler = repair_handler or ConversationRepairHandler()
         default_workflows = {
             WorkflowType.RIDE_BOOKING: RideBookingWorkflow(),
             WorkflowType.TRIP_LOOKUP: TripLookupWorkflow(),
@@ -62,8 +73,22 @@ class LLMAgent:
         if current_state.session_id != agent_input.session_id:
             raise ValueError("agent input and state must belong to the same session")
 
+        immediate_handoff = self.router.requires_immediate_handoff(
+            agent_input,
+            current_state,
+        )
+        if not immediate_handoff and agent_input.tool_result is None:
+            command = self.dialogue_act_detector.detect(agent_input.transcript)
+            repair_action = self.repair_handler.handle(
+                command,
+                agent_input,
+                current_state,
+            )
+            if repair_action is not None:
+                return self._validate_action(agent_input, current_state, repair_action)
+
         interpretation = None
-        if not self.router.requires_immediate_handoff(agent_input, current_state):
+        if not immediate_handoff:
             interpretation = await self._understand(agent_input, current_state)
         understanding = interpretation.understanding if interpretation else None
         workflow_text = agent_input.transcript
@@ -78,11 +103,33 @@ class LLMAgent:
             else agent_input
         )
 
-        try:
-            workflow_type = self.router.route(
+        faq_interruption = None
+        faq_requested_during_workflow = (
+            understanding is not None
+            and understanding.intent is UnderstandingIntent.FAQ
+            and current_state.current_workflow
+            in {WorkflowType.RIDE_BOOKING, WorkflowType.TRIP_LOOKUP}
+        )
+        if faq_requested_during_workflow and current_state.interrupted_workflow is not None:
+            return self._validate_action(
                 agent_input,
                 current_state,
-                understanding,
+                self.repair_handler.nested_interruption_action(),
+            )
+        if faq_requested_during_workflow:
+            faq_interruption = self.repair_handler.prepare_faq_interruption(
+                current_state
+            )
+
+        try:
+            workflow_type = (
+                WorkflowType.FAQ
+                if faq_interruption is not None
+                else self.router.route(
+                    agent_input,
+                    current_state,
+                    understanding,
+                )
             )
         except UnsupportedIntentError:
             action = AgentAction(
@@ -110,6 +157,30 @@ class LLMAgent:
             current_state,
             understanding,
         )
+        if faq_interruption is not None:
+            action = action.model_copy(
+                update={
+                    "state_updates": {
+                        **action.state_updates,
+                        "confirmation": ConfirmationStatus.NOT_REQUESTED,
+                        "retry_count": 0,
+                        "interrupted_workflow": faq_interruption,
+                    }
+                },
+                deep=True,
+            )
+        elif (
+            workflow_type is WorkflowType.FAQ
+            and current_state.interrupted_workflow is not None
+            and action.action_type is ActionType.RESPOND
+            and action.state_updates.get("current_workflow") is None
+        ):
+            invitation = self.repair_handler.faq_resume_invitation(current_state)
+            if invitation:
+                action = action.model_copy(
+                    update={"message": f"{action.message or ''} {invitation}".strip()},
+                    deep=True,
+                )
         return self._validate_action(agent_input, current_state, action)
 
     async def _understand(
@@ -174,7 +245,15 @@ class LLMAgent:
                 action,
             )
         except GuardrailViolationError as exc:
-            validated = self.guardrails.safe_handoff(f"Guardrail violation: {exc}")
+            if state.pending_tool_name in {
+                ToolName.CREATE_BOOKING,
+                ToolName.CREATE_HANDOFF,
+            }:
+                validated = self.guardrails.safe_reconciliation_handoff(
+                    f"Guardrail violation: {exc}"
+                )
+            else:
+                validated = self.guardrails.safe_handoff(f"Guardrail violation: {exc}")
         return record_turn_history(agent_input, state, validated)
 
 

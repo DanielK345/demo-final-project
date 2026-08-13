@@ -14,6 +14,8 @@ from src.agents.state import (
 )
 from src.agents.understanding.models import (
     ConfirmationIntent,
+    Correction,
+    CorrectionField,
     UnderstandingIntent,
     UnderstandingResult,
 )
@@ -364,3 +366,25 @@ def test_raw_evidence_safety_keeps_matching_identity_and_rejects_negated_confirm
     assert result.phone_number == "+84901234567"
     assert result.booking_id == "GSM-12345"
     assert result.confirmation is ConfirmationIntent.UNCLEAR
+
+
+def test_raw_evidence_safety_removes_ungrounded_corrections():
+    from src.agents.understanding.safety import enforce_raw_understanding_evidence
+
+    result = enforce_raw_understanding_evidence(
+        UnderstandingResult(
+            corrections=[
+                Correction(
+                    field=CorrectionField.DESTINATION,
+                    value="Royal City",
+                ),
+                Correction(
+                    field=CorrectionField.PHONE_NUMBER,
+                    value="0901234567",
+                ),
+            ]
+        ),
+        raw_transcript="Sửa điểm đến giúp tôi",
+    )
+
+    assert result.corrections == []

@@ -116,6 +116,57 @@ def test_redact_pii_masks_phone_numbers():
     assert redact_pii("Customer phone is 090 123 4567") == ("Customer phone is [REDACTED_PHONE]")
 
 
+def test_guardrail_rejects_clearing_unresolved_side_effect_without_result():
+    state = AgentState(
+        session_id="session-001",
+        current_workflow=WorkflowType.RIDE_BOOKING,
+        current_step="WAITING_FOR_BOOKING_RESULT",
+        pending_tool_call_id="booking-1",
+        pending_tool_name=ToolName.CREATE_BOOKING,
+        confirmation="CONFIRMED",
+    )
+
+    with pytest.raises(GuardrailViolationError, match="unresolved side effect"):
+        AgentGuardrails().validate_and_sanitize(
+            AgentInput(
+                session_id="session-001",
+                turn_id="turn-002",
+                transcript="Tạm biệt",
+            ),
+            state,
+            AgentAction(
+                action_type=ActionType.END_SESSION,
+                message="Tạm biệt.",
+                state_updates={
+                    "current_workflow": None,
+                    "current_step": None,
+                    "pending_tool_call_id": None,
+                    "pending_tool_name": None,
+                },
+            ),
+        )
+
+
+def test_guardrail_rejects_reconciliation_without_pending_side_effect():
+    with pytest.raises(GuardrailViolationError, match="pending side effect"):
+        AgentGuardrails().validate_and_sanitize(
+            AgentInput(
+                session_id="session-001",
+                turn_id="turn-001",
+                transcript="Hủy",
+            ),
+            AgentState(session_id="session-001"),
+            AgentAction(
+                action_type=ActionType.HANDOFF,
+                message="Tôi sẽ chuyển tổng đài viên.",
+                state_updates={
+                    "current_workflow": WorkflowType.HUMAN_HANDOFF,
+                    "current_step": "RECONCILIATION_REQUIRED",
+                },
+            ),
+        )
+
+
 @pytest.mark.asyncio
 async def test_agent_blocks_workflow_from_modifying_history():
     agent = LLMAgent(workflows={WorkflowType.RIDE_BOOKING: HistoryMutatingWorkflow()})

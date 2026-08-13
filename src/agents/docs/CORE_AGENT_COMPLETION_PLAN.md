@@ -127,7 +127,12 @@ P3.1 Conversation Context Builder           implemented
 P3.2 Rewrite Contract + Deterministic Gate   implemented
 P3.3 LLM Rewriter + Resilient Fallback       implemented
 P3.4 Agent + Understanding Integration       implemented
-P4–P8                                       pending
+P4.1 Dialogue Act Contract + Detector         implemented
+P4.2 Repeat/Cancel/Restart/Goodbye             implemented
+P4.3 Ride Booking Correction                   implemented
+P4.4 Workflow Interruption + Resume            implemented
+P4.5 Cross-layer Integration Matrix            pending
+P5–P8                                        pending
 ```
 
 ```text
@@ -568,6 +573,87 @@ RESUME
 GOODBYE
 ```
 
+#### P4.1 implementation status
+
+Implemented as an isolated contract/detection layer. `DialogueActResult`
+validates command evidence, optional target workflow and correction field.
+`DialogueActDetector` recognizes explicit Vietnamese repeat, correction,
+cancel, restart, help, change-intent, pause, resume and goodbye commands using
+deterministic rules. Bare rejection, booking confirmation, contextual rewrite
+phrases and safety/handoff utterances remain `CONTINUE` for their existing
+higher-priority pipeline. Detection remains side-effect free; P4.2 connects the
+supported commands to `LLMAgent` through a separate repair handler.
+
+#### P4.2 implementation status
+
+`ConversationRepairHandler` now handles `REPEAT`, `CANCEL`, `START_OVER` and
+`GOODBYE` before rewrite/understanding and normal workflow routing. Global
+safety and correlated tool-result processing retain higher priority.
+
+- `REPEAT` uses the latest audible assistant speech: full content for
+  `DELIVERED`, only `spoken_content` for `INTERRUPTED`, and ignores
+  `PENDING`/`FAILED` messages.
+- `CANCEL` clears only the active workflow namespace, confirmation, retry state
+  and pending read-only tool call.
+- `START_OVER` performs the same scoped reset and returns the workflow to its
+  initial collection step.
+- `GOODBYE` returns `END_SESSION` only when it is safe to end.
+- A pending `create_booking` or `create_handoff` is never reported as cancelled
+  and never silently cleared. The Agent preserves call identity and business
+  data, then returns `HANDOFF / RECONCILIATION_REQUIRED` for Backend or human
+  reconciliation.
+
+P2 history still records the raw user command and the resulting assistant
+speech. P4.2 adds no workflow-stack state; the remaining acts are split into
+P4.3–P4.5.
+
+#### P4.3 implementation status
+
+Ride Booking now supports scoped correction for pickup, destination and phone.
+`BookingData.correction_field` and `correction_return_step` preserve the repair
+target and the safe return to `CONFIRM` across place lookup/tool-result turns.
+
+- A correction with a new value starts resolution immediately; a command
+  without a value asks only for that field.
+- Generic “sửa thông tin” enters `SELECT_CORRECTION_FIELD` and asks the user to
+  choose pickup, destination or phone.
+- Unrelated valid booking fields remain intact, confirmation and retry state
+  are reset, and successful correction returns to a fresh confirmation.
+- Explicit raw correction evidence takes priority over conflicting structured
+  understanding. Ungrounded model-provided correction values are removed by
+  the raw-evidence safety layer.
+- Confirmation-like phone corrections such as “số điện thoại đúng là…” update
+  the phone but cannot directly trigger `create_booking`.
+- Correction outside an active booking does not mutate another workflow. A
+  pending side effect follows the P4.2 reconciliation path.
+
+P4.3 does not add workflow interruption state. That state and runtime behavior
+are implemented by P4.4; cross-layer integration scenarios remain P4.5.
+
+#### P4.4 implementation status
+
+P4.4 implements a single typed `InterruptedWorkflow` frame. It stores workflow,
+validated resumable step, confirmation, retry count and interruption reason;
+business payload remains in the existing workflow namespace.
+
+- Explicit `PAUSE`, `RESUME`, `HELP` and `CHANGE_INTENT` commands bypass rewrite
+  and understanding.
+- Pause/resume preserves the exact stable Booking or Trip Lookup step and
+  restores control state without copying arbitrary `AgentState` data.
+- Explicit intent change snapshots the active resumable workflow and starts the
+  target at its initial step.
+- A natural FAQ intent can interrupt active Booking/Trip Lookup, execute the
+  normal grounded knowledge lifecycle, then invite the user to resume.
+- Only one interruption frame is allowed. Nested explicit switches and natural
+  FAQ interruptions are rejected without overwriting the saved frame.
+- Read-only pending tools block pause/switch; unresolved side effects retain the
+  P4.2 reconciliation path. Correlated tool results still have priority.
+- Cancel can target the active or paused workflow; goodbye safely clears both.
+
+The deterministic integration path is covered by
+`tests/test_agents/test_workflow_interruption.py`, including Booking → FAQ →
+grounded answer → Resume → Booking.
+
 ### Thứ tự xử lý
 
 ```text
@@ -580,20 +666,16 @@ Global safety policy
 
 ### Interrupted workflow
 
-Cần chốt một trong hai contract tối thiểu:
+P4.4 chọn contract single-frame:
 
 ```text
-interrupted_workflow: WorkflowSnapshot | None
+interrupted_workflow: InterruptedWorkflow | None
 ```
 
-hoặc:
-
-```text
-workflow_stack: list[WorkflowFrame]
-```
-
-Không đưa full arbitrary state vào stack. Mỗi frame chỉ chứa workflow, step và
-namespace business data cần resume.
+Frame chỉ chứa workflow, resumable step, confirmation, retry và reason. Không
+đưa full arbitrary state hoặc business payload vào frame; business data tiếp
+tục nằm trong namespace `collected_data` tương ứng. Nested interruption bị chặn
+thay vì phát triển thành stack không giới hạn.
 
 Ví dụ:
 

@@ -233,6 +233,25 @@ async def test_resilient_understanding_falls_back_to_rules():
 
 
 @pytest.mark.asyncio
+async def test_rule_understanding_extracts_phone_correction_from_confirmation_like_phrase():
+    result = await RuleBasedUnderstanding().understand(
+        "Số điện thoại đúng là 0987654321",
+        UnderstandingContext(
+            session_id="session-001",
+            current_workflow="RIDE_BOOKING",
+            current_step="CONFIRM",
+        ),
+    )
+
+    assert result.corrections == [
+        Correction(
+            field=CorrectionField.PHONE_NUMBER,
+            value="0987654321",
+        )
+    ]
+
+
+@pytest.mark.asyncio
 async def test_openai_adapter_uses_responses_structured_output():
     expected = UnderstandingResult(
         intent=UnderstandingIntent.TRIP_LOOKUP,

@@ -152,6 +152,7 @@ State là single source of truth của hội thoại:
 | `last_stt_confidence` | Confidence gần nhất dùng cho policy nhiều lượt |
 | `conversation_history` | Lịch sử typed, giới hạn và không thay business state |
 | `conversation_summary` | Bản tóm tắt typed của history cũ; không thay business state |
+| `interrupted_workflow` | Single resumable workflow frame; không chứa business payload |
 | `state_version` | Version tăng sau mỗi validated transition |
 
 Agent không được dùng state có `session_id` khác input. State được cập nhật bằng
@@ -764,3 +765,35 @@ resolve value có trong sanitized context. Timeout, invalid hoặc unsafe output
 understanding; tool-result/emergency fast path không gọi provider. Confirmation,
 phone và booking identity vẫn cần evidence từ raw transcript. Tại bước booking
 confirmation, workflow luôn đọc raw text để rewrite không thể tạo side effect.
+
+### Conversation repair
+
+P4.1 đã định nghĩa typed `DialogueActResult` và deterministic
+`DialogueActDetector` cho `REPEAT`, `CORRECT`, `CANCEL`, `START_OVER`, `HELP`,
+`CHANGE_INTENT`, `PAUSE`, `RESUME`, `GOODBYE` và default `CONTINUE`. Detector
+chỉ nhận diện explicit command/evidence và không sửa state.
+
+P4.2 đã nối `REPEAT`, `CANCEL`, `START_OVER` và `GOODBYE` vào `LLMAgent` sau
+global safety/tool-result priority và trước rewrite/understanding. Repeat chỉ
+dùng assistant speech thực sự đã phát; cancel/start-over reset đúng workflow
+namespace; goodbye chỉ end session khi an toàn. Pending side effect
+`create_booking`/`create_handoff` được giữ nguyên và chuyển sang
+`RECONCILIATION_REQUIRED`, không giả định đã hủy. Các dialogue act còn lại được
+tách sang các phase sau.
+
+P4.3 đã hoàn thiện correction cho Ride Booking. Agent hỗ trợ sửa pickup,
+destination và phone với giá trị ngay trong câu hoặc hỏi riêng field còn thiếu;
+“sửa thông tin” chuyển sang bước chọn field. Correction giữ nguyên các booking
+field không liên quan, reset confirmation/retry và quay lại `CONFIRM` sau khi
+resolve xong. Raw correction được ưu tiên hơn structured understanding và model
+correction không grounded bị loại. Correction khi side effect đang pending tiếp
+tục đi `RECONCILIATION_REQUIRED`.
+
+P4.4 đã nối `HELP`, `PAUSE`, `RESUME`, `CHANGE_INTENT` và FAQ interruption.
+`interrupted_workflow` chỉ giữ workflow, resumable step, confirmation, retry và
+reason; business data vẫn ở namespace typed hiện có. Agent hỗ trợ một frame,
+chặn nested interruption, không pause/switch khi tool pending, và giữ
+side-effect reconciliation. FAQ có thể xen giữa Booking/Trip Lookup, trả lời có
+grounding rồi mời user resume; resume restore đúng step và xóa FAQ namespace.
+Cancel/goodbye xử lý riêng active và interrupted workflow theo target. P4.5 còn
+lại cho integration/evaluation matrix của toàn bộ conversation repair.

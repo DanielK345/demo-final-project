@@ -9,6 +9,11 @@ from src.agents.schemas import (
     WorkflowType,
 )
 from src.agents.state import AgentState, ConfirmationStatus
+from src.agents.understanding.models import (
+    Correction,
+    CorrectionField,
+    UnderstandingResult,
+)
 from src.agents.workflows.booking import RideBookingWorkflow
 from src.agents.workflows.booking_models import BookingData, BookingStep
 
@@ -293,6 +298,256 @@ async def test_booking_correction_resets_confirmation_and_resolves_again():
     assert action.state_updates["confirmation"] is ConfirmationStatus.NOT_REQUESTED
     data = BookingData.model_validate(action.state_updates["collected_data"]["booking"])
     assert data.destination is None
+
+
+@pytest.mark.asyncio
+async def test_explicit_raw_correction_field_overrides_conflicting_understanding():
+    data = BookingData.model_validate(
+        {
+            "pickup": {"place_id": "p1", "display_name": "Hồ Gươm"},
+            "destination": {"place_id": "d1", "display_name": "Times City"},
+            "phone_number": "0901234567",
+        }
+    )
+    state = booking_state(
+        step=BookingStep.CONFIRM,
+        data=data,
+        confirmation=ConfirmationStatus.AWAITING_CONFIRMATION,
+    )
+
+    action = await RideBookingWorkflow().handle(
+        AgentInput(
+            session_id="session-001",
+            turn_id="turn-001",
+            transcript="Đổi điểm đón sang Nhà hát Lớn",
+        ),
+        state,
+        UnderstandingResult(
+            corrections=[
+                Correction(
+                    field=CorrectionField.DESTINATION,
+                    value="Royal City",
+                )
+            ]
+        ),
+    )
+
+    corrected = BookingData.model_validate(
+        action.state_updates["collected_data"]["booking"]
+    )
+    assert action.action_type is ActionType.CALL_TOOL
+    assert action.tool_call is not None
+    assert action.tool_call.params == {"query": "Nhà hát Lớn"}
+    assert corrected.correction_field is CorrectionField.PICKUP
+    assert corrected.pickup is None
+    assert corrected.destination is not None
+
+
+@pytest.mark.asyncio
+async def test_pickup_correction_returns_to_confirmation_without_losing_other_fields():
+    workflow = RideBookingWorkflow()
+    data = BookingData.model_validate(
+        {
+            "pickup": {"place_id": "p1", "display_name": "Hồ Gươm"},
+            "destination": {"place_id": "d1", "display_name": "Times City"},
+            "destination_query": "Times City",
+            "phone_number": "0901234567",
+        }
+    )
+    state = booking_state(
+        step=BookingStep.CONFIRM,
+        data=data,
+        confirmation=ConfirmationStatus.AWAITING_CONFIRMATION,
+    )
+
+    search = await workflow.handle(
+        AgentInput(
+            session_id="session-001",
+            turn_id="turn-001",
+            transcript="Không, đổi điểm đón sang Nhà hát Lớn",
+        ),
+        state,
+    )
+    waiting = apply_action(state, search)
+    corrected = BookingData.model_validate(
+        search.state_updates["collected_data"]["booking"]
+    )
+
+    assert search.action_type is ActionType.CALL_TOOL
+    assert search.tool_call is not None
+    assert search.tool_call.params == {"query": "Nhà hát Lớn"}
+    assert corrected.correction_field is CorrectionField.PICKUP
+    assert corrected.correction_return_step is BookingStep.CONFIRM
+    assert corrected.destination is not None
+    assert corrected.destination.place_id == "d1"
+    assert corrected.phone_number == "0901234567"
+
+    confirmation = await workflow.handle(
+        AgentInput(
+            session_id="session-001",
+            turn_id="turn-002",
+            tool_result=place_result(
+                search.tool_call.call_id,
+                [{"place_id": "p2", "display_name": "Nhà hát Lớn"}],
+            ),
+        ),
+        waiting,
+    )
+    final_data = BookingData.model_validate(
+        confirmation.state_updates["collected_data"]["booking"]
+    )
+
+    assert confirmation.action_type is ActionType.ASK_USER
+    assert confirmation.state_updates["current_step"] == BookingStep.CONFIRM
+    assert confirmation.state_updates["confirmation"] is ConfirmationStatus.AWAITING_CONFIRMATION
+    assert "Nhà hát Lớn" in (confirmation.message or "")
+    assert "Times City" in (confirmation.message or "")
+    assert final_data.pickup is not None
+    assert final_data.pickup.place_id == "p2"
+    assert final_data.destination is not None
+    assert final_data.destination.place_id == "d1"
+    assert final_data.phone_number == "0901234567"
+    assert final_data.correction_field is None
+    assert final_data.correction_return_step is None
+
+
+@pytest.mark.asyncio
+async def test_destination_correction_without_value_asks_only_for_new_destination():
+    data = BookingData.model_validate(
+        {
+            "pickup": {"place_id": "p1", "display_name": "Hồ Gươm"},
+            "destination": {"place_id": "d1", "display_name": "Times City"},
+            "phone_number": "0901234567",
+        }
+    )
+    state = booking_state(
+        step=BookingStep.CONFIRM,
+        data=data,
+        confirmation=ConfirmationStatus.AWAITING_CONFIRMATION,
+    )
+
+    action = await RideBookingWorkflow().handle(
+        AgentInput(
+            session_id="session-001",
+            turn_id="turn-001",
+            transcript="Sửa điểm đến",
+        ),
+        state,
+    )
+    corrected = BookingData.model_validate(
+        action.state_updates["collected_data"]["booking"]
+    )
+
+    assert action.action_type is ActionType.ASK_USER
+    assert action.state_updates["current_step"] == BookingStep.COLLECT_DESTINATION
+    assert action.state_updates["confirmation"] is ConfirmationStatus.NOT_REQUESTED
+    assert action.state_updates["retry_count"] == 0
+    assert "địa chỉ nào" in (action.message or "")
+    assert corrected.destination is None
+    assert corrected.pickup is not None
+    assert corrected.phone_number == "0901234567"
+    assert corrected.correction_field is CorrectionField.DESTINATION
+
+
+@pytest.mark.asyncio
+async def test_phone_correction_updates_phone_and_requires_fresh_confirmation():
+    workflow = RideBookingWorkflow()
+    data = BookingData.model_validate(
+        {
+            "pickup": {"place_id": "p1", "display_name": "Hồ Gươm"},
+            "destination": {"place_id": "d1", "display_name": "Times City"},
+            "phone_number": "0901234567",
+        }
+    )
+    state = booking_state(
+        step=BookingStep.CONFIRM,
+        data=data,
+        confirmation=ConfirmationStatus.AWAITING_CONFIRMATION,
+    )
+
+    correction = await workflow.handle(
+        AgentInput(
+            session_id="session-001",
+            turn_id="turn-001",
+            transcript="Số điện thoại đúng là 0987654321",
+        ),
+        state,
+    )
+    corrected_state = apply_action(state, correction)
+    corrected = BookingData.model_validate(
+        correction.state_updates["collected_data"]["booking"]
+    )
+
+    assert correction.action_type is ActionType.ASK_USER
+    assert correction.tool_call is None
+    assert correction.state_updates["current_step"] == BookingStep.CONFIRM
+    assert (
+        correction.state_updates["confirmation"]
+        is ConfirmationStatus.AWAITING_CONFIRMATION
+    )
+    assert corrected.phone_number == "0987654321"
+    assert corrected.pickup is not None
+    assert corrected.destination is not None
+
+    booking_call = await workflow.handle(
+        AgentInput(
+            session_id="session-001",
+            turn_id="turn-002",
+            transcript="Đúng, đặt giúp tôi",
+        ),
+        corrected_state,
+    )
+
+    assert booking_call.action_type is ActionType.CALL_TOOL
+    assert booking_call.tool_call is not None
+    assert booking_call.tool_call.params["phone_number"] == "0987654321"
+
+
+@pytest.mark.asyncio
+async def test_generic_correction_asks_for_field_then_preserves_return_to_confirmation():
+    workflow = RideBookingWorkflow()
+    data = BookingData.model_validate(
+        {
+            "pickup": {"place_id": "p1", "display_name": "Hồ Gươm"},
+            "destination": {"place_id": "d1", "display_name": "Times City"},
+            "phone_number": "0901234567",
+        }
+    )
+    state = booking_state(
+        step=BookingStep.CONFIRM,
+        data=data,
+        confirmation=ConfirmationStatus.AWAITING_CONFIRMATION,
+    )
+
+    choose = await workflow.handle(
+        AgentInput(
+            session_id="session-001",
+            turn_id="turn-001",
+            transcript="Tôi muốn sửa lại thông tin",
+        ),
+        state,
+    )
+    choosing_state = apply_action(state, choose)
+    selected = await workflow.handle(
+        AgentInput(
+            session_id="session-001",
+            turn_id="turn-002",
+            transcript="Số điện thoại",
+        ),
+        choosing_state,
+    )
+    selected_data = BookingData.model_validate(
+        selected.state_updates["collected_data"]["booking"]
+    )
+
+    assert choose.action_type is ActionType.ASK_USER
+    assert choose.state_updates["current_step"] == BookingStep.SELECT_CORRECTION_FIELD
+    assert choose.state_updates["confirmation"] is ConfirmationStatus.REJECTED
+    assert selected.state_updates["current_step"] == BookingStep.COLLECT_PHONE
+    assert selected_data.correction_field is CorrectionField.PHONE_NUMBER
+    assert selected_data.correction_return_step is BookingStep.CONFIRM
+    assert selected_data.pickup is not None
+    assert selected_data.destination is not None
 
 
 @pytest.mark.asyncio

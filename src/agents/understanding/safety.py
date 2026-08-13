@@ -1,6 +1,10 @@
 import re
 
-from src.agents.understanding.models import ConfirmationIntent, UnderstandingResult
+from src.agents.understanding.models import (
+    ConfirmationIntent,
+    CorrectionField,
+    UnderstandingResult,
+)
 
 _PHONE_PATTERN = re.compile(r"(?<!\d)(?:\+?84|0)(?:[ .-]?\d){9}(?!\d)")
 _RAW_CONFIRMATION_TERMS = (
@@ -37,6 +41,18 @@ def enforce_raw_understanding_evidence(
 
     if result.booking_id and result.booking_id.casefold() not in normalized_raw:
         updates["booking_id"] = None
+
+    grounded_corrections = [
+        correction
+        for correction in result.corrections
+        if (
+            _raw_contains_phone(raw_transcript, correction.value)
+            if correction.field is CorrectionField.PHONE_NUMBER
+            else correction.value.casefold() in normalized_raw
+        )
+    ]
+    if len(grounded_corrections) != len(result.corrections):
+        updates["corrections"] = grounded_corrections
 
     return result.model_copy(update=updates, deep=True)
 

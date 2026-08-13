@@ -5,13 +5,7 @@ from typing import Any, ClassVar
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 from src.agents.schemas import ToolName, WorkflowType
-
-
-class ConfirmationStatus(StrEnum):
-    NOT_REQUESTED = "NOT_REQUESTED"
-    AWAITING_CONFIRMATION = "AWAITING_CONFIRMATION"
-    CONFIRMED = "CONFIRMED"
-    REJECTED = "REJECTED"
+from src.agents.state_types import ConfirmationStatus, InterruptedWorkflow
 
 
 class ConversationRole(StrEnum):
@@ -170,12 +164,18 @@ class AgentState(BaseModel):
     last_stt_confidence: float | None = Field(default=None, ge=0, le=1)
     conversation_history: list[ConversationMessage] = Field(default_factory=list)
     conversation_summary: ConversationSummary | None = None
+    interrupted_workflow: InterruptedWorkflow | None = None
     state_version: int = Field(default=0, ge=0)
 
     @model_validator(mode="after")
     def validate_state_invariants(self) -> "AgentState":
         if self.current_step is not None and self.current_workflow is None:
             raise ValueError("current_step requires an active workflow")
+        if (
+            self.interrupted_workflow is not None
+            and self.current_workflow is self.interrupted_workflow.workflow
+        ):
+            raise ValueError("active and interrupted workflow must be different")
 
         has_pending_id = self.pending_tool_call_id is not None
         has_pending_name = self.pending_tool_name is not None
