@@ -1,21 +1,36 @@
 @import "tailwindcss";
 
+/* Bật biến thể `dark:` theo class thay vì theo prefers-color-scheme của hệ điều
+   hành — toggle "Giao diện tối" trong Settings là lựa chọn chủ động của người
+   dùng (lưu ở ThemeProvider + localStorage + backend), không phụ thuộc OS. */
+@custom-variant dark (&:where(.dark, .dark *));
+
 @layer base {
   :root {
     --font-sans: 'Montserrat', 'Inter', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
-    
+
     /* Kinetic Teal AloSM Palette */
     --color-kinetic-teal: #00D1C1;
     --color-brand-primary: #00D1C1;
     --color-brand-primary-hover: #006a62;
     --color-brand-accent: #00D1C1;
     --color-brand-light: rgba(0, 209, 193, 0.1);
-    
+
     --color-bg: #F8F9FB;
     --color-card: #FFFFFF;
     --color-card-border: rgba(16, 18, 19, 0.08);
     --color-text-main: #191C1E;
     --color-text-muted: #5D5E60;
+  }
+
+  /* Giao diện tối toàn site — cùng bảng token, chỉ đổi giá trị. Đặt trên .dark
+     (root <html>) để mọi trang/không phải chỉ AssistantPage đều theo. */
+  :root.dark {
+    --color-bg: #0B0E11;
+    --color-card: #12161A;
+    --color-card-border: rgba(255, 255, 255, 0.08);
+    --color-text-main: #F4F6F7;
+    --color-text-muted: #9AA5AD;
   }
 }
 
@@ -27,6 +42,11 @@ body {
   margin: 0;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+:root.dark {
+  color-scheme: dark;
 }
 
 .pulse-ring {

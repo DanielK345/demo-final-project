@@ -1,6 +1,11 @@
 import React from "react";
 import { QueryProvider } from "./QueryProvider";
+import { ThemeProvider } from "./ThemeProvider";
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  return <QueryProvider>{children}</QueryProvider>;
+  return (
+    <ThemeProvider>
+      <QueryProvider>{children}</QueryProvider>
+    </ThemeProvider>
+  );
 };

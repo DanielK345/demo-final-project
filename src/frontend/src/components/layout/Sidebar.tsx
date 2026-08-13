@@ -22,7 +22,7 @@ const navItems = [
 
 export const Sidebar: React.FC = () => {
   return (
-    <aside className="hidden md:flex flex-col w-64 border-r border-slate-200/70 bg-white/80 backdrop-blur-xl shrink-0 h-screen sticky top-0 z-50 py-6 px-4">
+    <aside className="hidden md:flex flex-col w-64 border-r border-slate-200/70 bg-white/80 backdrop-blur-xl shrink-0 h-screen sticky top-0 z-50 py-6 px-4 dark:border-white/10 dark:bg-[#0B0E11]/95">
       {/* Brand Header with Official AloSM AI Booking Logo */}
       <div className="mb-8 px-2">
         <NavLink to="/" className="flex items-center group">
@@ -47,8 +47,8 @@ export const Sidebar: React.FC = () => {
                   cn(
                     "flex items-center gap-4 px-4 py-3 rounded-xl text-sm font-semibold transition-all duration-200 active:scale-95",
                     isActive
-                      ? "text-[#006a62] bg-[#00D1C1]/10 font-bold shadow-xs"
-                      : "text-slate-600 hover:bg-[#00D1C1]/10 hover:text-[#006a62]"
+                      ? "text-[#006a62] bg-[#00D1C1]/10 font-bold shadow-xs dark:text-[#00D1C1] dark:bg-[#00D1C1]/15"
+                      : "text-slate-600 hover:bg-[#00D1C1]/10 hover:text-[#006a62] dark:text-slate-400 dark:hover:bg-white/10 dark:hover:text-[#00D1C1]"
                   )
                 }
               >
@@ -57,7 +57,7 @@ export const Sidebar: React.FC = () => {
                     <Icon
                       className={cn(
                         "w-5 h-5 transition-transform duration-200",
-                        isActive ? "text-[#00D1C1]" : "text-slate-500"
+                        isActive ? "text-[#00D1C1]" : "text-slate-500 dark:text-slate-400"
                       )}
                     />
                     <span>{item.label}</span>
@@ -70,12 +70,12 @@ export const Sidebar: React.FC = () => {
       </ul>
 
       {/* Bottom Status / Footer info */}
-      <div className="px-4 py-3 rounded-xl bg-slate-100/80 border border-slate-200/60 text-xs text-slate-500 flex items-center justify-between">
+      <div className="px-4 py-3 rounded-xl bg-slate-100/80 border border-slate-200/60 text-xs text-slate-500 flex items-center justify-between dark:bg-white/5 dark:border-white/10 dark:text-slate-400">
         <div className="flex items-center gap-2">
           <span className="w-2 h-2 rounded-full bg-[#00D1C1] animate-pulse" />
-          <span className="font-medium text-slate-700">Online</span>
+          <span className="font-medium text-slate-700 dark:text-slate-200">Online</span>
         </div>
-        <span className="text-[10px] font-mono text-slate-400">v1.0</span>
+        <span className="text-[10px] font-mono text-slate-400 dark:text-slate-500">v1.0</span>
       </div>
     </aside>
   );

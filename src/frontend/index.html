@@ -9,6 +9,20 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <title>AloSM Web — Nền tảng di chuyển thông minh AI</title>
+    <script>
+      // Áp class "dark" trước khi React mount để tránh nháy sáng->tối
+      // (FOUC) khi người dùng đã chọn giao diện tối từ trước.
+      (function () {
+        try {
+          if (window.localStorage.getItem("alosm_theme") === "dark") {
+            document.documentElement.classList.add("dark");
+          }
+        } catch (error) {
+          // localStorage có thể bị chặn (chế độ riêng tư nghiêm ngặt) — bỏ qua,
+          // ThemeProvider sẽ áp lại theme ngay khi React mount.
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

@@ -14,7 +14,7 @@ export const ActivityPage: React.FC = () => {
   return (
     <div className="w-full max-w-3xl mx-auto space-y-6 pb-12">
       {/* Page Title */}
-      <h1 className="text-3xl font-extrabold text-[#191C1E] tracking-tight">
+      <h1 className="text-3xl font-extrabold text-[#191C1E] dark:text-white tracking-tight">
         Lịch sử chuyến đi
       </h1>
 
@@ -29,7 +29,7 @@ export const ActivityPage: React.FC = () => {
               className={`shrink-0 px-5 py-2 rounded-full text-xs font-semibold transition-all duration-200 cursor-pointer ${
                 isActive
                   ? "bg-[#00D1C1] text-white shadow-xs"
-                  : "bg-slate-200/80 text-slate-700 hover:bg-slate-300"
+                  : "bg-slate-200/80 text-slate-700 hover:bg-slate-300 dark:bg-white/10 dark:text-slate-300 dark:hover:bg-white/20"
               }`}
             >
               {chip.label}

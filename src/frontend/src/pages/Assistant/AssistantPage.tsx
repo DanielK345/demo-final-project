@@ -1,6 +1,6 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Bot, History, Keyboard, Mic, Send, Square, Volume2 } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { getCurrentUser } from "@/features/auth/api";
 import { redirectToLoginIfUnauthorized } from "@/features/auth/sessionGuard";
 import {
@@ -49,6 +49,7 @@ export const AssistantPage: React.FC = () => {
   const [transcriptSessionId, setTranscriptSessionId] = useState<string | null>(null);
   const [isTextInputOpen, setIsTextInputOpen] = useState(false);
   const navigate = useNavigate();
+  const location = useLocation();
   const userName = getUserName();
 
   const resetConversationUi = useCallback(() => {
@@ -191,7 +192,7 @@ export const AssistantPage: React.FC = () => {
     };
   }, [navigate]);
 
-  const send = async (value: string, source: "TEXT" | "VOICE" = "TEXT") => {
+  const send = useCallback(async (value: string, source: "TEXT" | "VOICE" = "TEXT") => {
     const message = value.trim();
     if (!message || !sessionId || isSending || sessionEnded) return;
     setMessages((items) => [...items, { id: `user-${Date.now()}`, role: "user", text: message }]);
@@ -227,7 +228,22 @@ export const AssistantPage: React.FC = () => {
     } finally {
       setIsSending(false);
     }
-  };
+  }, [sessionId, isSending, sessionEnded, lifecycleStatus, applyTurnResult, navigate]);
+
+  // Các nút "AI đặt xe ngay" ở Trang chủ / Dịch vụ / Theo dõi chuyến đi điều hướng
+  // thẳng vào đây kèm `state.prefill` — thay vì tự mở form/modal, câu mô tả chuyến đi
+  // được gửi hộ như thể người dùng vừa gõ nó, để Agentic AI tiếp quản toàn bộ (hỏi
+  // xác nhận, tạo booking) giống hệt các quick-chip có sẵn (vd "Đặt xe ra sân bay").
+  // useRef (không phải state) để chỉ gửi đúng 1 lần kể cả khi StrictMode chạy effect
+  // 2 lần lúc dev.
+  const prefillHandledRef = useRef(false);
+  useEffect(() => {
+    const prefill = (location.state as { prefill?: string } | null)?.prefill;
+    if (!prefill || prefillHandledRef.current || !sessionId || sessionEnded) return;
+    prefillHandledRef.current = true;
+    send(prefill);
+    navigate(location.pathname, { replace: true, state: null });
+  }, [location.state, sessionId, sessionEnded, navigate, location.pathname, send]);
 
   const handleSubmitRating = async (rating: number) => {
     if (!sessionId) return;
@@ -287,16 +303,17 @@ export const AssistantPage: React.FC = () => {
   const inputDisabled = !sessionId || isSending || sessionEnded;
 
   return (
-    // Không còn <header>/nút "Trang chủ" tự chế — trang này giờ nằm trong AppLayout
-    // (Sidebar/Topbar/MobileNav thật, xem app/router/index.tsx), có taskbar để sang
-    // màn khác đúng như yêu cầu. Khu vực nội dung của riêng trang này dùng giao diện
-    // tối (dark) — nổi bật như 1 "phòng trò chuyện" giữa dashboard sáng, không đổi cả
-    // bộ khung Sidebar/Topbar sang tối (ảnh hưởng mọi trang khác, ngoài phạm vi yêu
-    // cầu này).
+    // Trang này nằm trong AppLayout (Sidebar/Topbar/MobileNav thật — xem
+    // app/router/index.tsx) nên đã có taskbar để sang màn khác, không cần nút
+    // "Trang chủ" tự chế nữa. Giao diện panel dùng đúng tông sáng như mọi trang khác
+    // (bg trắng/viền xám nhạt) + biến thể `dark:` để theo đúng theme toàn site khi
+    // người dùng bật "Giao diện tối" trong Cài đặt (xem ThemeProvider).
     <div className="pb-8">
       <div className="text-center mb-6">
-        <h1 className="text-3xl font-extrabold text-[#191C1E]">Chào {userName}, bạn muốn đi đâu?</h1>
-        <p className="text-slate-500 mt-2">
+        <h1 className="text-3xl font-extrabold text-[#191C1E] dark:text-white">
+          Chào {userName}, bạn muốn đi đâu?
+        </h1>
+        <p className="text-slate-500 dark:text-slate-400 mt-2">
           Nói tự nhiên hoặc nhắn tin. AloSM luôn hỏi xác nhận trước khi đặt xe.
         </p>
         <div className="mt-4 max-w-xl mx-auto text-left">
@@ -306,15 +323,17 @@ export const AssistantPage: React.FC = () => {
 
       <div className="flex flex-col lg:flex-row gap-6 items-start">
         <div className="flex-1 min-w-0 w-full">
-          <div className="bg-[#0B0E11] border border-white/10 shadow-2xl rounded-3xl overflow-hidden">
+          <div className="bg-white border border-slate-200/80 shadow-[0px_4px_20px_rgba(16,18,19,0.05)] rounded-3xl overflow-hidden dark:bg-[#12161A] dark:border-white/10 dark:shadow-2xl">
             {/* Thanh trên cùng của khu trò chuyện — chỉ còn nút Lịch sử (điều hướng
                 sang trang khác đã có Topbar lo, không lặp lại ở đây) */}
-            <div className="flex items-center justify-between px-5 py-3 border-b border-white/10">
-              <span className="text-xs font-bold text-slate-300 uppercase tracking-wider">AloSM Voice</span>
+            <div className="flex items-center justify-between px-5 py-3 border-b border-slate-100 dark:border-white/10">
+              <span className="text-xs font-bold text-slate-500 dark:text-slate-300 uppercase tracking-wider">
+                AloSM Voice
+              </span>
               <button
                 type="button"
                 onClick={() => setIsHistoryOpen(true)}
-                className="flex items-center gap-1.5 text-xs font-semibold text-slate-300 hover:text-[#00D1C1] px-3 py-1.5 rounded-full hover:bg-white/10 transition-colors"
+                className="flex items-center gap-1.5 text-xs font-semibold text-slate-600 hover:text-[#006a62] px-3 py-1.5 rounded-full hover:bg-slate-100 transition-colors dark:text-slate-300 dark:hover:text-[#00D1C1] dark:hover:bg-white/10"
               >
                 <History className="w-3.5 h-3.5" />
                 Lịch sử trò chuyện
@@ -322,7 +341,8 @@ export const AssistantPage: React.FC = () => {
             </div>
 
             {/* Mic — hành động chính, đặt đầu tiên và nổi bật nhất; chat text là lựa
-                chọn phụ, gấp gọn phía dưới (xem nút "Hoặc nhắn tin"). */}
+                chọn phụ, gấp gọn phía dưới (xem nút "Hoặc nhắn tin"). Banner gradient
+                này là mảng màu thương hiệu cố định, không đổi theo theme sáng/tối. */}
             <div className="p-8 bg-gradient-to-br from-[#0B3D3A] via-[#0E4F49] to-[#00D1C1]/30 text-white text-center">
               <button
                 onClick={toggleMicrophone}
@@ -360,7 +380,7 @@ export const AssistantPage: React.FC = () => {
                     className={`flex gap-3 ${message.role === "user" ? "justify-end" : "justify-start"}`}
                   >
                     {message.role === "assistant" && (
-                      <span className="mt-1 w-8 h-8 shrink-0 rounded-full bg-[#00D1C1]/15 text-[#00D1C1] grid place-items-center">
+                      <span className="mt-1 w-8 h-8 shrink-0 rounded-full bg-[#00D1C1]/15 text-[#006a62] dark:text-[#00D1C1] grid place-items-center">
                         <Bot className="w-4 h-4" />
                       </span>
                     )}
@@ -368,7 +388,7 @@ export const AssistantPage: React.FC = () => {
                       className={`max-w-[80%] rounded-2xl px-4 py-3 text-sm leading-6 ${
                         message.role === "user"
                           ? "bg-[#00D1C1] text-[#0B0E11] font-medium rounded-tr-sm"
-                          : "bg-white/10 text-slate-100 rounded-tl-sm"
+                          : "bg-slate-100 text-slate-700 rounded-tl-sm dark:bg-white/10 dark:text-slate-100"
                       }`}
                     >
                       {message.text}
@@ -376,7 +396,7 @@ export const AssistantPage: React.FC = () => {
                   </div>
                 ))}
                 {isSending && (
-                  <p className="text-sm text-slate-400 animate-pulse">AloSM đang xử lý…</p>
+                  <p className="text-sm text-slate-500 dark:text-slate-400 animate-pulse">AloSM đang xử lý…</p>
                 )}
               </div>
 
@@ -395,7 +415,7 @@ export const AssistantPage: React.FC = () => {
               )}
 
               {notice && (
-                <p className="mt-4 text-sm bg-amber-500/10 text-amber-300 border border-amber-500/30 rounded-xl p-3">
+                <p className="mt-4 text-sm bg-amber-50 text-amber-800 border border-amber-200 rounded-xl p-3 dark:bg-amber-500/10 dark:text-amber-300 dark:border-amber-500/30">
                   {notice}
                 </p>
               )}
@@ -417,14 +437,14 @@ export const AssistantPage: React.FC = () => {
                   <div className="flex flex-wrap gap-2 mt-4">
                     <button
                       onClick={() => send("Đặt xe từ Quận 1 đến sân bay Tân Sơn Nhất")}
-                      className="text-xs bg-white/10 text-slate-200 rounded-full px-3 py-2 hover:bg-white/20"
+                      className="text-xs bg-slate-100 text-slate-700 rounded-full px-3 py-2 hover:bg-slate-200 dark:bg-white/10 dark:text-slate-200 dark:hover:bg-white/20"
                     >
                       Đặt xe ra sân bay
                     </button>
                     <button
                       type="button"
                       onClick={() => setIsTextInputOpen((open) => !open)}
-                      className="flex items-center gap-1.5 text-xs bg-white/10 text-slate-200 rounded-full px-3 py-2 hover:bg-white/20"
+                      className="flex items-center gap-1.5 text-xs bg-slate-100 text-slate-700 rounded-full px-3 py-2 hover:bg-slate-200 dark:bg-white/10 dark:text-slate-200 dark:hover:bg-white/20"
                     >
                       <Keyboard className="w-3.5 h-3.5" />
                       {isTextInputOpen ? "Ẩn nhắn tin" : "Hoặc nhắn tin"}
@@ -437,14 +457,14 @@ export const AssistantPage: React.FC = () => {
                         event.preventDefault();
                         send(text);
                       }}
-                      className="flex gap-2 border-t border-white/10 mt-5 pt-4"
+                      className="flex gap-2 border-t border-slate-100 dark:border-white/10 mt-5 pt-4"
                     >
                       <input
                         value={text}
                         onChange={(event) => setText(event.target.value)}
                         disabled={inputDisabled}
                         autoFocus
-                        className="flex-1 rounded-xl bg-white/10 text-white placeholder:text-slate-500 px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-[#00D1C1]"
+                        className="flex-1 rounded-xl bg-slate-50 border border-slate-200 text-[#191C1E] placeholder:text-slate-400 px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-[#00D1C1] dark:bg-white/5 dark:border-white/10 dark:text-white dark:placeholder:text-slate-500"
                         placeholder="Nhập điểm đón và điểm đến…"
                       />
                       <button

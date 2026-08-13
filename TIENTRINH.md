@@ -101,6 +101,11 @@ Và 1 lớp bảo vệ logic: `createBookingViaForm` (BookingPage) giờ chỉ g
 agent thật sự đang ở bước `CONFIRM` — tránh gửi xác nhận mù quáng nếu agent hỏi lại
 điều gì khác (địa điểm chưa rõ, loại xe chưa nhận diện được).
 
+> **Cập nhật (mục 7):** `createBookingViaForm` và modal xác nhận riêng của
+> BookingPage đã bị **gỡ bỏ hoàn toàn** — mọi nút đặt xe giờ nối thẳng vào AI
+> Assistant thay vì có luồng đặt xe riêng. Đoạn trên giữ lại để biết lý do thiết kế
+> ban đầu.
+
 ## 6. AssistantPage: taskbar thật, giao diện tối, lịch sử trò chuyện
 
 Theo yêu cầu trực tiếp: trước đây `/assistant` đứng riêng ngoài `AppLayout`, chỉ có
@@ -133,19 +138,65 @@ Theo yêu cầu trực tiếp: trước đây `/assistant` đứng riêng ngoài
     mọi test — không đụng `tests/test_backend/test_conversation_logger.py` (tự inject
     logger riêng, không phụ thuộc mặc định).
 
-## 7. Trạng thái hiện tại (đã verify, tính đến mục 6)
+## 7. "AI đặt xe ngay" + Giao diện tối toàn site
 
-- `pytest`: 262 passed / 4 skipped / 0 failed
+Theo yêu cầu trực tiếp: (1) mọi nút "Đặt ngay"/"Đặt xe ngay"/"Chọn dịch vụ" phải đổi
+tên và nối THẲNG vào Agentic AI Assistant thay vì tự bấm chọn/điền form; (2)
+AssistantPage đang tối là sai — quay lại giao diện sáng như mọi trang; (3) xây giao
+diện tối cho TOÀN BỘ website, bật/tắt qua Settings.
+
+- **1 đường đặt xe duy nhất — qua AI Assistant**: gỡ bỏ hoàn toàn modal "Confirm
+  Booking" tự điền pickup/dropoff của BookingPage (và `createBookingViaForm`, xem
+  ghi chú ở mục 5). Mọi nút đặt xe trong app — hero "Đặt xe ngay" + 3 card dịch vụ ở
+  HomePage, 3 card dịch vụ ở BookingPage, "Đặt lại chuyến này" ở ActivityList/
+  HomePage, "Đặt xe ngay" ở trạng thái rỗng của TrackingPage — đổi nhãn thành
+  **"AI đặt xe ngay"** / **"AI đặt lại chuyến này"** và điều hướng sang `/assistant`
+  kèm `state.prefill` (câu mô tả chuyến đi bằng ngôn ngữ tự nhiên, vd `"Tôi muốn đặt
+  xe AloSM Premium loại hạng sang."`). `AssistantPage` tự gửi câu này ngay khi có
+  session — dùng đúng cơ chế quick-chip có sẵn (`send()`), không phải luồng riêng.
+  Đã verify qua server thật: các câu prefill (cả có dấu và tên thương hiệu "AloSM
+  Taxi/Premium") được Core Agent hiểu và khởi động đúng `RideBookingWorkflow`.
+- **AssistantPage quay lại giao diện sáng**: panel trò chuyện + `BookingProgressSidebar`
+  vẽ lại nền trắng/viền xám nhạt như mọi trang khác — không còn tự ý tối riêng 1
+  trang. Taskbar thật, voice-first, lịch sử trò chuyện (mục 6) giữ nguyên logic,
+  chỉ đổi màu.
+- **Giao diện tối cho TOÀN BỘ site (mới)**: `ThemeProvider` (`app/providers/
+  ThemeProvider.tsx` + `theme-context.ts` + `useTheme.ts`) áp class `dark` lên
+  `<html>`, kết hợp biến thể `dark:` của Tailwind v4 (`@custom-variant dark` trong
+  `index.css`). Nguồn sự thật kép: `localStorage` (`alosm_theme`, áp ngay cả trước
+  khi đăng nhập, đọc đồng bộ trong `index.html` để tránh nháy sáng→tối lúc tải
+  trang) + backend (`GET/PUT /users/me/settings`, field `theme` — đã có sẵn từ
+  trước nhưng CHƯA từng thật sự đổi giao diện, chỉ lưu vô tri). Bật/tắt tại
+  Cài đặt (Settings) → mục "Giao diện" → bấm "Sáng"/"Tối": đổi ngay lập tức + lưu
+  backend để đồng bộ khi đăng nhập trên thiết bị khác.
+  - Thêm biến thể `dark:` cho TOÀN BỘ trang/khung dùng chung: `AppLayout`,
+    `Sidebar`, `Topbar`, `MobileNav`, `HomePage`, `BookingPage`, `ActivityPage` +
+    `ActivityList`, `ProfilePage`, `TrackingPage` + `TrackingCard`, `PaymentPage`
+    (Cài đặt), `NotFoundPage`, `LoginPage` + `LoginForm`, và các modal/panel của
+    AssistantPage (`HistoryPanel`, `TranscriptModal`, `BookingSuccessPanel`,
+    `LlmStatusNote`) — trước đó 2 modal lịch sử trò chuyện bị hard-code tối cứng,
+    giờ theo đúng theme chung.
+  - Tách `useTheme` ra khỏi `ThemeProvider.tsx` (file riêng `useTheme.ts` +
+    `theme-context.ts`) — gộp chung sẽ vi phạm quy tắc Fast Refresh của Vite
+    (oxlint `react(only-export-components)`), tránh dùng eslint-disable để che.
+  - Verify qua server thật: `PUT /users/me/settings {"theme":"dark"}` → `GET` trả
+    đúng `"theme":"dark"`, round-trip chính xác.
+
+## 8. Trạng thái hiện tại (đã verify, tính đến mục 7)
+
+- `pytest`: 262 passed / 4 skipped / 0 failed (backend không đổi ở mục 7)
 - `tsc -b`: sạch
 - `npm run build`: sạch
-- `oxlint`: **sạch hoàn toàn** (2 warning tồn đọng từ trước — thuộc cụm code chết vừa
-  xoá ở mục 5 — đã biến mất theo)
+- `oxlint`: **sạch hoàn toàn**, 0 warning
 - Boot server thật: `/health`, `/api/v1/voice/health` đều 200
 - `GET /api/v1/sessions/history` + `GET /api/v1/sessions/history/{id}`: verify thật —
   đăng nhập → gửi tin nhắn → xuất hiện trong list → xem transcript đúng nội dung →
   session không phải của mình trả 404 (không rò rỉ dữ liệu chéo user)
+- Settings theme round-trip: `PUT`/`GET /users/me/settings` verify thật qua server
+- Câu "AI đặt xe ngay" prefill: verify thật qua server — Core Agent nhận đúng, khởi
+  động `RideBookingWorkflow`
 
-## 8. Việc còn lại (`mustdo.md` — cần người/credential thật)
+## 9. Việc còn lại (`mustdo.md` — cần người/credential thật)
 
 1. Tạo project Supabase thật (database production).
 2. Chọn 1 trong 2 hệ thống Voice AI để giữ lâu dài (không chặn, chỉ nên dọn sau).
@@ -154,7 +205,7 @@ Theo yêu cầu trực tiếp: trước đây `/assistant` đứng riêng ngoài
 5. 2FA thật (TOTP/SMS) — hiện chỉ persist lựa chọn, chưa enforce lúc đăng nhập.
 6. `OPENAI_API_KEY` thật nếu muốn bật LLM hiểu ngôn ngữ tự nhiên đầy đủ.
 
-## 9. Lệnh kiểm tra nhanh
+## 10. Lệnh kiểm tra nhanh
 
 ```bash
 # Backend

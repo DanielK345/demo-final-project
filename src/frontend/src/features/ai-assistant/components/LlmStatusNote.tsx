@@ -19,14 +19,14 @@ export const LlmStatusNote: React.FC<LlmStatusNoteProps> = ({ compact = false })
 
   if (error) {
     return (
-      <p className="text-xs text-slate-500">
+      <p className="text-xs text-slate-500 dark:text-slate-400">
         Không thể kiểm tra trạng thái LLM. Hãy chắc backend đang chạy.
       </p>
     );
   }
 
   if (!status) {
-    return <p className="text-xs text-slate-400 animate-pulse">Đang kiểm tra cấu hình LLM…</p>;
+    return <p className="text-xs text-slate-400 dark:text-slate-500 animate-pulse">Đang kiểm tra cấu hình LLM…</p>;
   }
 
   const llmActive = status.understanding_mode === "openai";
@@ -53,7 +53,9 @@ export const LlmStatusNote: React.FC<LlmStatusNoteProps> = ({ compact = false })
       <span
         title={`${title}. ${detail}`}
         className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold ${
-          llmActive ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"
+          llmActive
+            ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-500/10 dark:text-emerald-300"
+            : "bg-amber-100 text-amber-800 dark:bg-amber-500/10 dark:text-amber-300"
         }`}
       >
         <Icon className="w-3 h-3" />
@@ -65,7 +67,9 @@ export const LlmStatusNote: React.FC<LlmStatusNoteProps> = ({ compact = false })
   return (
     <div
       className={`rounded-xl border px-3 py-2 text-xs leading-5 ${
-        llmActive ? "border-emerald-200 bg-emerald-50 text-emerald-900" : "border-amber-200 bg-amber-50 text-amber-900"
+        llmActive
+          ? "border-emerald-200 bg-emerald-50 text-emerald-900 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-200"
+          : "border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200"
       }`}
     >
       <p className="font-semibold flex items-center gap-1.5">

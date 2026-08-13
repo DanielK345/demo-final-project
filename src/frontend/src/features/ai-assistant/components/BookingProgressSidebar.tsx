@@ -23,9 +23,9 @@ const LIFECYCLE_LABELS: Record<BookingLifecycleStatus, string> = {
 };
 
 const LIFECYCLE_STYLES: Record<BookingLifecycleStatus, string> = {
-  PENDING: "bg-amber-100 text-amber-800 border-amber-200",
-  SUCCESS: "bg-emerald-100 text-emerald-800 border-emerald-200",
-  FAILED: "bg-rose-100 text-rose-800 border-rose-200",
+  PENDING: "bg-amber-100 text-amber-800 border-amber-200 dark:bg-amber-500/10 dark:text-amber-300 dark:border-amber-500/30",
+  SUCCESS: "bg-emerald-100 text-emerald-800 border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-300 dark:border-emerald-500/30",
+  FAILED: "bg-rose-100 text-rose-800 border-rose-200 dark:bg-rose-500/10 dark:text-rose-300 dark:border-rose-500/30",
 };
 
 const VEHICLE_LABELS: Record<string, string> = {
@@ -82,14 +82,15 @@ export const BookingProgressSidebar: React.FC<Props> = ({
   ];
 
   return (
-    // Giao diện tối, đồng bộ với khu trò chuyện bên cạnh (AssistantPage.tsx) — trước
-    // đây là card nền trắng, đặt cạnh panel tối trông lệch tông.
+    // Cùng tông sáng/viền xám nhạt như khu trò chuyện bên cạnh (AssistantPage.tsx) và
+    // mọi trang khác; đổi sang tối cùng lúc với toàn site qua biến thể `dark:` khi
+    // người dùng bật "Giao diện tối" trong Cài đặt.
     <aside className="w-full lg:w-72 shrink-0">
-      <div className="bg-[#0B0E11] border border-white/10 rounded-2xl shadow-2xl p-5 sticky top-6">
-        <h2 className="text-sm font-bold text-white uppercase tracking-wide">
+      <div className="bg-white border border-slate-200/80 shadow-[0px_4px_20px_rgba(16,18,19,0.05)] rounded-2xl p-5 sticky top-6 dark:bg-[#12161A] dark:border-white/10 dark:shadow-2xl">
+        <h2 className="text-sm font-bold text-[#191C1E] dark:text-white uppercase tracking-wide">
           Thông tin đặt xe
         </h2>
-        <p className="text-xs text-slate-400 mt-1">
+        <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
           Agent chỉ hỏi thông tin còn thiếu.
         </p>
         {status && (
@@ -111,16 +112,18 @@ export const BookingProgressSidebar: React.FC<Props> = ({
                 className={`rounded-xl border p-3 transition ${
                   status.active
                     ? "border-[#00D1C1] bg-[#00D1C1]/10"
-                    : "border-white/10 bg-white/5"
+                    : "border-slate-200/80 bg-slate-50 dark:border-white/10 dark:bg-white/5"
                 }`}
               >
-                <div className="flex items-center gap-2 text-xs font-semibold text-slate-400">
+                <div className="flex items-center gap-2 text-xs font-semibold text-slate-500 dark:text-slate-400">
                   <Icon className="w-3.5 h-3.5" />
                   {FIELD_LABELS[key]}
                 </div>
                 <p
                   className={`mt-1 text-sm font-medium ${
-                    status.pending ? "text-slate-500 italic" : "text-slate-100"
+                    status.pending
+                      ? "text-slate-400 italic dark:text-slate-500"
+                      : "text-[#191C1E] dark:text-slate-100"
                   }`}
                 >
                   {status.value}

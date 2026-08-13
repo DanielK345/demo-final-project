@@ -4,7 +4,7 @@ import { TrackingCard } from "@/features/tracking/components/TrackingCard";
 import type { TrackingTripDetails } from "@/features/tracking/types";
 import { getTripStatus, TRIP_STATUS_TEXT, type TripStatusResponse } from "@/features/tracking/api";
 import { redirectToLoginIfUnauthorized } from "@/features/auth/sessionGuard";
-import { Navigation, AlertCircle } from "lucide-react";
+import { Navigation, AlertCircle, Sparkles } from "lucide-react";
 
 const POLL_INTERVAL_MS = 4000;
 
@@ -75,17 +75,18 @@ export const TrackingPage: React.FC = () => {
   if (!routeState?.sessionId || !routeState?.bookingId) {
     return (
       <div className="max-w-2xl mx-auto py-16 text-center space-y-4">
-        <AlertCircle className="w-10 h-10 text-slate-300 mx-auto" />
-        <h1 className="text-xl font-bold text-[#191C1E]">Chưa có chuyến đi nào đang theo dõi</h1>
-        <p className="text-sm text-slate-500">
-          Đặt xe từ trang Dịch vụ để bắt đầu theo dõi hành trình trực tiếp tại đây.
+        <AlertCircle className="w-10 h-10 text-slate-300 dark:text-slate-600 mx-auto" />
+        <h1 className="text-xl font-bold text-[#191C1E] dark:text-white">Chưa có chuyến đi nào đang theo dõi</h1>
+        <p className="text-sm text-slate-500 dark:text-slate-400">
+          Nhờ AI Assistant đặt xe để bắt đầu theo dõi hành trình trực tiếp tại đây.
         </p>
         <button
           type="button"
-          onClick={() => navigate("/booking")}
-          className="mt-2 px-6 py-3 rounded-xl bg-[#00D1C1] text-white font-bold text-sm hover:bg-[#006a62] transition-colors"
+          onClick={() => navigate("/assistant")}
+          className="mt-2 inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-[#00D1C1] text-white font-bold text-sm hover:bg-[#006a62] transition-colors"
         >
-          Đặt xe ngay
+          <Sparkles className="w-4 h-4" />
+          AI đặt xe ngay
         </button>
       </div>
     );
@@ -94,8 +95,8 @@ export const TrackingPage: React.FC = () => {
   return (
     <div className="space-y-6 pb-12">
       {notice && (
-        <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-xs flex items-center gap-2">
-          <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+        <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-xs flex items-center gap-2 dark:bg-amber-500/10 dark:border-amber-500/30 dark:text-amber-300">
+          <AlertCircle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
           <span>{notice}</span>
         </div>
       )}
@@ -103,15 +104,15 @@ export const TrackingPage: React.FC = () => {
       {/* Page Title */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-extrabold text-[#191C1E] tracking-tight">
+          <h1 className="text-3xl font-extrabold text-[#191C1E] dark:text-white tracking-tight">
             Theo dõi chuyến đi
           </h1>
-          <p className="text-sm text-slate-500 mt-0.5">
+          <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
             Cập nhật vị trí tài xế và hành trình di chuyển trực tiếp
           </p>
         </div>
 
-        <div className="flex items-center gap-2 bg-[#00D1C1]/10 text-[#006a62] px-3.5 py-1.5 rounded-full border border-[#00D1C1]/30 text-xs font-semibold">
+        <div className="flex items-center gap-2 bg-[#00D1C1]/10 text-[#006a62] dark:text-[#00D1C1] px-3.5 py-1.5 rounded-full border border-[#00D1C1]/30 text-xs font-semibold">
           <Navigation className="w-4 h-4 text-[#00D1C1] animate-spin-slow" />
           <span>Cập nhật mỗi {POLL_INTERVAL_MS / 1000}s</span>
         </div>
@@ -120,7 +121,7 @@ export const TrackingPage: React.FC = () => {
       {/* Main Grid: Left Map View & Right Details */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
         {/* Left Column: Simulated Map Display */}
-        <div className="lg:col-span-7 h-[460px] rounded-[24px] overflow-hidden relative border border-slate-200 shadow-md">
+        <div className="lg:col-span-7 h-[460px] rounded-[24px] overflow-hidden relative border border-slate-200 dark:border-white/10 shadow-md">
           <div
             className="w-full h-full bg-cover bg-center"
             style={{ backgroundImage: `url(${mapBgUrl})` }}
@@ -149,7 +150,7 @@ export const TrackingPage: React.FC = () => {
           {trip ? (
             <TrackingCard trip={trip} />
           ) : (
-            <div className="bg-white rounded-[24px] p-6 border border-slate-200/80 text-sm text-slate-500">
+            <div className="bg-white rounded-[24px] p-6 border border-slate-200/80 text-sm text-slate-500 dark:bg-[#12161A] dark:border-white/10 dark:text-slate-400">
               Đang tải trạng thái chuyến đi...
             </div>
           )}
