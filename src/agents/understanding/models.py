@@ -2,7 +2,14 @@ from enum import StrEnum
 
 from pydantic import BaseModel, Field
 
+from src.agents.context_models import (
+    BusinessContextField,
+    ContextCandidate,
+    ContextMessage,
+    ContextSummary,
+)
 from src.agents.schemas import WorkflowType
+from src.agents.understanding.rewrite_models import ResolvedReference
 
 
 class UnderstandingIntent(StrEnum):
@@ -36,6 +43,13 @@ class UnderstandingContext(BaseModel):
     current_workflow: WorkflowType | None = None
     current_step: str | None = None
     known_fields: list[str] = Field(default_factory=list)
+    business_snapshot: list[BusinessContextField] = Field(default_factory=list)
+    available_candidates: list[ContextCandidate] = Field(default_factory=list)
+    recent_messages: list[ContextMessage] = Field(default_factory=list)
+    conversation_summary: ContextSummary | None = None
+    rewrite_applied: bool = False
+    rewrite_evidence: list[ResolvedReference] = Field(default_factory=list)
+    rewrite_ambiguities: list[str] = Field(default_factory=list)
 
 
 class UnderstandingResult(BaseModel):

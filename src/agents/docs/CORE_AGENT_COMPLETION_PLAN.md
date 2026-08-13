@@ -40,14 +40,16 @@ voice agent production hoàn chỉnh.
 Conversation history contract và turn lifecycle đã được nối vào one-turn action.
 Agent hiện ghi sanitized transcript, safe tool summary và pending assistant
 speech; Backend/Voice có reducer riêng để xác nhận delivery hoặc interruption.
-Khoảng trống tiếp theo là context consumption: history chưa được đưa vào language
-understanding và chưa có contextual user-message rewrite.
+P3 đã nối sanitized history vào contextual rewrite và language understanding với
+deterministic gate, grounding validation và fallback. Khoảng trống tiếp theo là
+conversation repair/interruption ở P4: cancel, repeat, correction, intent switch
+và resume workflow.
 
 Nói cách khác:
 
 ```text
-Agent hiện nhớ business step
-nhưng chưa thực sự nhớ cuộc nói chuyện.
+Agent đã hiểu recent conversation context
+nhưng chưa có đầy đủ dialogue repair và interruption semantics.
 ```
 
 ---
@@ -121,7 +123,10 @@ Trạng thái hiện tại:
 ```text
 P1 History Contract                         implemented
 P2 Turn History Lifecycle                   implemented
-P3 Context Builder + Rewrite + Understanding pending
+P3.1 Conversation Context Builder           implemented
+P3.2 Rewrite Contract + Deterministic Gate   implemented
+P3.3 LLM Rewriter + Resilient Fallback       implemented
+P3.4 Agent + Understanding Integration       implemented
 P4–P8                                       pending
 ```
 
@@ -376,6 +381,16 @@ Chính sách:
 - Không đưa raw tool payload hoặc provider error.
 - Summary không được override validated business state.
 
+#### Implementation status
+
+Implemented as an isolated P3.1 layer in `context.py`. The builder creates a
+typed, sanitized projection without changing shared state contracts or invoking
+an LLM. It keeps raw input separate for audit, accepts only active workflow data
+validated by the existing typed business models, masks phone/booking identity,
+excludes arbitrary namespaces and tool summaries, filters assistant speech by
+delivery status, and bounds supplementary context by character budget. Agent
+and is consumed by the integrated interpretation pipeline from P3.4.
+
 ### 7.2 Contextual LLM rewrite cho user message
 
 Đây là bước được bổ sung từ review. Rewriter dùng history và current state để
@@ -441,6 +456,40 @@ Fast path không cần rewrite:
 ```text
 Tôi muốn đặt xe từ Hồ Gươm đến Times City.
 ```
+
+#### Implementation status
+
+Implemented as an isolated P3.2 layer. `RewriteResult` preserves original and
+rewritten text with typed source evidence, confidence and ambiguities;
+`RewriteDecision` exposes deterministic reasons. `ContextualRewriteGate` detects
+ordinal/deictic/previous-turn/correction/short-reply signals only when sanitized
+context contains matching evidence. Empty, self-contained, explicit
+confirmation/rejection and handoff/emergency utterances stay on the fast path.
+No provider is invoked and Agent runtime behavior remains unchanged.
+
+### 7.2.1 Rewriter provider and fallback status
+
+P3.3 implemented a provider-independent rewriter port, OpenAI Responses
+structured adapter, output safety validator, resilient fallback and independent
+configuration. Provider prompts exclude raw session identity and arbitrary
+state; sensitive current phone/booking identity skips the provider. Changed
+output requires grounded references with valid source turns, and cannot add
+phone, booking identity, ungrounded address or booking confirmation. Timeout,
+provider, invalid-output and unsafe-output paths preserve original text with an
+auditable ambiguity code. P3.4 now invokes this layer through the deterministic
+gate inside `LLMAgent`.
+
+### 7.2.2 Agent integration status
+
+P3.4 implemented the complete interpretation pipeline. `TurnInterpretation`
+keeps context, rewrite decision/result and semantic understanding together for
+testing and later observability. Workflows receive an effective transcript only
+after validated rewrite, while guardrails and P2 history keep the original
+`AgentInput`. Understanding receives bounded sanitized context. Critical
+confirmation, phone and booking identity require raw-utterance evidence; the
+booking confirmation step always evaluates raw workflow text. Tool-result and
+deterministic handoff turns skip the rewrite/understanding providers. Contextual
+candidate selection is covered end-to-end, including overlapping place names.
 
 ### 7.3 Structured Understanding
 

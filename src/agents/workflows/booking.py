@@ -743,4 +743,9 @@ class RideBookingWorkflow(BaseWorkflow):
             for candidate in candidates
             if candidate.display_name.casefold() in normalized
         ]
-        return matches[0] if len(matches) == 1 else None
+        if not matches:
+            return None
+        matches.sort(key=lambda candidate: len(candidate.display_name), reverse=True)
+        if len(matches) > 1 and len(matches[0].display_name) == len(matches[1].display_name):
+            return None
+        return matches[0]

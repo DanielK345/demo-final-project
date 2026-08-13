@@ -198,8 +198,12 @@ trước khi execute action. Workflow không được tự sửa `conversation_h
 `CALL_TOOL` không tạo assistant speech vì Backend chỉ dispatch tool. Một
 tool-result-only turn tạo `TOOL_SUMMARY` chỉ gồm tool name/status để correlate và
 deduplicate turn; raw payload và error không được lưu. Recent history được prune
-theo complete turn trong giới hạn cấu hình. History chưa được đưa vào language
-understanding; phần context-aware này thuộc phase P3.
+theo complete turn trong giới hạn cấu hình. P3 đưa history vào language
+understanding qua projection typed, sanitized và bounded: chỉ dùng user
+transcript cùng assistant speech thực sự đã phát, loại pending/failed speech và
+arbitrary collected data. Deterministic gate chỉ gọi contextual rewriter khi có
+reference cùng evidence phù hợp; workflow nhận effective text, còn history luôn
+ghi raw transcript.
 
 `StateStore` trong `state_store.py` định nghĩa lifecycle create/get/update/delete.
 `InMemoryStateStore` chỉ dùng cho test/local development. PostgreSQL/Redis và
@@ -737,3 +741,26 @@ OPENAI_API_KEY="..." \
 AGENT_LLM_MODEL="gpt-5.6-luna" \
 .venv/bin/python -m pytest -q -m provider tests/integration
 ```
+
+### Contextual user-message rewrite
+
+P3 cung cấp provider-independent rewrite port, OpenAI structured adapter,
+grounding/safety validator và resilient fallback. Rewrite rollout dùng config
+riêng với understanding:
+
+```env
+AGENT_REWRITE_ENABLED=false
+AGENT_REWRITE_PROVIDER=openai
+AGENT_REWRITE_MODEL=gpt-5.6-luna
+AGENT_REWRITE_TIMEOUT_SECONDS=5
+AGENT_REWRITE_REASONING_EFFORT=none
+```
+
+Mặc định rewriter là passthrough và không gọi network. Khi bật provider, prompt
+không chứa raw session ID; phone/booking identity trong current input chặn
+provider call. Output phải giữ nguyên original text, cite source turn và chỉ
+resolve value có trong sanitized context. Timeout, invalid hoặc unsafe output
+đều fallback về raw text. `LLMAgent` đã nối context, gate, rewrite và
+understanding; tool-result/emergency fast path không gọi provider. Confirmation,
+phone và booking identity vẫn cần evidence từ raw transcript. Tại bước booking
+confirmation, workflow luôn đọc raw text để rewrite không thể tạo side effect.

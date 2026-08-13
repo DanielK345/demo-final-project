@@ -1,3 +1,4 @@
+import json
 from hashlib import sha256
 
 from openai import AsyncOpenAI, OpenAIError
@@ -41,11 +42,16 @@ class OpenAIUnderstandingAdapter:
         transcript: str,
         context: UnderstandingContext,
     ) -> UnderstandingResult:
-        context_text = (
-            f"Active workflow: {context.current_workflow or 'NONE'}\n"
-            f"Current step: {context.current_step or 'NONE'}\n"
-            f"Known fields: {', '.join(context.known_fields) or 'NONE'}\n"
-            f"Transcript: {transcript}"
+        context_text = json.dumps(
+            {
+                "transcript": transcript,
+                "context": context.model_dump(
+                    mode="json",
+                    exclude={"session_id"},
+                ),
+            },
+            ensure_ascii=False,
+            separators=(",", ":"),
         )
         try:
             response = await self.client.responses.parse(

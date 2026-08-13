@@ -1,3 +1,4 @@
+import json
 from types import SimpleNamespace
 
 import pytest
@@ -245,15 +246,28 @@ async def test_openai_adapter_uses_responses_structured_output():
         client=FakeOpenAIClient(responses),
     )
 
+    context = UnderstandingContext(
+        session_id="session-001",
+        current_workflow="TRIP_LOOKUP",
+        current_step="COLLECT_IDENTIFIER",
+        known_fields=["trip_lookup.booking_id"],
+        rewrite_applied=True,
+        rewrite_ambiguities=["reference_was_resolved"],
+    )
     result = await adapter.understand(
         "Xe tôi gọi lúc nãy tới đâu rồi?",
-        UnderstandingContext(session_id="session-001"),
+        context,
     )
 
     assert result == expected
     assert responses.calls[0]["text_format"] is UnderstandingResult
     assert responses.calls[0]["store"] is False
     assert responses.calls[0]["model"] == "test-model"
+    assert context.session_id not in responses.calls[0]["input"]
+    prompt = json.loads(responses.calls[0]["input"])
+    assert prompt["transcript"] == "Xe tôi gọi lúc nãy tới đâu rồi?"
+    assert prompt["context"]["rewrite_applied"] is True
+    assert "session_id" not in prompt["context"]
 
 
 @pytest.mark.asyncio

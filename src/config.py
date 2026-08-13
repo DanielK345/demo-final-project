@@ -33,6 +33,14 @@ class Settings(BaseSettings):
     agent_llm_timeout_seconds: float = Field(default=5.0, gt=0)
     agent_llm_reasoning_effort: Literal["none", "low", "medium"] = "none"
 
+    # Contextual user-message rewrite (independent rollout from understanding)
+    agent_rewrite_enabled: bool = False
+    agent_rewrite_provider: Literal["openai"] = "openai"
+    agent_rewrite_model: str = "gpt-5.6-luna"
+    agent_rewrite_base_url: str | None = None
+    agent_rewrite_timeout_seconds: float = Field(default=5.0, gt=0)
+    agent_rewrite_reasoning_effort: Literal["none", "low", "medium"] = "none"
+
     # Database
     database_url: str = "sqlite:///./data/app.db"
 
