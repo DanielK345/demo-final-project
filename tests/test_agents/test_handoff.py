@@ -19,6 +19,7 @@ from src.agents.workflows.handoff import HandoffReason, HandoffWorkflow
         (
             AgentInput(
                 session_id="session-001",
+                turn_id="turn-001",
                 transcript="Tôi đang đặt xe nhưng muốn gặp tổng đài viên",
             ),
             AgentState(
@@ -27,12 +28,13 @@ from src.agents.workflows.handoff import HandoffReason, HandoffWorkflow
             ),
         ),
         (
-            AgentInput(session_id="session-001", transcript="Tôi cần hỗ trợ"),
+            AgentInput(session_id="session-001", turn_id="turn-001", transcript="Tôi cần hỗ trợ"),
             AgentState(session_id="session-001", retry_count=3),
         ),
         (
             AgentInput(
                 session_id="session-001",
+                turn_id="turn-001",
                 transcript="Tôi cần hỗ trợ",
                 stt_confidence=0.2,
             ),
@@ -61,7 +63,7 @@ async def test_handoff_detects_realtime_reason(
     expected_reason: HandoffReason,
 ):
     action = await HandoffWorkflow().handle(
-        AgentInput(session_id="session-001", transcript=transcript),
+        AgentInput(session_id="session-001", turn_id="turn-001", transcript=transcript),
         AgentState(session_id="session-001"),
     )
 
@@ -75,7 +77,7 @@ async def test_handoff_detects_realtime_reason(
 @pytest.mark.asyncio
 async def test_handoff_detects_retry_limit():
     action = await HandoffWorkflow().handle(
-        AgentInput(session_id="session-001", transcript="Tôi không biết"),
+        AgentInput(session_id="session-001", turn_id="turn-001", transcript="Tôi không biết"),
         AgentState(session_id="session-001", retry_count=3),
     )
 
@@ -88,6 +90,7 @@ async def test_handoff_detects_low_stt_confidence():
     action = await HandoffWorkflow().handle(
         AgentInput(
             session_id="session-001",
+            turn_id="turn-001",
             transcript="Tôi cần hỗ trợ",
             stt_confidence=0.2,
         ),
@@ -108,13 +111,13 @@ async def test_handoff_detects_critical_tool_error():
     )
 
     action = await HandoffWorkflow().handle(
-        AgentInput(session_id="session-001", tool_result=tool_result),
-            AgentState(
-                session_id="session-001",
-                current_workflow=WorkflowType.HUMAN_HANDOFF,
-                pending_tool_call_id=tool_result.call_id,
-                pending_tool_name=ToolName.CREATE_BOOKING,
-            ),
+        AgentInput(session_id="session-001", turn_id="turn-001", tool_result=tool_result),
+        AgentState(
+            session_id="session-001",
+            current_workflow=WorkflowType.HUMAN_HANDOFF,
+            pending_tool_call_id=tool_result.call_id,
+            pending_tool_name=ToolName.CREATE_BOOKING,
+        ),
     )
 
     context = action.state_updates["collected_data"]["handoff_context"]
@@ -139,6 +142,7 @@ async def test_handoff_preserves_relevant_context():
     action = await HandoffWorkflow().handle(
         AgentInput(
             session_id="session-001",
+            turn_id="turn-001",
             transcript="Cho tôi gặp tổng đài viên",
             stt_confidence=0.98,
         ),
@@ -165,6 +169,7 @@ async def test_handoff_rejects_state_from_another_session():
         await HandoffWorkflow().handle(
             AgentInput(
                 session_id="session-001",
+                turn_id="turn-001",
                 transcript="Cho tôi gặp tổng đài viên",
             ),
             AgentState(session_id="session-002"),

@@ -1,3 +1,4 @@
+import json
 from types import SimpleNamespace
 
 import pytest
@@ -69,6 +70,7 @@ async def test_agent_uses_structured_intent_for_natural_vietnamese_request():
     action = await agent.handle(
         AgentInput(
             session_id="session-001",
+            turn_id="turn-001",
             transcript="Bác đang cạnh bệnh viện, gọi một cuốc về khu Times nhé",
         )
     )
@@ -86,7 +88,7 @@ async def test_deterministic_emergency_skips_understanding_provider():
     agent = LLMAgent(understanding_service=understanding)
 
     action = await agent.handle(
-        AgentInput(session_id="session-001", transcript="Tôi đang gặp nguy hiểm")
+        AgentInput(session_id="session-001", turn_id="turn-001", transcript="Tôi đang gặp nguy hiểm")
     )
 
     assert action.action_type is ActionType.HANDOFF
@@ -114,6 +116,7 @@ async def test_structured_handoff_overrides_active_business_workflow():
     action = await agent.handle(
         AgentInput(
             session_id="session-001",
+            turn_id="turn-001",
             transcript="Tôi muốn nói chuyện trực tiếp với người hỗ trợ",
         ),
         state,
@@ -139,6 +142,7 @@ async def test_tool_result_turn_does_not_call_understanding_provider():
     await agent.handle(
         AgentInput(
             session_id="session-001",
+            turn_id="turn-001",
             tool_result=ToolResult(
                 tool_name=ToolName.SEARCH_PLACE,
                 call_id="call-001",
@@ -154,9 +158,7 @@ async def test_tool_result_turn_does_not_call_understanding_provider():
 
 @pytest.mark.asyncio
 async def test_structured_confirmation_cannot_bypass_incomplete_booking_state():
-    understanding = RecordingUnderstanding(
-        UnderstandingResult(confirmation=ConfirmationIntent.CONFIRM, confidence=0.9)
-    )
+    understanding = RecordingUnderstanding(UnderstandingResult(confirmation=ConfirmationIntent.CONFIRM, confidence=0.9))
     agent = LLMAgent(understanding_service=understanding)
     state = AgentState(
         session_id="session-001",
@@ -165,7 +167,7 @@ async def test_structured_confirmation_cannot_bypass_incomplete_booking_state():
     )
 
     action = await agent.handle(
-        AgentInput(session_id="session-001", transcript="Vâng bác đồng ý"),
+        AgentInput(session_id="session-001", turn_id="turn-001", transcript="Vâng bác đồng ý"),
         state,
     )
 
@@ -204,6 +206,7 @@ async def test_structured_correction_restarts_place_resolution():
     action = await agent.handle(
         AgentInput(
             session_id="session-001",
+            turn_id="turn-001",
             transcript="Không phải chỗ đó, cho bác sang Royal City",
         ),
         state,
@@ -230,6 +233,25 @@ async def test_resilient_understanding_falls_back_to_rules():
 
 
 @pytest.mark.asyncio
+async def test_rule_understanding_extracts_phone_correction_from_confirmation_like_phrase():
+    result = await RuleBasedUnderstanding().understand(
+        "Số điện thoại đúng là 0987654321",
+        UnderstandingContext(
+            session_id="session-001",
+            current_workflow="RIDE_BOOKING",
+            current_step="CONFIRM",
+        ),
+    )
+
+    assert result.corrections == [
+        Correction(
+            field=CorrectionField.PHONE_NUMBER,
+            value="0987654321",
+        )
+    ]
+
+
+@pytest.mark.asyncio
 async def test_openai_adapter_uses_responses_structured_output():
     expected = UnderstandingResult(
         intent=UnderstandingIntent.TRIP_LOOKUP,
@@ -243,15 +265,28 @@ async def test_openai_adapter_uses_responses_structured_output():
         client=FakeOpenAIClient(responses),
     )
 
+    context = UnderstandingContext(
+        session_id="session-001",
+        current_workflow="TRIP_LOOKUP",
+        current_step="COLLECT_IDENTIFIER",
+        known_fields=["trip_lookup.booking_id"],
+        rewrite_applied=True,
+        rewrite_ambiguities=["reference_was_resolved"],
+    )
     result = await adapter.understand(
         "Xe tôi gọi lúc nãy tới đâu rồi?",
-        UnderstandingContext(session_id="session-001"),
+        context,
     )
 
     assert result == expected
     assert responses.calls[0]["text_format"] is UnderstandingResult
     assert responses.calls[0]["store"] is False
     assert responses.calls[0]["model"] == "test-model"
+    assert context.session_id not in responses.calls[0]["input"]
+    prompt = json.loads(responses.calls[0]["input"])
+    assert prompt["transcript"] == "Xe tôi gọi lúc nãy tới đâu rồi?"
+    assert prompt["context"]["rewrite_applied"] is True
+    assert "session_id" not in prompt["context"]
 
 
 @pytest.mark.asyncio

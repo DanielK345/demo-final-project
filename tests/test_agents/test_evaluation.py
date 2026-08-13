@@ -13,6 +13,7 @@ async def test_behavior_evaluator_reports_offline_action_metrics():
             name="booking starts slot collection",
             agent_input=AgentInput(
                 session_id="eval-booking",
+                turn_id="turn-001",
                 transcript="Tôi muốn đặt xe",
             ),
             expected_action_type=ActionType.ASK_USER,
@@ -22,6 +23,7 @@ async def test_behavior_evaluator_reports_offline_action_metrics():
             name="booking resolves pickup",
             agent_input=AgentInput(
                 session_id="eval-pickup",
+                turn_id="turn-001",
                 transcript="Hồ Gươm",
             ),
             state=AgentState(
@@ -37,6 +39,7 @@ async def test_behavior_evaluator_reports_offline_action_metrics():
             name="human request handoff",
             agent_input=AgentInput(
                 session_id="eval-handoff",
+                turn_id="turn-001",
                 transcript="Cho tôi gặp tổng đài viên",
             ),
             expected_action_type=ActionType.HANDOFF,

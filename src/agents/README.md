@@ -118,6 +118,7 @@ Input của một lượt xử lý:
 ```python
 AgentInput(
     session_id="session-001",
+    turn_id="turn-001",
     transcript="Tôi muốn đặt xe",
     stt_confidence=0.98,
     tool_result=None,
@@ -127,6 +128,7 @@ AgentInput(
 | Field | Ý nghĩa |
 |---|---|
 | `session_id` | Định danh phiên; bắt buộc và không rỗng |
+| `turn_id` | ID ổn định do Backend/Voice tạo cho một input turn; bắt buộc và giữ nguyên khi retry |
 | `transcript` | Nội dung STT; có thể rỗng nếu lượt này chứa tool result |
 | `stt_confidence` | Độ tin cậy STT trong khoảng 0–1 |
 | `tool_result` | Kết quả Backend trả về sau một `CALL_TOOL` |
@@ -149,6 +151,8 @@ State là single source of truth của hội thoại:
 | `retry_count` | Số lần retry hiện tại |
 | `last_stt_confidence` | Confidence gần nhất dùng cho policy nhiều lượt |
 | `conversation_history` | Lịch sử typed, giới hạn và không thay business state |
+| `conversation_summary` | Bản tóm tắt typed của history cũ; không thay business state |
+| `interrupted_workflow` | Single resumable workflow frame; không chứa business payload |
 | `state_version` | Version tăng sau mỗi validated transition |
 
 Agent không được dùng state có `session_id` khác input. State được cập nhật bằng
@@ -173,6 +177,34 @@ không kiểm tra.
 `state_updates`. `pending_tool_call_id` và `pending_tool_name` phải được set hoặc
 clear cùng nhau. History được giới hạn để state không tăng vô hạn; raw tool
 payload và PII không được tự động đưa vào history.
+
+Conversation history dùng typed contracts trong `state.py`:
+
+- `ConversationMessage` có deterministic `message_id`, `turn_id`, role, type,
+  content và delivery status;
+- final user transcript dùng trạng thái `FINAL`;
+- assistant speech bắt đầu ở `PENDING`, sau đó Backend/Voice xác nhận
+  `DELIVERED`, `INTERRUPTED` hoặc `FAILED` bằng `AssistantDeliveryEvent`;
+- `spoken_content` biểu diễn phần thực sự đã phát khi cần đồng bộ barge-in;
+- `ConversationSummary` nén history cũ nhưng không được override validated slots;
+- `history.py` cung cấp pure reducers, không tự persist và không gọi Voice/TTS.
+
+`turn_id` là idempotency identity của input turn, không thay thế `call_id` của
+tool hoặc idempotency key của side effect. Core Agent tự động merge sanitized
+user transcript, safe tool summary và pending assistant speech vào cùng
+`state_updates` với business transition. Backend persist toàn bộ update một lần
+trước khi execute action. Workflow không được tự sửa `conversation_history` hoặc
+`conversation_summary`.
+
+`CALL_TOOL` không tạo assistant speech vì Backend chỉ dispatch tool. Một
+tool-result-only turn tạo `TOOL_SUMMARY` chỉ gồm tool name/status để correlate và
+deduplicate turn; raw payload và error không được lưu. Recent history được prune
+theo complete turn trong giới hạn cấu hình. P3 đưa history vào language
+understanding qua projection typed, sanitized và bounded: chỉ dùng user
+transcript cùng assistant speech thực sự đã phát, loại pending/failed speech và
+arbitrary collected data. Deterministic gate chỉ gọi contextual rewriter khi có
+reference cùng evidence phù hợp; workflow nhận effective text, còn history luôn
+ghi raw transcript.
 
 `StateStore` trong `state_store.py` định nghĩa lifecycle create/get/update/delete.
 `InMemoryStateStore` chỉ dùng cho test/local development. PostgreSQL/Redis và
@@ -672,7 +704,7 @@ git diff --check
 ```
 
 Integration contract cho Backend nằm tại
-[`BACKEND_INTEGRATION.md`](BACKEND_INTEGRATION.md). Demo text-mode chạy bằng:
+[`BACKEND_INTEGRATION.md`](docs/BACKEND_INTEGRATION.md). Demo text-mode chạy bằng:
 
 ```bash
 .venv/bin/python -m examples.core_agent_demo
@@ -710,3 +742,80 @@ OPENAI_API_KEY="..." \
 AGENT_LLM_MODEL="gpt-5.6-luna" \
 .venv/bin/python -m pytest -q -m provider tests/integration
 ```
+
+### Contextual user-message rewrite
+
+P3 cung cấp provider-independent rewrite port, OpenAI structured adapter,
+grounding/safety validator và resilient fallback. Rewrite rollout dùng config
+riêng với understanding:
+
+```env
+AGENT_REWRITE_ENABLED=false
+AGENT_REWRITE_PROVIDER=openai
+AGENT_REWRITE_MODEL=gpt-5.6-luna
+AGENT_REWRITE_TIMEOUT_SECONDS=5
+AGENT_REWRITE_REASONING_EFFORT=none
+```
+
+Mặc định rewriter là passthrough và không gọi network. Khi bật provider, prompt
+không chứa raw session ID; phone/booking identity trong current input chặn
+provider call. Output phải giữ nguyên original text, cite source turn và chỉ
+resolve value có trong sanitized context. Timeout, invalid hoặc unsafe output
+đều fallback về raw text. `LLMAgent` đã nối context, gate, rewrite và
+understanding; tool-result/emergency fast path không gọi provider. Confirmation,
+phone và booking identity vẫn cần evidence từ raw transcript. Tại bước booking
+confirmation, workflow luôn đọc raw text để rewrite không thể tạo side effect.
+
+### Conversation repair
+
+P4.1 đã định nghĩa typed `DialogueActResult` và deterministic
+`DialogueActDetector` cho `REPEAT`, `CORRECT`, `CANCEL`, `START_OVER`, `HELP`,
+`CHANGE_INTENT`, `PAUSE`, `RESUME`, `GOODBYE` và default `CONTINUE`. Detector
+chỉ nhận diện explicit command/evidence và không sửa state.
+
+P4.2 đã nối `REPEAT`, `CANCEL`, `START_OVER` và `GOODBYE` vào `LLMAgent` sau
+global safety/tool-result priority và trước rewrite/understanding. Repeat chỉ
+dùng assistant speech thực sự đã phát; cancel/start-over reset đúng workflow
+namespace; goodbye chỉ end session khi an toàn. Pending side effect
+`create_booking`/`create_handoff` được giữ nguyên và chuyển sang
+`RECONCILIATION_REQUIRED`, không giả định đã hủy. Các dialogue act còn lại được
+tách sang các phase sau.
+
+P4.3 đã hoàn thiện correction cho Ride Booking. Agent hỗ trợ sửa pickup,
+destination và phone với giá trị ngay trong câu hoặc hỏi riêng field còn thiếu;
+“sửa thông tin” chuyển sang bước chọn field. Correction giữ nguyên các booking
+field không liên quan, reset confirmation/retry và quay lại `CONFIRM` sau khi
+resolve xong. Raw correction được ưu tiên hơn structured understanding và model
+correction không grounded bị loại. Correction khi side effect đang pending tiếp
+tục đi `RECONCILIATION_REQUIRED`.
+
+P4.4 đã nối `HELP`, `PAUSE`, `RESUME`, `CHANGE_INTENT` và FAQ interruption.
+`interrupted_workflow` chỉ giữ workflow, resumable step, confirmation, retry và
+reason; business data vẫn ở namespace typed hiện có. Agent hỗ trợ một frame,
+chặn nested interruption, không pause/switch khi tool pending, và giữ
+side-effect reconciliation. FAQ có thể xen giữa Booking/Trip Lookup, trả lời có
+grounding rồi mời user resume; resume restore đúng step và xóa FAQ namespace.
+Cancel/goodbye xử lý riêng active và interrupted workflow theo target.
+
+P4.5 đã hoàn tất hardening xuyên lớp. Các location reference chưa grounded như
+“nhà”, “ở đó”, “chỗ cũ” phải được hỏi lại và không thể đi tới
+`create_booking`; policy được enforce ở workflow, local mock và guardrail cuối.
+CLI coi `HANDOFF`/`END_SESSION` là terminal signal và chỉ nhận hội thoại mới sau
+`/reset`. Full-flow tests kiểm tra history, FAQ interruption, resume, repeat,
+correction, booking completion và session isolation. Provider tests opt-in kiểm
+tra ordinal rewrite và không tự bịa địa chỉ nhà. Toàn bộ P4 hiện complete.
+
+### Interactive local test
+
+`examples/core_agent_chat.py` giữ `AgentState` qua nhiều lượt, acknowledge
+assistant delivery và tự chạy deterministic mock Backend cho Maps, Booking,
+Trip Lookup, Knowledge và Handoff. Understanding/rewrite vẫn dùng provider thật
+theo `.env`; mock chỉ thay các business service chưa được nối ở local.
+
+```bash
+AGENT_REWRITE_ENABLED=true \
+.venv/bin/python -u -m examples.core_agent_chat
+```
+
+Các lệnh trong CLI: `/state`, `/history`, `/config`, `/reset`, `/help`, `/quit`.
+Sau handoff/end, dùng `/reset` để tạo session và memory mới. CLI không in API key.

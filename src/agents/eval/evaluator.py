@@ -1,5 +1,7 @@
 from time import perf_counter
 
+from pydantic import ValidationError
+
 from src.agents.agent import LLMAgent
 from src.agents.eval.models import EvaluationCase, EvaluationReport, EvaluationResult
 from src.agents.schemas import ActionType
@@ -16,7 +18,11 @@ class BehaviorEvaluator:
             started = perf_counter()
             action = await agent.handle(case.agent_input, case.state)
             latency_ms = (perf_counter() - started) * 1000
-            schema_valid = action.model_validate(action.model_dump()) == action
+            try:
+                action.model_validate(action.model_dump(mode="json"))
+                schema_valid = True
+            except ValidationError:
+                schema_valid = False
             actual_workflow = action.state_updates.get("current_workflow")
             actual_tool = action.tool_call.tool_name if action.tool_call else None
             results.append(
@@ -58,9 +64,7 @@ class BehaviorEvaluator:
             case_count=count,
             pass_rate=sum(result.passed for result in results) / count,
             action_accuracy=sum(result.action_correct for result in results) / count,
-            workflow_accuracy=(
-                sum(result.workflow_correct for result in results) / count
-            ),
+            workflow_accuracy=(sum(result.workflow_correct for result in results) / count),
             tool_accuracy=sum(result.tool_correct for result in results) / count,
             schema_validity_rate=sum(result.schema_valid for result in results) / count,
             average_latency_ms=sum(result.latency_ms for result in results) / count,

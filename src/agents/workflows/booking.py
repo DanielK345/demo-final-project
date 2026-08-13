@@ -3,6 +3,7 @@ from typing import Any
 
 from pydantic import ValidationError
 
+from src.agents.location_policy import is_ambiguous_location_text
 from src.agents.schemas import (
     ActionType,
     AgentAction,
@@ -40,11 +41,26 @@ _PHONE_PATTERN = re.compile(r"(?<!\d)(?:\+?84|0)(?:[ .-]?\d){9}(?!\d)")
 _CONFIRM_TERMS = ("đúng", "đồng ý", "xác nhận", "đặt đi", "đặt giúp")
 _REJECT_TERMS = ("không", "chưa", "hủy", "sai rồi")
 _PICKUP_CORRECTION = re.compile(
-    r"(?:đổi|sửa)\s+(?:điểm\s+)?đón(?:\s+thành|\s+là)?\s+(?P<value>.+)",
+    r"(?:đổi|sửa|thay)\s+(?:lại\s+)?(?:điểm\s+)?đón"
+    r"(?:\s+(?:sang|thành|là))?\s+(?P<value>.+)",
     re.IGNORECASE,
 )
 _DESTINATION_CORRECTION = re.compile(
-    r"(?:đổi|sửa)\s+(?:điểm\s+)?(?:đến|đích)(?:\s+thành|\s+là)?\s+(?P<value>.+)",
+    r"(?:đổi|sửa|thay)\s+(?:lại\s+)?(?:điểm\s+)?(?:đến|đích)"
+    r"(?:\s+(?:sang|thành|là))?\s+(?P<value>.+)",
+    re.IGNORECASE,
+)
+_PHONE_CORRECTION = re.compile(
+    r"(?:(?:đổi|sửa|thay)\s+(?:lại\s+)?(?:số\s+)?điện\s+thoại"
+    r"(?:\s+(?:sang|thành|là))?|(?:số\s+)?điện\s+thoại\s+(?:đúng\s+)?là)"
+    r"\s+(?P<value>(?:\+?84|0)(?:[ .-]?\d){9})",
+    re.IGNORECASE,
+)
+_PICKUP_FIELD = re.compile(r"\b(?:điểm\s+)?đón\b", re.IGNORECASE)
+_DESTINATION_FIELD = re.compile(r"\b(?:điểm\s+)?(?:đến|đích)\b", re.IGNORECASE)
+_PHONE_FIELD = re.compile(r"\b(?:số\s+)?điện\s+thoại\b", re.IGNORECASE)
+_GENERIC_CORRECTION = re.compile(
+    r"\b(?:tôi\s+muốn\s+)?sửa(?:\s+lại)?\s+thông\s+tin\b",
     re.IGNORECASE,
 )
 _VEHICLE_TERMS: dict[VehicleType, tuple[str, ...]] = {
@@ -95,12 +111,27 @@ class RideBookingWorkflow(BaseWorkflow):
         step = self._step(state)
         transcript = agent_input.transcript.strip()
 
-        correction = self._understood_correction(understanding)
+        correction = self._extract_correction(transcript)
         if correction is None:
-            correction = self._extract_correction(transcript)
+            correction = self._understood_correction(understanding)
         if correction is not None:
             field, value = correction
-            return self._apply_correction(state, data, field, value)
+            return self._begin_correction(state, data, field, value)
+
+        if _GENERIC_CORRECTION.search(transcript):
+            return self._ask_correction_field(state, data)
+
+        if step is BookingStep.SELECT_CORRECTION_FIELD:
+            field = self._select_correction_field(transcript)
+            if field is None:
+                return self._retry_ask(
+                    state,
+                    data,
+                    BookingStep.SELECT_CORRECTION_FIELD,
+                    "Bạn muốn sửa điểm đón, điểm đến hay số điện thoại?",
+                    confirmation=ConfirmationStatus.REJECTED,
+                )
+            return self._begin_correction(state, data, field, None)
 
         if step is BookingStep.COLLECT_PICKUP:
             return self._collect_pickup(state, data, transcript, understanding)
@@ -261,6 +292,20 @@ class RideBookingWorkflow(BaseWorkflow):
         operation: str,
         waiting_step: BookingStep,
     ) -> AgentAction:
+        if is_ambiguous_location_text(query):
+            step = (
+                BookingStep.COLLECT_PICKUP
+                if operation == "pickup"
+                else BookingStep.COLLECT_DESTINATION
+            )
+            label = "điểm đón" if operation == "pickup" else "điểm đến"
+            return self._ask(
+                state,
+                data,
+                step=step,
+                message=f"Bạn vui lòng cung cấp địa chỉ {label} cụ thể.",
+                reason=f"The {operation} reference is not a resolvable address.",
+            )
         call_id = build_call_id(
             session_id=state.session_id,
             workflow=self.workflow_type,
@@ -383,6 +428,12 @@ class RideBookingWorkflow(BaseWorkflow):
         if pickup:
             data.pickup = candidates[0]
             data.pickup_candidates = []
+            if data.correction_field is CorrectionField.PICKUP:
+                return self._finish_correction(
+                    state,
+                    data,
+                    clear_pending=True,
+                )
             if data.destination_query:
                 return self._request_place(
                     state,
@@ -402,6 +453,12 @@ class RideBookingWorkflow(BaseWorkflow):
 
         data.destination = candidates[0]
         data.destination_candidates = []
+        if data.correction_field is CorrectionField.DESTINATION:
+            return self._finish_correction(
+                state,
+                data,
+                clear_pending=True,
+            )
         return self._after_locations(state, data, clear_pending=True)
 
     def _select_candidate(
@@ -430,6 +487,8 @@ class RideBookingWorkflow(BaseWorkflow):
         if pickup:
             data.pickup = candidate
             data.pickup_candidates = []
+            if data.correction_field is CorrectionField.PICKUP:
+                return self._finish_correction(state, data)
             if data.destination_query:
                 return self._request_place(
                     state,
@@ -448,6 +507,8 @@ class RideBookingWorkflow(BaseWorkflow):
 
         data.destination = candidate
         data.destination_candidates = []
+        if data.correction_field is CorrectionField.DESTINATION:
+            return self._finish_correction(state, data)
         return self._after_locations(state, data)
 
     def _after_locations(
@@ -533,6 +594,8 @@ class RideBookingWorkflow(BaseWorkflow):
                 "Số điện thoại chưa hợp lệ. Bạn vui lòng đọc lại.",
             )
         data.phone_number = phone
+        if data.correction_field is CorrectionField.PHONE_NUMBER:
+            return self._finish_correction(state, data)
         return self._confirmation_action(state, data)
 
     def _confirmation_action(
@@ -577,14 +640,7 @@ class RideBookingWorkflow(BaseWorkflow):
             and understanding.confirmation is ConfirmationIntent.CONFIRM
         ) or any(term in normalized for term in _CONFIRM_TERMS)
         if rejected:
-            return self._ask(
-                state,
-                data,
-                step=BookingStep.CONFIRM,
-                message="Bạn muốn sửa điểm đón hay điểm đến?",
-                reason="The user rejected the booking details.",
-                confirmation=ConfirmationStatus.REJECTED,
-            )
+            return self._ask_correction_field(state, data)
         if not confirmed:
             return self._retry_ask(
                 state,
@@ -660,17 +716,159 @@ class RideBookingWorkflow(BaseWorkflow):
             reason="The booking tool returned a successful result.",
         )
 
-    def _apply_correction(
+    def _ask_correction_field(
         self,
         state: AgentState,
         data: BookingData,
-        field: str,
-        value: str,
     ) -> AgentAction:
-        if field == "pickup":
+        data.correction_field = None
+        data.correction_return_step = (
+            BookingStep.CONFIRM if self._has_complete_booking(data) else None
+        )
+        action = self._ask(
+            state,
+            data,
+            step=BookingStep.SELECT_CORRECTION_FIELD,
+            message="Bạn muốn sửa điểm đón, điểm đến hay số điện thoại?",
+            reason="The user requested a booking correction without a field.",
+            confirmation=ConfirmationStatus.REJECTED,
+        )
+        action.state_updates["retry_count"] = 0
+        return action
+
+    def _begin_correction(
+        self,
+        state: AgentState,
+        data: BookingData,
+        field: CorrectionField,
+        value: str | None,
+    ) -> AgentAction:
+        if data.correction_return_step is None and self._has_complete_booking(data):
+            data.correction_return_step = BookingStep.CONFIRM
+        data.correction_field = field
+
+        if field is CorrectionField.PICKUP:
             data.pickup_query = value
             data.pickup = None
             data.pickup_candidates = []
+            if value is None:
+                action = self._ask(
+                    state,
+                    data,
+                    step=BookingStep.COLLECT_PICKUP,
+                    message="Bạn muốn đổi điểm đón thành địa chỉ nào?",
+                    reason="The corrected pickup value is missing.",
+                )
+            else:
+                action = self._request_place(
+                    state,
+                    data,
+                    query=value,
+                    operation="pickup",
+                    waiting_step=BookingStep.WAITING_FOR_PICKUP_RESULT,
+                )
+        elif field is CorrectionField.DESTINATION:
+            data.destination_query = value
+            data.destination = None
+            data.destination_candidates = []
+            if value is None:
+                action = self._ask(
+                    state,
+                    data,
+                    step=BookingStep.COLLECT_DESTINATION,
+                    message="Bạn muốn đổi điểm đến thành địa chỉ nào?",
+                    reason="The corrected destination value is missing.",
+                )
+            else:
+                action = self._request_place(
+                    state,
+                    data,
+                    query=value,
+                    operation="destination",
+                    waiting_step=BookingStep.WAITING_FOR_DESTINATION_RESULT,
+                )
+        else:
+            data.phone_number = None
+            phone = self._extract_phone(value or "")
+            if phone is None:
+                action = self._ask(
+                    state,
+                    data,
+                    step=BookingStep.COLLECT_PHONE,
+                    message="Bạn vui lòng cung cấp số điện thoại mới.",
+                    reason="The corrected phone number is missing or invalid.",
+                )
+            else:
+                data.phone_number = phone
+                action = self._finish_correction(state, data)
+
+        action.state_updates["retry_count"] = 0
+        return action
+
+    def _finish_correction(
+        self,
+        state: AgentState,
+        data: BookingData,
+        *,
+        clear_pending: bool = False,
+    ) -> AgentAction:
+        return_step = data.correction_return_step
+        data.correction_field = None
+        data.correction_return_step = None
+        if return_step is BookingStep.CONFIRM and self._has_complete_booking(data):
+            return self._confirmation_action(
+                state,
+                data,
+                clear_pending=clear_pending,
+            )
+        return self._continue_booking(state, data, clear_pending=clear_pending)
+
+    def _continue_booking(
+        self,
+        state: AgentState,
+        data: BookingData,
+        *,
+        clear_pending: bool = False,
+    ) -> AgentAction:
+        if data.pickup is None:
+            return self._ask(
+                state,
+                data,
+                step=BookingStep.COLLECT_PICKUP,
+                message="Bạn muốn đón ở đâu?",
+                reason="The pickup location is missing after correction.",
+                clear_pending=clear_pending,
+            )
+        if data.destination is None:
+            return self._ask(
+                state,
+                data,
+                step=BookingStep.COLLECT_DESTINATION,
+                message="Bạn muốn đi đến đâu?",
+                reason="The destination is missing after correction.",
+                clear_pending=clear_pending,
+            )
+        if data.phone_number is None:
+            return self._ask(
+                state,
+                data,
+                step=BookingStep.COLLECT_PHONE,
+                message="Bạn vui lòng cung cấp số điện thoại đặt xe.",
+                reason="The phone number is missing after correction.",
+                clear_pending=clear_pending,
+            )
+        return self._confirmation_action(
+            state,
+            data,
+            clear_pending=clear_pending,
+        )
+
+    @staticmethod
+    def _has_complete_booking(data: BookingData) -> bool:
+        return (
+            data.pickup is not None
+            and data.destination is not None
+            and data.phone_number is not None
             return self._request_place(
                 state,
                 data,
@@ -793,22 +991,47 @@ class RideBookingWorkflow(BaseWorkflow):
         return phone
 
     @staticmethod
-    def _extract_correction(transcript: str) -> tuple[str, str] | None:
+    def _extract_correction(
+        transcript: str,
+    ) -> tuple[CorrectionField, str | None] | None:
         pickup = _PICKUP_CORRECTION.search(transcript)
         if pickup is not None:
-            return "pickup", pickup.group("value").strip(" .")
+            return CorrectionField.PICKUP, pickup.group("value").strip(" .")
         destination = _DESTINATION_CORRECTION.search(transcript)
         if destination is not None:
-            return "destination", destination.group("value").strip(" .")
+            return (
+                CorrectionField.DESTINATION,
+                destination.group("value").strip(" ."),
+            )
+        phone = _PHONE_CORRECTION.search(transcript)
+        if phone is not None:
+            return CorrectionField.PHONE_NUMBER, phone.group("value").strip(" .")
+
+        normalized = transcript.casefold()
+        has_command = any(term in normalized for term in ("đổi", "sửa", "thay"))
+        if has_command:
+            field = RideBookingWorkflow._select_correction_field(transcript)
+            if field is not None:
+                return field, None
         return None
 
     @staticmethod
     def _understood_correction(
         understanding: UnderstandingResult | None,
-    ) -> tuple[str, str] | None:
+    ) -> tuple[CorrectionField, str | None] | None:
         if understanding is None or not understanding.corrections:
             return None
         correction = understanding.corrections[0]
+        return correction.field, correction.value
+
+    @staticmethod
+    def _select_correction_field(transcript: str) -> CorrectionField | None:
+        if _PICKUP_FIELD.search(transcript):
+            return CorrectionField.PICKUP
+        if _DESTINATION_FIELD.search(transcript):
+            return CorrectionField.DESTINATION
+        if _PHONE_FIELD.search(transcript):
+            return CorrectionField.PHONE_NUMBER
         if correction.field is CorrectionField.PICKUP:
             return "pickup", correction.value
         if correction.field is CorrectionField.DESTINATION:
@@ -850,4 +1073,9 @@ class RideBookingWorkflow(BaseWorkflow):
             for candidate in candidates
             if candidate.display_name.casefold() in normalized
         ]
-        return matches[0] if len(matches) == 1 else None
+        if not matches:
+            return None
+        matches.sort(key=lambda candidate: len(candidate.display_name), reverse=True)
+        if len(matches) > 1 and len(matches[0].display_name) == len(matches[1].display_name):
+            return None
+        return matches[0]

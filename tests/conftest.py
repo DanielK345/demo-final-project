@@ -8,6 +8,7 @@ from httpx import ASGITransport, AsyncClient
 # Unit tests must remain deterministic even when local development enables the
 # real provider in .env. Provider tests instantiate their adapter explicitly.
 os.environ["AGENT_LLM_ENABLED"] = "false"
+os.environ["AGENT_REWRITE_ENABLED"] = "false"
 
 from src.main import app
 

@@ -20,11 +20,19 @@ _BOOKING_ID_PATTERN = re.compile(
     re.IGNORECASE,
 )
 _PICKUP_CORRECTION = re.compile(
-    r"(?:đổi|sửa)\s+(?:điểm\s+)?đón(?:\s+thành|\s+là)?\s+(?P<value>.+)",
+    r"(?:đổi|sửa|thay)\s+(?:lại\s+)?(?:điểm\s+)?đón"
+    r"(?:\s+(?:sang|thành|là))?\s+(?P<value>.+)",
     re.IGNORECASE,
 )
 _DESTINATION_CORRECTION = re.compile(
-    r"(?:đổi|sửa)\s+(?:điểm\s+)?(?:đến|đích)(?:\s+thành|\s+là)?\s+(?P<value>.+)",
+    r"(?:đổi|sửa|thay)\s+(?:lại\s+)?(?:điểm\s+)?(?:đến|đích)"
+    r"(?:\s+(?:sang|thành|là))?\s+(?P<value>.+)",
+    re.IGNORECASE,
+)
+_PHONE_CORRECTION = re.compile(
+    r"(?:(?:đổi|sửa|thay)\s+(?:lại\s+)?(?:số\s+)?điện\s+thoại"
+    r"(?:\s+(?:sang|thành|là))?|(?:số\s+)?điện\s+thoại\s+(?:đúng\s+)?là)"
+    r"\s+(?P<value>(?:\+?84|0)(?:[ .-]?\d){9})",
     re.IGNORECASE,
 )
 
@@ -78,6 +86,7 @@ class RuleBasedUnderstanding:
         corrections: list[Correction] = []
         pickup_correction = _PICKUP_CORRECTION.search(transcript)
         destination_correction = _DESTINATION_CORRECTION.search(transcript)
+        phone_correction = _PHONE_CORRECTION.search(transcript)
         if pickup_correction is not None:
             corrections.append(
                 Correction(
@@ -90,6 +99,13 @@ class RuleBasedUnderstanding:
                 Correction(
                     field=CorrectionField.DESTINATION,
                     value=destination_correction.group("value").strip(" ."),
+                )
+            )
+        if phone_correction is not None:
+            corrections.append(
+                Correction(
+                    field=CorrectionField.PHONE_NUMBER,
+                    value=self._normalize_phone(phone_correction.group("value")),
                 )
             )
 

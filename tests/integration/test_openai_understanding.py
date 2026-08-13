@@ -76,11 +76,7 @@ async def test_openai_understands_lookup_correction_and_confirmation():
     )
 
     assert lookup.intent is UnderstandingIntent.TRIP_LOOKUP
-    assert any(
-        item.field is CorrectionField.PICKUP
-        and "Nhà hát Lớn" in item.value
-        for item in correction.corrections
-    )
+    assert any(item.field is CorrectionField.PICKUP and "Nhà hát Lớn" in item.value for item in correction.corrections)
     assert confirmation.confirmation is ConfirmationIntent.CONFIRM
 
 
@@ -91,6 +87,7 @@ async def test_openai_understanding_drives_core_agent_booking_action():
     action = await agent.handle(
         AgentInput(
             session_id="provider-core-booking",
+            turn_id="turn-001",
             transcript="Bác đang ở cổng Vinmec, gọi xe đưa bác về Times City nhé",
         )
     )

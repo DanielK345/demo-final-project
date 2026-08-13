@@ -44,6 +44,7 @@ Hoặc adapter LangGraph:
 result = await AgentGraphAdapter().ainvoke(
     {
         "session_id": session_id,
+        "turn_id": turn_id,
         "query": transcript,
         "stt_confidence": confidence,
         "state": state.model_dump(mode="json"),
@@ -63,6 +64,7 @@ Một turn phải có transcript hoặc `tool_result`:
 ```json
 {
   "session_id": "session-001",
+  "turn_id": "turn-001",
   "transcript": "Tôi muốn đặt xe",
   "stt_confidence": 0.96,
   "tool_result": null
@@ -74,6 +76,7 @@ Tool-result turn:
 ```json
 {
   "session_id": "session-001",
+  "turn_id": "turn-002",
   "transcript": "",
   "tool_result": {
     "tool_name": "search_place",
@@ -94,6 +97,58 @@ Tool-result turn:
 
 `session_id` của input phải khớp state đã load. Backend không được nhận state từ
 client như dữ liệu tin cậy; state phải được load bằng identity/session đã xác thực.
+
+`turn_id` là bắt buộc, do Backend/Voice tạo và phải ổn định khi retry cùng một
+input turn. Mỗi user transcript, tool-result turn hoặc event-driven invocation
+có một `turn_id` riêng. `turn_id` không thay `call_id` hoặc idempotency key của
+side effect.
+
+### 3.1 Conversation history and delivery contract
+
+History phân biệt nội dung Agent dự kiến nói và nội dung Voice thực sự phát:
+
+```text
+USER_TRANSCRIPT     → FINAL
+ASSISTANT_SPEECH    → PENDING
+                    → DELIVERED | INTERRUPTED | FAILED
+```
+
+Message ID deterministic:
+
+```text
+{turn_id}:user
+{turn_id}:assistant
+{turn_id}:tool-summary:{sequence}
+```
+
+Sau khi thực thi TTS, Voice gửi một `AssistantDeliveryEvent` cho Backend:
+
+```json
+{
+  "session_id": "session-001",
+  "turn_id": "turn-001",
+  "message_id": "turn-001:assistant",
+  "status": "INTERRUPTED",
+  "spoken_content": "Bạn muốn đón"
+}
+```
+
+Backend dùng pure reducer `acknowledge_assistant_delivery()` và persist state
+bằng optimistic concurrency. Delivery event không được route vào business
+workflow và không tự tạo một Agent response mới.
+
+Core Agent tự động merge history vào `AgentAction.state_updates`:
+
+- non-empty transcript thành `USER_TRANSCRIPT / FINAL`;
+- tool result thành safe `TOOL_SUMMARY / FINAL` chỉ có tool name/status;
+- customer-facing message của `ASK_USER`, `RESPOND`, `HANDOFF` hoặc
+  `END_SESSION` thành `ASSISTANT_SPEECH / PENDING`;
+- `CALL_TOOL` không tạo assistant speech.
+
+Business update và history update được Backend apply/persist trong cùng một
+transaction. Workflow không được tự ghi history. Raw tool payload, tool error,
+diagnostic `reason` và phone trong conversational text không được lưu vào
+history. Phone vẫn có thể tồn tại trong validated business slot cần cho booking.
 
 ## 4. Transaction order
 
@@ -124,6 +179,11 @@ await store.save(
 )
 await executor.execute(action, session_id=session_id)
 ```
+
+Mỗi Agent turn chỉ gọi `state.apply(action.state_updates)` một lần. Delivery
+acknowledgement sau TTS là transaction riêng và dùng `expected_version` mới nhất.
+Backend phải deduplicate/replay stable `turn_id` trước khi invoke Agent; Core
+history reducer cũng reject turn đã xuất hiện trong persisted history.
 
 Persist trước execution giúp lượt `ToolResult` sau luôn thấy pending call. Nếu
 save gặp version conflict, không thực thi action; Backend reload và xử lý lại
@@ -226,6 +286,7 @@ Backend trace tối thiểu nên có:
 ```text
 trace_id
 hashed_session_id
+turn_id
 state_version_before/after
 workflow
 step_before/after
@@ -244,14 +305,17 @@ Backend/Voice/platform policy.
 ## 11. Voice integration notes
 
 - Chỉ final transcript turn được đưa vào Core Agent.
+- Mọi invocation phải có stable `turn_id`.
 - `stt_confidence` nằm trong khoảng 0–1.
 - Barge-in, partial transcript, interruption và audio cancellation thuộc Voice.
+- Voice phải acknowledge assistant speech là delivered/interrupted/failed.
 - Voice có thể phát `message`; không phát `reason`, source URL hay tool metadata.
 - Khi `HANDOFF`, Voice/Backend thực hiện transfer; Core Agent chỉ chuẩn bị action.
 
 ## 12. Acceptance checklist
 
 - [ ] Backend load state theo authenticated session.
+- [ ] Backend/Voice tạo stable unique `turn_id` cho mỗi input turn.
 - [ ] State update dùng validation và optimistic concurrency.
 - [ ] Persist thành công trước khi execute action.
 - [ ] Tool dispatch giữ nguyên `call_id`.
@@ -261,3 +325,4 @@ Backend/Voice/platform policy.
 - [ ] Handoff truyền safe context.
 - [ ] Integration tests cover timeout, duplicate và version conflict.
 - [ ] Voice chỉ đọc customer-facing `message`.
+- [ ] Delivery acknowledgement correlate đúng session/turn/message.
