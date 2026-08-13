@@ -1,46 +1,16 @@
-import React, { useState } from "react";
+import React from "react";
 import { Outlet } from "react-router-dom";
 import { Sidebar } from "./Sidebar";
 import { Topbar } from "./Topbar";
 import { MobileNav } from "./MobileNav";
 
-const SIDEBAR_COLLAPSED_KEY = "alosm_sidebar_collapsed";
-
-function readStoredCollapsed(): boolean {
-  try {
-    const stored = window.localStorage.getItem(SIDEBAR_COLLAPSED_KEY);
-    // Chưa từng lưu gì (lần đầu mở app) -> mặc định dải hẹp + tự mở khi rê chuột
-    // qua (xem Sidebar.tsx) — đúng hành vi "tự động theo lướt chuột" được yêu cầu,
-    // thay vì luôn mở to như trước. "0" nghĩa là người dùng đã bấm ghim mở cố định.
-    return stored !== "0";
-  } catch {
-    return true;
-  }
-}
-
 export const AppLayout: React.FC = () => {
-  // Trạng thái thu/phóng sống ở đây (cha chung của Sidebar + khu nội dung chính) —
-  // không cần Context riêng vì chỉ 2 component dùng. Nhớ lựa chọn qua localStorage
-  // giống ThemeProvider, để không phải thu lại mỗi lần chuyển trang/tải lại. Đây chỉ
-  // là trạng thái "ghim" — khi collapsed=true, việc mở rộng lúc rê chuột là hiệu ứng
-  // CSS thuần (:hover/:focus-within trong Sidebar.tsx), không đi qua state này.
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(readStoredCollapsed);
-
-  const toggleSidebar = () => {
-    setIsSidebarCollapsed((current) => {
-      const next = !current;
-      try {
-        window.localStorage.setItem(SIDEBAR_COLLAPSED_KEY, next ? "1" : "0");
-      } catch {
-        // Bỏ qua nếu không lưu được — vẫn áp dụng cho phiên hiện tại.
-      }
-      return next;
-    });
-  };
-
   return (
     <div className="min-h-screen flex bg-[#F8F9FB] text-[#191C1E] dark:bg-[#0B0E11] dark:text-slate-100 font-sans antialiased transition-colors duration-200">
-      <Sidebar collapsed={isSidebarCollapsed} onToggleCollapse={toggleSidebar} />
+      {/* Sidebar tự thu/phóng theo rê chuột (thuần CSS, xem Sidebar.tsx) — không còn
+          nút ghim mở cố định (đã gỡ vì lỗi), nên không cần state/localStorage nào ở
+          đây nữa. */}
+      <Sidebar />
       {/* Không cần margin/width thủ công cho khu này — Sidebar co giãn trong cùng 1
           flex row, div flex-1 này tự nới rộng ra theo, mượt cùng nhịp với transition
           width của Sidebar (xem Sidebar.tsx) mà không bị giật/lệch khung 1 nhịp. */}
