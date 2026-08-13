@@ -131,7 +131,7 @@ P4.1 Dialogue Act Contract + Detector         implemented
 P4.2 Repeat/Cancel/Restart/Goodbye             implemented
 P4.3 Ride Booking Correction                   implemented
 P4.4 Workflow Interruption + Resume            implemented
-P4.5 Cross-layer Integration Matrix            pending
+P4.5 Cross-layer Integration + Hardening       implemented
 P5–P8                                        pending
 ```
 
@@ -653,6 +653,29 @@ business payload remains in the existing workflow namespace.
 The deterministic integration path is covered by
 `tests/test_agents/test_workflow_interruption.py`, including Booking → FAQ →
 grounded answer → Resume → Booking.
+
+#### P4.5 implementation status
+
+P4.5 closes the conversation-repair milestone with cross-layer safety and a
+stateful interactive harness:
+
+- Ambiguous ungrounded locations such as “nhà”, “ở đó” and “chỗ cũ” cannot
+  become synthetic place IDs. Booking asks for a concrete address, the local
+  mock returns no candidates, and the final guardrail independently rejects a
+  `create_booking` action containing ambiguous display names.
+- The interactive Backend simulator treats `HANDOFF` and `END_SESSION` as
+  terminal signals. Further user turns are blocked until `/reset`, matching the
+  production boundary where Backend must stop automated Agent invocation.
+- `/reset`, `/state`, `/history` and `/config` support repeatable manual tests;
+  `/config` reports only whether a key exists and never prints the secret.
+- Deterministic full-flow tests cover Booking → grounded FAQ interruption →
+  Resume → Repeat → Correction → confirmation → Booking success and verify raw
+  history plus session isolation.
+- Opt-in real-provider tests cover Vietnamese structured understanding,
+  grounded ordinal rewrite and refusal to invent a home address.
+
+P4 is complete. Vehicle type, fare/route and other booking product fields are
+P5 business-workflow expansion rather than conversation repair.
 
 ### Thứ tự xử lý
 

@@ -167,6 +167,52 @@ def test_guardrail_rejects_reconciliation_without_pending_side_effect():
         )
 
 
+def test_guardrail_rejects_booking_with_ambiguous_resolved_location():
+    state = AgentState(
+        session_id="session-001",
+        current_workflow=WorkflowType.RIDE_BOOKING,
+        current_step="CONFIRM",
+        collected_data={
+            "booking": {
+                "pickup": {"place_id": "p1", "display_name": "VinUniversity"},
+                "destination": {"place_id": "p2", "display_name": "nhà"},
+                "phone_number": "0901234567",
+            }
+        },
+        confirmation="AWAITING_CONFIRMATION",
+    )
+    call = ToolCall(
+        tool_name=ToolName.CREATE_BOOKING,
+        call_id="booking-1",
+        params={
+            "pickup_place_id": "p1",
+            "destination_place_id": "p2",
+            "phone_number": "0901234567",
+        },
+    )
+
+    with pytest.raises(GuardrailViolationError, match="concrete locations"):
+        AgentGuardrails().validate_and_sanitize(
+            AgentInput(
+                session_id="session-001",
+                turn_id="turn-002",
+                transcript="Đúng, đặt giúp tôi",
+            ),
+            state,
+            AgentAction(
+                action_type=ActionType.CALL_TOOL,
+                tool_call=call,
+                state_updates={
+                    "current_workflow": WorkflowType.RIDE_BOOKING,
+                    "current_step": "WAITING_FOR_BOOKING_RESULT",
+                    "pending_tool_call_id": "booking-1",
+                    "pending_tool_name": ToolName.CREATE_BOOKING,
+                    "confirmation": "CONFIRMED",
+                },
+            ),
+        )
+
+
 @pytest.mark.asyncio
 async def test_agent_blocks_workflow_from_modifying_history():
     agent = LLMAgent(workflows={WorkflowType.RIDE_BOOKING: HistoryMutatingWorkflow()})

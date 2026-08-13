@@ -2,6 +2,7 @@ import re
 
 from pydantic import ValidationError
 
+from src.agents.location_policy import is_ambiguous_location_text
 from src.agents.policy import AgentPolicy
 from src.agents.schemas import (
     ActionType,
@@ -87,6 +88,19 @@ class AgentGuardrails:
                 and next_state.confirmation is not ConfirmationStatus.CONFIRMED
             ):
                 raise GuardrailViolationError("create_booking requires explicit confirmed state")
+            if action.tool_call.tool_name is ToolName.CREATE_BOOKING:
+                booking = next_state.collected_data.get("booking", {})
+                if not isinstance(booking, dict):
+                    raise GuardrailViolationError("create_booking requires booking state")
+                locations = (booking.get("pickup"), booking.get("destination"))
+                if any(
+                    not isinstance(location, dict)
+                    or is_ambiguous_location_text(location.get("display_name"))
+                    for location in locations
+                ):
+                    raise GuardrailViolationError(
+                        "create_booking requires resolved concrete locations"
+                    )
 
         return action.model_copy(
             update={

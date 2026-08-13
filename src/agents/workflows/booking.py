@@ -3,6 +3,7 @@ from typing import Any
 
 from pydantic import ValidationError
 
+from src.agents.location_policy import is_ambiguous_location_text
 from src.agents.schemas import (
     ActionType,
     AgentAction,
@@ -268,6 +269,20 @@ class RideBookingWorkflow(BaseWorkflow):
         operation: str,
         waiting_step: BookingStep,
     ) -> AgentAction:
+        if is_ambiguous_location_text(query):
+            step = (
+                BookingStep.COLLECT_PICKUP
+                if operation == "pickup"
+                else BookingStep.COLLECT_DESTINATION
+            )
+            label = "điểm đón" if operation == "pickup" else "điểm đến"
+            return self._ask(
+                state,
+                data,
+                step=step,
+                message=f"Bạn vui lòng cung cấp địa chỉ {label} cụ thể.",
+                reason=f"The {operation} reference is not a resolvable address.",
+            )
         call_id = build_call_id(
             session_id=state.session_id,
             workflow=self.workflow_type,

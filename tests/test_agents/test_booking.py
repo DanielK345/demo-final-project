@@ -79,6 +79,24 @@ async def test_booking_extracts_route_and_resolves_pickup_first():
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("location", ["nhà", "về nhà tôi", "ở đó", "chỗ cũ"])
+async def test_booking_requires_concrete_address_for_ambiguous_location(location):
+    action = await RideBookingWorkflow().handle(
+        AgentInput(
+            session_id="session-001",
+            turn_id="turn-001",
+            transcript=location,
+        ),
+        booking_state(step=BookingStep.COLLECT_DESTINATION),
+    )
+
+    assert action.action_type is ActionType.ASK_USER
+    assert action.tool_call is None
+    assert action.state_updates["current_step"] == BookingStep.COLLECT_DESTINATION
+    assert "địa chỉ điểm đến cụ thể" in (action.message or "").casefold()
+
+
+@pytest.mark.asyncio
 async def test_booking_handles_zero_place_candidates():
     workflow = RideBookingWorkflow()
     state = booking_state(step=BookingStep.COLLECT_PICKUP)

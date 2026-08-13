@@ -795,5 +795,27 @@ reason; business data vẫn ở namespace typed hiện có. Agent hỗ trợ m�
 chặn nested interruption, không pause/switch khi tool pending, và giữ
 side-effect reconciliation. FAQ có thể xen giữa Booking/Trip Lookup, trả lời có
 grounding rồi mời user resume; resume restore đúng step và xóa FAQ namespace.
-Cancel/goodbye xử lý riêng active và interrupted workflow theo target. P4.5 còn
-lại cho integration/evaluation matrix của toàn bộ conversation repair.
+Cancel/goodbye xử lý riêng active và interrupted workflow theo target.
+
+P4.5 đã hoàn tất hardening xuyên lớp. Các location reference chưa grounded như
+“nhà”, “ở đó”, “chỗ cũ” phải được hỏi lại và không thể đi tới
+`create_booking`; policy được enforce ở workflow, local mock và guardrail cuối.
+CLI coi `HANDOFF`/`END_SESSION` là terminal signal và chỉ nhận hội thoại mới sau
+`/reset`. Full-flow tests kiểm tra history, FAQ interruption, resume, repeat,
+correction, booking completion và session isolation. Provider tests opt-in kiểm
+tra ordinal rewrite và không tự bịa địa chỉ nhà. Toàn bộ P4 hiện complete.
+
+### Interactive local test
+
+`examples/core_agent_chat.py` giữ `AgentState` qua nhiều lượt, acknowledge
+assistant delivery và tự chạy deterministic mock Backend cho Maps, Booking,
+Trip Lookup, Knowledge và Handoff. Understanding/rewrite vẫn dùng provider thật
+theo `.env`; mock chỉ thay các business service chưa được nối ở local.
+
+```bash
+AGENT_REWRITE_ENABLED=true \
+.venv/bin/python -u -m examples.core_agent_chat
+```
+
+Các lệnh trong CLI: `/state`, `/history`, `/config`, `/reset`, `/help`, `/quit`.
+Sau handoff/end, dùng `/reset` để tạo session và memory mới. CLI không in API key.
