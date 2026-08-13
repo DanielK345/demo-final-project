@@ -7,7 +7,9 @@ import { clearAuthSession, getUserName } from "@/features/auth/storage";
 
 export const Topbar: React.FC = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isNotifOpen, setIsNotifOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const notifRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
   const userName = getUserName();
   const initials = userName
@@ -22,6 +24,9 @@ export const Topbar: React.FC = () => {
     const handleClickOutside = (event: MouseEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
         setIsMenuOpen(false);
+      }
+      if (notifRef.current && !notifRef.current.contains(event.target as Node)) {
+        setIsNotifOpen(false);
       }
     };
     document.addEventListener("mousedown", handleClickOutside);
@@ -59,14 +64,24 @@ export const Topbar: React.FC = () => {
           />
         </div>
 
-        {/* Notifications */}
-        <IconButton
-          icon={<Bell className="w-5 h-5 text-slate-600 hover:text-[#006a62]" />}
-          label="Notifications"
-          variant="ghost"
-          size="md"
-          className="rounded-full hover:bg-slate-100"
-        />
+        {/* Notifications — trước đây bấm không có phản ứng gì (không có handler);
+            chưa có hệ thống thông báo thật nên chỉ báo trạng thái trung thực thay vì
+            giả vờ có danh sách thông báo. */}
+        <div className="relative" ref={notifRef}>
+          <IconButton
+            icon={<Bell className="w-5 h-5 text-slate-600 hover:text-[#006a62]" />}
+            label="Notifications"
+            variant="ghost"
+            size="md"
+            onClick={() => setIsNotifOpen((open) => !open)}
+            className={`rounded-full transition-all ${isNotifOpen ? "bg-[#00D1C1]/20 text-[#006a62]" : "hover:bg-slate-100"}`}
+          />
+          {isNotifOpen && (
+            <div className="absolute right-0 mt-2 w-64 bg-white rounded-2xl shadow-[0_8px_30px_rgba(0,0,0,0.12)] border border-slate-200/80 p-4 z-50 text-center">
+              <p className="text-xs text-slate-500">Chưa có thông báo mới.</p>
+            </div>
+          )}
+        </div>
 
         {/* Account Avatar Button with Dropdown */}
         <div className="relative" ref={dropdownRef}>
@@ -105,8 +120,11 @@ export const Topbar: React.FC = () => {
                   <span>Hồ sơ cá nhân</span>
                 </NavLink>
 
+                {/* Bug thật đã sửa: trước trỏ tới "/payment" (thực chất là trang Cài
+                    đặt, không phải ví) — mục "Phương thức thanh toán" thật nằm ở
+                    ProfilePage, nên sửa lại trỏ đúng chỗ. */}
                 <NavLink
-                  to="/payment"
+                  to="/profile"
                   onClick={() => setIsMenuOpen(false)}
                   className="flex items-center gap-3 px-4 py-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors"
                 >

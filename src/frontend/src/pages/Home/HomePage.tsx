@@ -265,6 +265,7 @@ export const HomePage: React.FC = () => {
                       onClick={() =>
                         navigate("/booking", {
                           state: {
+                            openModal: true,
                             pickup: locationLabel(booking.pickup, ""),
                             dropoff: locationLabel(booking.destination, ""),
                           },

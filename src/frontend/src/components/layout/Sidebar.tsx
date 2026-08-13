@@ -42,6 +42,7 @@ export const Sidebar: React.FC = () => {
             <li key={item.path}>
               <NavLink
                 to={item.path}
+                end
                 className={({ isActive }) =>
                   cn(
                     "flex items-center gap-4 px-4 py-3 rounded-xl text-sm font-semibold transition-all duration-200 active:scale-95",

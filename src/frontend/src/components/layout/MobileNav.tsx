@@ -19,6 +19,7 @@ export const MobileNav: React.FC = () => {
           <NavLink
             key={item.path}
             to={item.path}
+            end
             className={({ isActive }) =>
               cn(
                 "flex flex-col items-center gap-1 text-xs font-semibold transition-colors",

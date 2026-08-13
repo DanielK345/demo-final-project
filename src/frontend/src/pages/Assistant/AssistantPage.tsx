@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { Bot, LogOut, Mic, Send, Square, Volume2 } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { Bot, Home, LogOut, Mic, Send, Square, Volume2 } from "lucide-react";
+import { NavLink, useNavigate } from "react-router-dom";
 import { getCurrentUser } from "@/features/auth/api";
 import { redirectToLoginIfUnauthorized } from "@/features/auth/sessionGuard";
 import {
@@ -104,10 +104,18 @@ export const AssistantPage: React.FC = () => {
       }
       if (result.action === "HANDOFF") setNotice("Yêu cầu đã được chuyển đến tổng đài viên.");
       if (result.action === "END_SESSION") {
+        // Bug thật đã sửa: trước đây khi AGENT tự kết thúc hội thoại (vd khách nói
+        // "hủy"/"thôi"), code này đăng xuất khỏi TÀI KHOẢN luôn (clearAuthSession +
+        // về /login) — trong khi nút "Kết thúc phiên" tường minh (handleEndSession)
+        // chỉ reset phiên hội thoại, KHÔNG đăng xuất tài khoản. 2 đường xử lý cùng 1
+        // tình huống ("hội thoại kết thúc") lại khác hẳn nhau — không nhất quán, và
+        // buộc khách đăng nhập lại chỉ vì nói "hủy" là quá tay. Đồng bộ lại theo đúng
+        // hành vi của handleEndSession.
         setSessionId(null);
         localStorage.removeItem("alosm_session_id");
-        clearAuthSession();
-        navigate("/login");
+        setSessionEnded(true);
+        setShowOutcomePanel(false);
+        setNotice("Phiên hội thoại đã kết thúc. Nhấn “Bắt đầu phiên mới” để đặt xe tiếp.");
       }
     } catch (error) {
       setLifecycleStatus("FAILED");
@@ -195,10 +203,18 @@ export const AssistantPage: React.FC = () => {
       speakWithBrowser(result.message);
       if (result.action === "HANDOFF") setNotice("Yêu cầu đã được chuyển đến tổng đài viên.");
       if (result.action === "END_SESSION") {
+        // Bug thật đã sửa: trước đây khi AGENT tự kết thúc hội thoại (vd khách nói
+        // "hủy"/"thôi"), code này đăng xuất khỏi TÀI KHOẢN luôn (clearAuthSession +
+        // về /login) — trong khi nút "Kết thúc phiên" tường minh (handleEndSession)
+        // chỉ reset phiên hội thoại, KHÔNG đăng xuất tài khoản. 2 đường xử lý cùng 1
+        // tình huống ("hội thoại kết thúc") lại khác hẳn nhau — không nhất quán, và
+        // buộc khách đăng nhập lại chỉ vì nói "hủy" là quá tay. Đồng bộ lại theo đúng
+        // hành vi của handleEndSession.
         setSessionId(null);
         localStorage.removeItem("alosm_session_id");
-        clearAuthSession();
-        navigate("/login");
+        setSessionEnded(true);
+        setShowOutcomePanel(false);
+        setNotice("Phiên hội thoại đã kết thúc. Nhấn “Bắt đầu phiên mới” để đặt xe tiếp.");
       }
     } catch (error) {
       setLifecycleStatus("FAILED");
@@ -281,6 +297,15 @@ export const AssistantPage: React.FC = () => {
         </div>
         <div className="flex items-center gap-3">
           <LlmStatusNote compact />
+          {/* Bug thật đã sửa: trước đây không có cách nào quay lại Home/Booking/...
+              từ trang này ngoài Đăng xuất (mất hết phiên) — trang chỉ có link MỘT
+              CHIỀU từ Home tới đây, không có chiều ngược lại. */}
+          <NavLink
+            to="/"
+            className="flex gap-2 items-center text-sm font-semibold text-slate-600 hover:text-[#006a62]"
+          >
+            <Home className="w-4 h-4" /> Trang chủ
+          </NavLink>
           <button
             onClick={logout}
             className="flex gap-2 items-center text-sm font-semibold text-slate-600 hover:text-rose-600"

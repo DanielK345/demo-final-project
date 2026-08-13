@@ -53,6 +53,16 @@ export async function createBookingViaForm(
   if (routeTurn.action === "HANDOFF") {
     throw new Error(routeTurn.message || "Không thể xử lý yêu cầu, vui lòng thử lại hoặc liên hệ tổng đài.");
   }
+  // Chỉ gửi "Đúng" khi agent thật sự đang ở bước CONFIRM (hỏi xác nhận) — nếu agent
+  // hỏi lại thứ khác (vd chưa nhận diện được loại xe/địa điểm), gửi "Đúng" mù quáng sẽ
+  // ra câu trả lời khó hiểu. Form đơn giản này không xử lý được hội thoại nhiều bước,
+  // nên báo lỗi rõ ràng để người dùng thử lại với thông tin cụ thể hơn thay vì đoán.
+  if (routeTurn.state?.current_step !== "CONFIRM") {
+    throw new Error(
+      routeTurn.message ||
+        "Chưa xác định được đầy đủ thông tin chuyến đi, vui lòng nhập điểm đón/đến cụ thể hơn.",
+    );
+  }
 
   const confirmTurn = await sendMessage(session.session_id, "Đúng");
   if (confirmTurn.action !== "RESPOND" || !confirmTurn.booking) {

@@ -61,9 +61,18 @@ export const ActivityList: React.FC<ActivityListProps> = ({ activeFilter = "all"
     return <div className="text-sm text-slate-500 py-8 text-center">Đang tải lịch sử chuyến đi...</div>;
   }
 
+  // Bug thật đã sửa: filter "last_month" (chip "Tháng trước" ở ActivityPage.tsx)
+  // trước đây không có nhánh xử lý, rơi xuống `return true` giống hệt "all" — bấm
+  // vào không lọc được gì, âm thầm sai chứ không lỗi rõ ràng.
   const filtered = bookings.filter((booking) => {
     if (activeFilter === "cancelled") return booking.status === "CANCELLED";
     if (activeFilter === "recent") return booking.status === "COMPLETED";
+    if (activeFilter === "last_month") {
+      if (!booking.created_at) return false;
+      const createdAt = new Date(booking.created_at).getTime();
+      const thirtyDaysAgo = Date.now() - 30 * 24 * 60 * 60 * 1000;
+      return createdAt >= thirtyDaysAgo;
+    }
     return true;
   });
 
@@ -154,6 +163,7 @@ export const ActivityList: React.FC<ActivityListProps> = ({ activeFilter = "all"
                   onClick={() =>
                     navigate("/booking", {
                       state: {
+                        openModal: true,
                         pickup: locationLabel(booking.pickup, ""),
                         dropoff: locationLabel(booking.destination, ""),
                       },

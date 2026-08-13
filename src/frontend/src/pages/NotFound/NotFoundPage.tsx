@@ -5,12 +5,15 @@ import { Button } from "@/components/ui/Button";
 
 export const NotFoundPage: React.FC = () => {
   return (
-    <div className="min-h-[60vh] flex flex-col items-center justify-center text-center space-y-4">
-      <div className="w-16 h-16 rounded-2xl bg-rose-500/10 border border-rose-500/30 text-rose-400 flex items-center justify-center shadow-xl">
+    // Bug thật đã sửa: bản cũ dùng text-slate-100/text-slate-400 (gần trắng) — trang
+    // này KHÔNG nằm trong AppLayout (route top-level riêng), nền thật là #F8F9FB
+    // (sáng), nên chữ gần như vô hình. Đổi sang màu tối chuẩn của các trang khác.
+    <div className="min-h-screen flex flex-col items-center justify-center text-center space-y-4 bg-[#F8F9FB] px-4">
+      <div className="w-16 h-16 rounded-2xl bg-rose-500/10 border border-rose-500/30 text-rose-500 flex items-center justify-center shadow-xl">
         <AlertCircle className="w-8 h-8" />
       </div>
-      <h1 className="text-3xl font-extrabold text-slate-100">404 — Không tìm thấy trang</h1>
-      <p className="text-xs text-slate-400 max-w-sm">
+      <h1 className="text-3xl font-extrabold text-[#191C1E]">404 — Không tìm thấy trang</h1>
+      <p className="text-sm text-slate-500 max-w-sm">
         Trang bạn đang truy cập không tồn tại hoặc đã được di chuyển.
       </p>
       <NavLink to="/">
