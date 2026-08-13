@@ -213,7 +213,11 @@ async def test_booking_happy_path_requires_confirmation_before_create_booking():
     state = apply_action(state, ask_phone)
 
     ask_phone_number = await workflow.handle(
-        AgentInput(session_id="session-001", transcript="xe 4 chỗ"),
+        AgentInput(
+            session_id="session-001",
+            turn_id="turn-001",
+            transcript="xe 4 chỗ",
+        ),
         state,
     )
     assert ask_phone_number.action_type is ActionType.ASK_USER
