@@ -36,7 +36,7 @@ export const Sidebar: React.FC = () => {
       <aside
         className={cn(
           "hidden md:flex flex-col fixed left-0 top-0 h-screen border-r border-slate-200/70",
-          "bg-white/95 backdrop-blur-xl shrink-0 z-50 py-6 relative group/sidebar",
+          "bg-white/95 backdrop-blur-xl shrink-0 z-50 py-6 group/sidebar",
           "w-20 px-2 hover:w-64 hover:px-4 hover:shadow-2xl focus-within:w-64 focus-within:px-4 focus-within:shadow-2xl",
           "transition-[width,padding,box-shadow] will-change-[width]",
           COLLAPSE_TRANSITION,
