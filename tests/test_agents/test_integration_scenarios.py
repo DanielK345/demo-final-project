@@ -3,6 +3,7 @@ from typing import Any
 import pytest
 
 from src.agents.graph import AgentGraphAdapter
+from src.agents.history import acknowledge_assistant_delivery, build_message_id
 from src.agents.schemas import (
     ActionType,
     AgentAction,
@@ -11,7 +12,12 @@ from src.agents.schemas import (
     ToolStatus,
     WorkflowType,
 )
-from src.agents.state import AgentState
+from src.agents.state import (
+    AgentState,
+    AssistantDeliveryEvent,
+    ConversationRole,
+    DeliveryStatus,
+)
 from src.agents.workflows.booking_models import BookingData
 from src.agents.workflows.faq_models import FAQData
 from src.agents.workflows.trip_lookup_models import TripLookupData
@@ -42,16 +48,32 @@ class GraphScenario:
 
     async def _turn(self, **values: Any) -> AgentAction:
         self.turn_sequence += 1
+        turn_id = f"turn-{self.turn_sequence:03d}"
         response = await self.graph.ainvoke(
             {
                 "session_id": self.session_id,
-                "turn_id": f"turn-{self.turn_sequence:03d}",
+                "turn_id": turn_id,
                 "state": self.state.model_dump(mode="json"),
                 **values,
             }
         )
         action = AgentAction.model_validate(response["action"])
         self.state = self.state.apply(action.state_updates)
+        if action.action_type is not ActionType.CALL_TOOL and action.message:
+            history = acknowledge_assistant_delivery(
+                self.state.conversation_history,
+                AssistantDeliveryEvent(
+                    session_id=self.session_id,
+                    turn_id=turn_id,
+                    message_id=build_message_id(
+                        turn_id,
+                        ConversationRole.ASSISTANT,
+                    ),
+                    status=DeliveryStatus.DELIVERED,
+                ),
+                session_id=self.session_id,
+            )
+            self.state = self.state.apply({"conversation_history": history})
         return action
 
 
@@ -77,6 +99,7 @@ async def test_booking_happy_path_through_langgraph():
     assert ask_pickup.action_type is ActionType.ASK_USER
     assert scenario.state.current_workflow is WorkflowType.RIDE_BOOKING
     assert scenario.state.last_stt_confidence == 0.98
+    assert scenario.state.conversation_history[-1].delivery_status is DeliveryStatus.DELIVERED
 
     pickup_call = await scenario.user_turn("Hồ Gươm")
     assert pickup_call.action_type is ActionType.CALL_TOOL

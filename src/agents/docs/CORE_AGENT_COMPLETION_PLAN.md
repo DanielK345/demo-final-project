@@ -37,10 +37,11 @@ Core Agent hiện đã có:
 Baseline này chứng minh kiến trúc và các happy path chính, nhưng chưa phải một
 voice agent production hoàn chỉnh.
 
-Khoảng trống lớn nhất là conversation memory. `AgentState` có
-`conversation_history`, nhưng history hiện mới là contract và helper; chưa được
-nối vào turn lifecycle, chưa phản ánh nội dung TTS user thực sự nghe và chưa
-được đưa vào language understanding.
+Conversation history contract và turn lifecycle đã được nối vào one-turn action.
+Agent hiện ghi sanitized transcript, safe tool summary và pending assistant
+speech; Backend/Voice có reducer riêng để xác nhận delivery hoặc interruption.
+Khoảng trống tiếp theo là context consumption: history chưa được đưa vào language
+understanding và chưa có contextual user-message rewrite.
 
 Nói cách khác:
 
@@ -119,7 +120,7 @@ Trạng thái hiện tại:
 
 ```text
 P1 History Contract                         implemented
-P2 Turn History Lifecycle                   pending
+P2 Turn History Lifecycle                   implemented
 P3 Context Builder + Rewrite + Understanding pending
 P4–P8                                       pending
 ```
@@ -307,6 +308,14 @@ session state trong process.
 - Mọi text turn có deterministic history transition.
 - Backend có thể persist một cách atomic trước execution.
 - History phản ánh được trạng thái delivery của lời assistant.
+
+### Implementation status
+
+Implemented. `record_turn_history()` chạy sau guardrails, merge history vào cùng
+partial update, redact phone trong conversational text, ghi safe tool summary,
+reject duplicate persisted turn và prune theo complete turn. Workflow bị cấm tự
+sửa history/summary. Demo và integration simulator thực hiện delivery
+acknowledgement như một state transaction riêng.
 
 ---
 

@@ -1,6 +1,7 @@
 import pytest
 
 from src.agents.agent import LLMAgent
+from src.agents.history import DuplicateHistoryMessageError
 from src.agents.schemas import (
     ActionType,
     AgentAction,
@@ -10,7 +11,11 @@ from src.agents.schemas import (
     ToolStatus,
     WorkflowType,
 )
-from src.agents.state import AgentState
+from src.agents.state import (
+    AgentState,
+    ConversationMessageType,
+    DeliveryStatus,
+)
 from src.agents.understanding.models import UnderstandingResult
 from src.agents.workflows.base import BaseWorkflow
 
@@ -53,6 +58,12 @@ async def test_agent_asks_for_clarification_on_unknown_intent():
     assert action.message
     assert action.tool_call is None
     assert action.reason
+    history = action.state_updates["conversation_history"]
+    assert [message.message_type for message in history] == [
+        ConversationMessageType.USER_TRANSCRIPT,
+        ConversationMessageType.ASSISTANT_SPEECH,
+    ]
+    assert history[-1].delivery_status is DeliveryStatus.PENDING
 
 
 @pytest.mark.asyncio
@@ -92,6 +103,22 @@ async def test_agent_uses_injected_workflow_registry():
 
 
 @pytest.mark.asyncio
+async def test_agent_rejects_replayed_turn_after_history_is_persisted():
+    agent = LLMAgent()
+    agent_input = AgentInput(
+        session_id="session-001",
+        turn_id="turn-001",
+        transcript="Tôi muốn đặt xe",
+    )
+    state = AgentState(session_id="session-001")
+    first_action = await agent.handle(agent_input, state)
+    persisted = state.apply(first_action.state_updates)
+
+    with pytest.raises(DuplicateHistoryMessageError):
+        await agent.handle(agent_input, persisted)
+
+
+@pytest.mark.asyncio
 async def test_agent_routes_tool_result_to_current_workflow():
     workflow = RecordingWorkflow()
     agent = LLMAgent(
@@ -113,7 +140,7 @@ async def test_agent_routes_tool_result_to_current_workflow():
         pending_tool_name=ToolName.SEARCH_PLACE,
     )
 
-    await agent.handle(
+    action = await agent.handle(
         AgentInput(
             session_id="session-001",
             turn_id="turn-001",
@@ -125,6 +152,10 @@ async def test_agent_routes_tool_result_to_current_workflow():
     assert workflow.was_called is True
     assert workflow.received_input is not None
     assert workflow.received_input.tool_result is tool_result
+    history = action.state_updates["conversation_history"]
+    assert history[0].message_type is ConversationMessageType.TOOL_SUMMARY
+    assert history[1].message_type is ConversationMessageType.ASSISTANT_SPEECH
+    assert "candidates" not in str(history)
 
 
 @pytest.mark.asyncio

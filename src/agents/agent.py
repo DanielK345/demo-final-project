@@ -1,6 +1,7 @@
 from collections.abc import Mapping
 
 from src.agents.guardrails import AgentGuardrails, GuardrailViolationError
+from src.agents.history import record_turn_history
 from src.agents.router import (
     AgentRouter,
     ToolResultRoutingError,
@@ -30,18 +31,14 @@ class LLMAgent:
     ) -> None:
         self.router = router or AgentRouter()
         self.guardrails = guardrails or AgentGuardrails()
-        self.understanding_service = (
-            understanding_service or build_understanding_service()
-        )
+        self.understanding_service = understanding_service or build_understanding_service()
         default_workflows = {
             WorkflowType.RIDE_BOOKING: RideBookingWorkflow(),
             WorkflowType.TRIP_LOOKUP: TripLookupWorkflow(),
             WorkflowType.FAQ: FAQWorkflow(),
             WorkflowType.HUMAN_HANDOFF: HandoffWorkflow(),
         }
-        self.workflows = dict(
-            default_workflows if workflows is None else workflows
-        )
+        self.workflows = dict(default_workflows if workflows is None else workflows)
 
     async def handle(
         self,
@@ -81,9 +78,7 @@ class LLMAgent:
             return self._validate_action(
                 agent_input,
                 current_state,
-                self.guardrails.safe_handoff(
-                    f"Workflow is not registered: {workflow_type}"
-                ),
+                self.guardrails.safe_handoff(f"Workflow is not registered: {workflow_type}"),
             )
         action = await workflow.handle(
             agent_input,
@@ -115,11 +110,7 @@ class LLMAgent:
         fields: list[str] = []
         for namespace, value in collected_data.items():
             if isinstance(value, dict):
-                fields.extend(
-                    f"{namespace}.{key}"
-                    for key, item in value.items()
-                    if item not in (None, "", [], {})
-                )
+                fields.extend(f"{namespace}.{key}" for key, item in value.items() if item not in (None, "", [], {}))
             elif value not in (None, "", [], {}):
                 fields.append(namespace)
         return sorted(fields)
@@ -131,9 +122,14 @@ class LLMAgent:
         action: AgentAction,
     ) -> AgentAction:
         try:
-            return self.guardrails.validate_and_sanitize(agent_input, state, action)
+            validated = self.guardrails.validate_and_sanitize(
+                agent_input,
+                state,
+                action,
+            )
         except GuardrailViolationError as exc:
-            return self.guardrails.safe_handoff(f"Guardrail violation: {exc}")
+            validated = self.guardrails.safe_handoff(f"Guardrail violation: {exc}")
+        return record_turn_history(agent_input, state, validated)
 
 
 agent = LLMAgent()

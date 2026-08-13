@@ -36,6 +36,9 @@ class RecordingAgent:
 async def test_agent_basic_flow():
     result = await agent.ainvoke({"query": "Hello", "turn_id": "turn-001"})
     assert "response" in result
+    history = result["action"]["state_updates"]["conversation_history"]
+    assert history[0]["message_id"] == "turn-001:user"
+    assert history[1]["message_id"] == "turn-001:assistant"
 
 
 @pytest.mark.asyncio

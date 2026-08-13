@@ -8,8 +8,14 @@ import asyncio
 from typing import Any
 
 from src.agents.graph import AgentGraphAdapter
+from src.agents.history import acknowledge_assistant_delivery, build_message_id
 from src.agents.schemas import ActionType, AgentAction, ToolResult, ToolStatus
-from src.agents.state import AgentState
+from src.agents.state import (
+    AgentState,
+    AssistantDeliveryEvent,
+    ConversationRole,
+    DeliveryStatus,
+)
 
 
 class DemoSession:
@@ -29,10 +35,11 @@ class DemoSession:
 
     async def _turn(self, **values: Any) -> AgentAction:
         self.turn_sequence += 1
+        turn_id = f"turn-{self.turn_sequence:03d}"
         output = await self.graph.ainvoke(
             {
                 "session_id": self.session_id,
-                "turn_id": f"turn-{self.turn_sequence:03d}",
+                "turn_id": turn_id,
                 "state": self.state.model_dump(mode="json"),
                 **values,
             }
@@ -44,6 +51,22 @@ class DemoSession:
             print(f"AGENT: CALL_TOOL {action.tool_call.tool_name.value}")
         else:
             print(f"AGENT: {action.action_type.value} — {action.message}")
+        if action.action_type is not ActionType.CALL_TOOL and action.message:
+            history = acknowledge_assistant_delivery(
+                self.state.conversation_history,
+                AssistantDeliveryEvent(
+                    session_id=self.session_id,
+                    turn_id=turn_id,
+                    message_id=build_message_id(
+                        turn_id,
+                        ConversationRole.ASSISTANT,
+                    ),
+                    status=DeliveryStatus.DELIVERED,
+                ),
+                session_id=self.session_id,
+            )
+            self.state = self.state.apply({"conversation_history": history})
+        print(f"HISTORY: {len(self.state.conversation_history)} messages")
         return action
 
 

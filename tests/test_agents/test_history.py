@@ -4,10 +4,20 @@ from pydantic import ValidationError
 from src.agents.history import (
     DeliveryEventMismatchError,
     DuplicateHistoryMessageError,
+    HistorySessionMismatchError,
     InvalidDeliveryTransitionError,
     acknowledge_assistant_delivery,
     append_history_messages,
     build_message_id,
+    record_turn_history,
+)
+from src.agents.schemas import (
+    ActionType,
+    AgentAction,
+    AgentInput,
+    ToolName,
+    ToolResult,
+    ToolStatus,
 )
 from src.agents.state import (
     AgentState,
@@ -185,6 +195,23 @@ def test_delivery_acknowledgement_preserves_interrupted_spoken_content():
     assert updated[-1].spoken_content == "Bạn muốn"
 
 
+def test_delivery_acknowledgement_marks_failed_speech_without_spoken_content():
+    message = assistant_message()
+    updated = acknowledge_assistant_delivery(
+        [user_message(), message],
+        AssistantDeliveryEvent(
+            session_id="session-001",
+            turn_id="turn-001",
+            message_id=message.message_id,
+            status=DeliveryStatus.FAILED,
+        ),
+        session_id="session-001",
+    )
+
+    assert updated[-1].delivery_status is DeliveryStatus.FAILED
+    assert updated[-1].spoken_content is None
+
+
 def test_delivered_acknowledgement_rejects_partial_spoken_content():
     message = assistant_message()
     with pytest.raises(DeliveryEventMismatchError, match="must match"):
@@ -246,3 +273,183 @@ def test_conversation_summary_requires_unique_sources():
             summarized_through_turn_id="turn-002",
             source_message_ids=["turn-001:user", "turn-001:user"],
         )
+
+
+def test_record_turn_adds_user_then_pending_assistant_atomically():
+    state = AgentState(session_id="session-001")
+    action = record_turn_history(
+        AgentInput(
+            session_id="session-001",
+            turn_id="turn-001",
+            transcript="Tôi muốn đặt xe",
+            stt_confidence=0.97,
+        ),
+        state,
+        AgentAction(
+            action_type=ActionType.ASK_USER,
+            message="Bạn muốn đón ở đâu?",
+            state_updates={"retry_count": 1},
+            reason="Internal reason must not be stored.",
+        ),
+    )
+
+    history = action.state_updates["conversation_history"]
+    assert [message.message_type for message in history] == [
+        ConversationMessageType.USER_TRANSCRIPT,
+        ConversationMessageType.ASSISTANT_SPEECH,
+    ]
+    assert history[0].stt_confidence == 0.97
+    assert history[1].delivery_status is DeliveryStatus.PENDING
+    assert "Internal reason" not in str(history)
+
+    updated = state.apply(action.state_updates)
+    assert updated.retry_count == 1
+    assert updated.state_version == 1
+    assert state.state_version == 0
+
+
+def test_record_turn_masks_phone_without_changing_business_updates():
+    action = record_turn_history(
+        AgentInput(
+            session_id="session-001",
+            turn_id="turn-001",
+            transcript="Số của tôi là 0901234567",
+        ),
+        AgentState(session_id="session-001"),
+        AgentAction(
+            action_type=ActionType.RESPOND,
+            message="Tôi đã nhận số 0901234567.",
+            state_updates={
+                "collected_data": {"phone_number": "0901234567"},
+            },
+        ),
+    )
+
+    history = action.state_updates["conversation_history"]
+    assert all("0901234567" not in message.content for message in history)
+    assert all("[REDACTED_PHONE]" in message.content for message in history)
+    assert action.state_updates["collected_data"]["phone_number"] == "0901234567"
+
+
+def test_call_tool_records_user_but_not_assistant_speech():
+    action = record_turn_history(
+        AgentInput(
+            session_id="session-001",
+            turn_id="turn-001",
+            transcript="Hồ Gươm",
+        ),
+        AgentState(session_id="session-001"),
+        AgentAction(
+            action_type=ActionType.CALL_TOOL,
+            message="This message is not spoken while dispatching the tool.",
+            tool_call={
+                "tool_name": ToolName.SEARCH_PLACE,
+                "call_id": "call-001",
+                "params": {"query": "Hồ Gươm"},
+            },
+        ),
+    )
+
+    history = action.state_updates["conversation_history"]
+    assert len(history) == 1
+    assert history[0].message_type is ConversationMessageType.USER_TRANSCRIPT
+
+
+def test_tool_only_turn_records_safe_summary_without_raw_payload():
+    raw_secret = "provider-secret-payload"
+    action = record_turn_history(
+        AgentInput(
+            session_id="session-001",
+            turn_id="turn-002",
+            tool_result=ToolResult(
+                tool_name=ToolName.SEARCH_PLACE,
+                call_id="call-001",
+                status=ToolStatus.SUCCESS,
+                data={"secret": raw_secret},
+            ),
+        ),
+        AgentState(session_id="session-001"),
+        AgentAction(
+            action_type=ActionType.RESPOND,
+            message="Đã tìm thấy địa điểm.",
+            reason=raw_secret,
+        ),
+    )
+
+    history = action.state_updates["conversation_history"]
+    assert [message.message_type for message in history] == [
+        ConversationMessageType.TOOL_SUMMARY,
+        ConversationMessageType.ASSISTANT_SPEECH,
+    ]
+    assert raw_secret not in str(history)
+    assert not any(message.message_type is ConversationMessageType.USER_TRANSCRIPT for message in history)
+
+
+def test_record_turn_rejects_duplicate_turn_after_persisted_state():
+    agent_input = AgentInput(
+        session_id="session-001",
+        turn_id="turn-001",
+        transcript="Tôi muốn đặt xe",
+    )
+    original = AgentState(session_id="session-001")
+    first_action = record_turn_history(
+        agent_input,
+        original,
+        AgentAction(action_type=ActionType.ASK_USER, message="Bạn muốn đón ở đâu?"),
+    )
+    persisted = original.apply(first_action.state_updates)
+
+    with pytest.raises(DuplicateHistoryMessageError):
+        record_turn_history(
+            agent_input,
+            persisted,
+            AgentAction(
+                action_type=ActionType.ASK_USER,
+                message="Bạn muốn đón ở đâu?",
+            ),
+        )
+
+
+def test_history_pruning_keeps_complete_recent_turns():
+    history: list[ConversationMessage] = []
+    for index in range(12):
+        turn_id = f"turn-{index:03d}"
+        history = append_history_messages(
+            history,
+            [user_message(turn_id), assistant_message(turn_id)],
+            max_messages=AgentState.max_history_messages,
+        )
+
+    assert len(history) == AgentState.max_history_messages
+    assert history[0].turn_id == "turn-002"
+    assert history[0].message_type is ConversationMessageType.USER_TRANSCRIPT
+    assert history[-1].turn_id == "turn-011"
+
+
+def test_record_turn_rejects_state_from_another_session():
+    with pytest.raises(HistorySessionMismatchError, match="same session"):
+        record_turn_history(
+            AgentInput(
+                session_id="session-001",
+                turn_id="turn-001",
+                transcript="Tôi muốn đặt xe",
+            ),
+            AgentState(session_id="session-002"),
+            AgentAction(action_type=ActionType.RESPOND, message="Xin chào"),
+        )
+
+
+def test_record_turn_bounds_long_transcript_without_rejecting_valid_input():
+    action = record_turn_history(
+        AgentInput(
+            session_id="session-001",
+            turn_id="turn-001",
+            transcript="a" * 3000,
+        ),
+        AgentState(session_id="session-001"),
+        AgentAction(action_type=ActionType.RESPOND, message="Đã tiếp nhận."),
+    )
+
+    user = action.state_updates["conversation_history"][0]
+    assert len(user.content) == 2000
+    assert user.content.endswith("...")

@@ -137,8 +137,18 @@ Backend dùng pure reducer `acknowledge_assistant_delivery()` và persist state
 bằng optimistic concurrency. Delivery event không được route vào business
 workflow và không tự tạo một Agent response mới.
 
-P1 chỉ định nghĩa contract/reducer. Việc tự động append transcript và assistant
-speech vào action/state lifecycle được triển khai ở P2.
+Core Agent tự động merge history vào `AgentAction.state_updates`:
+
+- non-empty transcript thành `USER_TRANSCRIPT / FINAL`;
+- tool result thành safe `TOOL_SUMMARY / FINAL` chỉ có tool name/status;
+- customer-facing message của `ASK_USER`, `RESPOND`, `HANDOFF` hoặc
+  `END_SESSION` thành `ASSISTANT_SPEECH / PENDING`;
+- `CALL_TOOL` không tạo assistant speech.
+
+Business update và history update được Backend apply/persist trong cùng một
+transaction. Workflow không được tự ghi history. Raw tool payload, tool error,
+diagnostic `reason` và phone trong conversational text không được lưu vào
+history. Phone vẫn có thể tồn tại trong validated business slot cần cho booking.
 
 ## 4. Transaction order
 
@@ -169,6 +179,11 @@ await store.save(
 )
 await executor.execute(action, session_id=session_id)
 ```
+
+Mỗi Agent turn chỉ gọi `state.apply(action.state_updates)` một lần. Delivery
+acknowledgement sau TTS là transaction riêng và dùng `expected_version` mới nhất.
+Backend phải deduplicate/replay stable `turn_id` trước khi invoke Agent; Core
+history reducer cũng reject turn đã xuất hiện trong persisted history.
 
 Persist trước execution giúp lượt `ToolResult` sau luôn thấy pending call. Nếu
 save gặp version conflict, không thực thi action; Backend reload và xử lý lại

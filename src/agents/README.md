@@ -189,8 +189,17 @@ Conversation history dùng typed contracts trong `state.py`:
 - `history.py` cung cấp pure reducers, không tự persist và không gọi Voice/TTS.
 
 `turn_id` là idempotency identity của input turn, không thay thế `call_id` của
-tool hoặc idempotency key của side effect. P1 mới chốt contract/reducer; việc tự
-động append history vào mỗi Agent turn thuộc phase P2.
+tool hoặc idempotency key của side effect. Core Agent tự động merge sanitized
+user transcript, safe tool summary và pending assistant speech vào cùng
+`state_updates` với business transition. Backend persist toàn bộ update một lần
+trước khi execute action. Workflow không được tự sửa `conversation_history` hoặc
+`conversation_summary`.
+
+`CALL_TOOL` không tạo assistant speech vì Backend chỉ dispatch tool. Một
+tool-result-only turn tạo `TOOL_SUMMARY` chỉ gồm tool name/status để correlate và
+deduplicate turn; raw payload và error không được lưu. Recent history được prune
+theo complete turn trong giới hạn cấu hình. History chưa được đưa vào language
+understanding; phần context-aware này thuộc phase P3.
 
 `StateStore` trong `state_store.py` định nghĩa lifecycle create/get/update/delete.
 `InMemoryStateStore` chỉ dùng cho test/local development. PostgreSQL/Redis và

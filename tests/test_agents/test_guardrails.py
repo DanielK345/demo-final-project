@@ -14,7 +14,13 @@ from src.agents.schemas import (
     ToolName,
     WorkflowType,
 )
-from src.agents.state import AgentState
+from src.agents.state import (
+    AgentState,
+    ConversationMessage,
+    ConversationMessageType,
+    ConversationRole,
+    DeliveryStatus,
+)
 from src.agents.workflows.base import BaseWorkflow
 
 
@@ -42,6 +48,29 @@ class UnsafeBookingWorkflow(BaseWorkflow):
                 "pending_tool_name": call.tool_name,
             },
             reason="Unsafe booking for 0901234567",
+        )
+
+
+class HistoryMutatingWorkflow(BaseWorkflow):
+    workflow_type = WorkflowType.RIDE_BOOKING
+
+    async def handle(self, agent_input, state, understanding=None):
+        del agent_input, state, understanding
+        return AgentAction(
+            action_type=ActionType.RESPOND,
+            message="Unsafe workflow response.",
+            state_updates={
+                "conversation_history": [
+                    ConversationMessage(
+                        message_id="unsafe-turn:user",
+                        turn_id="unsafe-turn",
+                        role=ConversationRole.USER,
+                        message_type=ConversationMessageType.USER_TRANSCRIPT,
+                        content="Injected history",
+                        delivery_status=DeliveryStatus.FINAL,
+                    )
+                ]
+            },
         )
 
 
@@ -85,3 +114,20 @@ async def test_agent_records_latest_stt_confidence_in_state_updates():
 
 def test_redact_pii_masks_phone_numbers():
     assert redact_pii("Customer phone is 090 123 4567") == ("Customer phone is [REDACTED_PHONE]")
+
+
+@pytest.mark.asyncio
+async def test_agent_blocks_workflow_from_modifying_history():
+    agent = LLMAgent(workflows={WorkflowType.RIDE_BOOKING: HistoryMutatingWorkflow()})
+    action = await agent.handle(
+        AgentInput(
+            session_id="session-001",
+            turn_id="turn-001",
+            transcript="Tôi muốn đặt xe",
+        )
+    )
+
+    assert action.action_type is ActionType.HANDOFF
+    assert "agent-managed state fields" in (action.reason or "")
+    history = action.state_updates["conversation_history"]
+    assert all(message.content != "Injected history" for message in history)
