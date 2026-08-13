@@ -43,6 +43,7 @@ async def test_agent_asks_for_clarification_on_unknown_intent():
     agent = LLMAgent()
     agent_input = AgentInput(
         session_id="session-001",
+        turn_id="turn-001",
         transcript="Xin chào bạn",
     )
 
@@ -53,11 +54,13 @@ async def test_agent_asks_for_clarification_on_unknown_intent():
     assert action.tool_call is None
     assert action.reason
 
+
 @pytest.mark.asyncio
 async def test_agent_rejects_state_from_another_session():
     agent = LLMAgent()
     agent_input = AgentInput(
         session_id="session-001",
+        turn_id="turn-001",
         transcript="Tôi muốn đặt xe",
     )
     state = AgentState(session_id="session-002")
@@ -78,6 +81,7 @@ async def test_agent_uses_injected_workflow_registry():
     action = await agent.handle(
         AgentInput(
             session_id="session-001",
+            turn_id="turn-001",
             transcript="Tôi muốn đặt xe",
         )
     )
@@ -112,6 +116,7 @@ async def test_agent_routes_tool_result_to_current_workflow():
     await agent.handle(
         AgentInput(
             session_id="session-001",
+            turn_id="turn-001",
             tool_result=tool_result,
         ),
         state,
@@ -134,6 +139,7 @@ async def test_agent_handoffs_when_tool_result_has_no_current_workflow():
     action = await LLMAgent().handle(
         AgentInput(
             session_id="session-001",
+            turn_id="turn-001",
             tool_result=tool_result,
         ),
         AgentState(session_id="session-001"),
@@ -152,6 +158,7 @@ async def test_agent_handoffs_when_workflow_is_not_registered():
     action = await agent.handle(
         AgentInput(
             session_id="session-001",
+            turn_id="turn-001",
             transcript="Tôi muốn đặt xe",
         )
     )

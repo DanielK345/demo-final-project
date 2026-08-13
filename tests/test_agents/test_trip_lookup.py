@@ -20,7 +20,7 @@ def apply_action(state: AgentState, action) -> AgentState:
 @pytest.mark.asyncio
 async def test_trip_lookup_asks_for_identifier_when_missing():
     action = await TripLookupWorkflow().handle(
-        AgentInput(session_id="session-001", transcript="Tra cứu chuyến của tôi"),
+        AgentInput(session_id="session-001", turn_id="turn-001", transcript="Tra cứu chuyến của tôi"),
         AgentState(session_id="session-001"),
     )
 
@@ -48,7 +48,7 @@ async def test_trip_lookup_calls_tool_with_valid_identifier(
     )
 
     action = await TripLookupWorkflow().handle(
-        AgentInput(session_id="session-001", transcript=transcript),
+        AgentInput(session_id="session-001", turn_id="turn-001", transcript=transcript),
         state,
     )
 
@@ -68,7 +68,7 @@ async def test_trip_lookup_reports_only_validated_tool_data():
         current_step=TripLookupStep.COLLECT_IDENTIFIER,
     )
     call = await workflow.handle(
-        AgentInput(session_id="session-001", transcript="GSM-12345"),
+        AgentInput(session_id="session-001", turn_id="turn-001", transcript="GSM-12345"),
         state,
     )
     state = apply_action(state, call)
@@ -76,6 +76,7 @@ async def test_trip_lookup_reports_only_validated_tool_data():
     action = await workflow.handle(
         AgentInput(
             session_id="session-001",
+            turn_id="turn-001",
             tool_result=ToolResult(
                 tool_name=ToolName.LOOKUP_TRIP,
                 call_id=call.tool_call.call_id,
@@ -95,9 +96,7 @@ async def test_trip_lookup_reports_only_validated_tool_data():
     assert "Đang đến điểm đón" in action.message
     assert "4 phút" in action.message
     assert action.state_updates["current_workflow"] is None
-    data = TripLookupData.model_validate(
-        action.state_updates["collected_data"]["trip_lookup"]
-    )
+    data = TripLookupData.model_validate(action.state_updates["collected_data"]["trip_lookup"])
     assert data.trip_status == "Đang đến điểm đón"
 
 
@@ -110,7 +109,7 @@ async def test_trip_lookup_not_found_asks_for_another_identifier():
         current_step=TripLookupStep.COLLECT_IDENTIFIER,
     )
     call = await workflow.handle(
-        AgentInput(session_id="session-001", transcript="GSM-12345"),
+        AgentInput(session_id="session-001", turn_id="turn-001", transcript="GSM-12345"),
         state,
     )
     state = apply_action(state, call)
@@ -118,6 +117,7 @@ async def test_trip_lookup_not_found_asks_for_another_identifier():
     action = await workflow.handle(
         AgentInput(
             session_id="session-001",
+            turn_id="turn-001",
             tool_result=ToolResult(
                 tool_name=ToolName.LOOKUP_TRIP,
                 call_id=call.tool_call.call_id,
@@ -143,7 +143,7 @@ async def test_trip_lookup_retries_retryable_tool_error():
         current_step=TripLookupStep.COLLECT_IDENTIFIER,
     )
     call = await workflow.handle(
-        AgentInput(session_id="session-001", transcript="GSM-12345"),
+        AgentInput(session_id="session-001", turn_id="turn-001", transcript="GSM-12345"),
         state,
     )
     state = apply_action(state, call)
@@ -151,6 +151,7 @@ async def test_trip_lookup_retries_retryable_tool_error():
     retry = await workflow.handle(
         AgentInput(
             session_id="session-001",
+            turn_id="turn-001",
             tool_result=ToolResult(
                 tool_name=ToolName.LOOKUP_TRIP,
                 call_id=call.tool_call.call_id,
@@ -176,11 +177,7 @@ async def test_trip_lookup_handoffs_on_critical_or_mismatched_result():
         session_id="session-001",
         current_workflow=WorkflowType.TRIP_LOOKUP,
         current_step=TripLookupStep.WAITING_FOR_TRIP_RESULT,
-        collected_data={
-            "trip_lookup": TripLookupData(booking_id="GSM-12345").model_dump(
-                mode="json"
-            )
-        },
+        collected_data={"trip_lookup": TripLookupData(booking_id="GSM-12345").model_dump(mode="json")},
         pending_tool_call_id="expected-call",
         pending_tool_name=ToolName.LOOKUP_TRIP,
     )
@@ -188,6 +185,7 @@ async def test_trip_lookup_handoffs_on_critical_or_mismatched_result():
     critical = await workflow.handle(
         AgentInput(
             session_id="session-001",
+            turn_id="turn-001",
             tool_result=ToolResult(
                 tool_name=ToolName.LOOKUP_TRIP,
                 call_id="expected-call",
@@ -201,6 +199,7 @@ async def test_trip_lookup_handoffs_on_critical_or_mismatched_result():
     mismatched = await workflow.handle(
         AgentInput(
             session_id="session-001",
+            turn_id="turn-001",
             tool_result=ToolResult(
                 tool_name=ToolName.LOOKUP_TRIP,
                 call_id="wrong-call",

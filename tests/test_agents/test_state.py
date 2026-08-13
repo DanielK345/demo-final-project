@@ -6,7 +6,9 @@ from src.agents.state import (
     AgentState,
     ConfirmationStatus,
     ConversationMessage,
+    ConversationMessageType,
     ConversationRole,
+    DeliveryStatus,
 )
 
 
@@ -78,8 +80,12 @@ def test_append_message_keeps_bounded_history():
     for index in range(AgentState.max_history_messages + 2):
         state = state.append_message(
             ConversationMessage(
+                message_id=f"turn-{index}:user",
+                turn_id=f"turn-{index}",
                 role=ConversationRole.USER,
+                message_type=ConversationMessageType.USER_TRANSCRIPT,
                 content=f"message-{index}",
+                delivery_status=DeliveryStatus.FINAL,
             )
         )
 

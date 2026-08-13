@@ -1,7 +1,7 @@
 from enum import StrEnum
 from typing import Any
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 class ActionType(StrEnum):
@@ -56,9 +56,18 @@ class ToolResult(BaseModel):
 
 class AgentInput(BaseModel):
     session_id: str = Field(min_length=1)
+    turn_id: str = Field(min_length=1)
     transcript: str = ""
     stt_confidence: float | None = Field(default=None, ge=0, le=1)
     tool_result: ToolResult | None = None
+
+    @field_validator("turn_id")
+    @classmethod
+    def normalize_turn_id(cls, value: str) -> str:
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("turn_id cannot be blank")
+        return normalized
 
     @model_validator(mode="after")
     def require_transcript_or_tool_result(self) -> "AgentInput":

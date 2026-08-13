@@ -15,6 +15,7 @@ from src.agents.state import AgentState
 class DemoSession:
     def __init__(self, session_id: str) -> None:
         self.session_id = session_id
+        self.turn_sequence = 0
         self.state = AgentState(session_id=session_id)
         self.graph = AgentGraphAdapter()
 
@@ -27,9 +28,11 @@ class DemoSession:
         return await self._turn(tool_result=result.model_dump(mode="json"))
 
     async def _turn(self, **values: Any) -> AgentAction:
+        self.turn_sequence += 1
         output = await self.graph.ainvoke(
             {
                 "session_id": self.session_id,
+                "turn_id": f"turn-{self.turn_sequence:03d}",
                 "state": self.state.model_dump(mode="json"),
                 **values,
             }

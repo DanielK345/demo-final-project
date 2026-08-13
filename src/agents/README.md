@@ -118,6 +118,7 @@ Input của một lượt xử lý:
 ```python
 AgentInput(
     session_id="session-001",
+    turn_id="turn-001",
     transcript="Tôi muốn đặt xe",
     stt_confidence=0.98,
     tool_result=None,
@@ -127,6 +128,7 @@ AgentInput(
 | Field | Ý nghĩa |
 |---|---|
 | `session_id` | Định danh phiên; bắt buộc và không rỗng |
+| `turn_id` | ID ổn định do Backend/Voice tạo cho một input turn; bắt buộc và giữ nguyên khi retry |
 | `transcript` | Nội dung STT; có thể rỗng nếu lượt này chứa tool result |
 | `stt_confidence` | Độ tin cậy STT trong khoảng 0–1 |
 | `tool_result` | Kết quả Backend trả về sau một `CALL_TOOL` |
@@ -149,6 +151,7 @@ State là single source of truth của hội thoại:
 | `retry_count` | Số lần retry hiện tại |
 | `last_stt_confidence` | Confidence gần nhất dùng cho policy nhiều lượt |
 | `conversation_history` | Lịch sử typed, giới hạn và không thay business state |
+| `conversation_summary` | Bản tóm tắt typed của history cũ; không thay business state |
 | `state_version` | Version tăng sau mỗi validated transition |
 
 Agent không được dùng state có `session_id` khác input. State được cập nhật bằng
@@ -173,6 +176,21 @@ không kiểm tra.
 `state_updates`. `pending_tool_call_id` và `pending_tool_name` phải được set hoặc
 clear cùng nhau. History được giới hạn để state không tăng vô hạn; raw tool
 payload và PII không được tự động đưa vào history.
+
+Conversation history dùng typed contracts trong `state.py`:
+
+- `ConversationMessage` có deterministic `message_id`, `turn_id`, role, type,
+  content và delivery status;
+- final user transcript dùng trạng thái `FINAL`;
+- assistant speech bắt đầu ở `PENDING`, sau đó Backend/Voice xác nhận
+  `DELIVERED`, `INTERRUPTED` hoặc `FAILED` bằng `AssistantDeliveryEvent`;
+- `spoken_content` biểu diễn phần thực sự đã phát khi cần đồng bộ barge-in;
+- `ConversationSummary` nén history cũ nhưng không được override validated slots;
+- `history.py` cung cấp pure reducers, không tự persist và không gọi Voice/TTS.
+
+`turn_id` là idempotency identity của input turn, không thay thế `call_id` của
+tool hoặc idempotency key của side effect. P1 mới chốt contract/reducer; việc tự
+động append history vào mỗi Agent turn thuộc phase P2.
 
 `StateStore` trong `state_store.py` định nghĩa lifecycle create/get/update/delete.
 `InMemoryStateStore` chỉ dùng cho test/local development. PostgreSQL/Redis và
@@ -672,7 +690,7 @@ git diff --check
 ```
 
 Integration contract cho Backend nằm tại
-[`BACKEND_INTEGRATION.md`](BACKEND_INTEGRATION.md). Demo text-mode chạy bằng:
+[`BACKEND_INTEGRATION.md`](docs/BACKEND_INTEGRATION.md). Demo text-mode chạy bằng:
 
 ```bash
 .venv/bin/python -m examples.core_agent_demo

@@ -34,13 +34,13 @@ class RecordingAgent:
 
 @pytest.mark.asyncio
 async def test_agent_basic_flow():
-    result = await agent.ainvoke({"query": "Hello"})
+    result = await agent.ainvoke({"query": "Hello", "turn_id": "turn-001"})
     assert "response" in result
 
 
 @pytest.mark.asyncio
 async def test_agent_state_structure():
-    result = await agent.ainvoke({"query": "Test query"})
+    result = await agent.ainvoke({"query": "Test query", "turn_id": "turn-001"})
     assert isinstance(result, dict)
     assert "query" in result
 
@@ -59,6 +59,7 @@ async def test_graph_passes_conversation_state_to_agent():
         {
             "query": "Times City",
             "session_id": "session-001",
+            "turn_id": "turn-001",
             "state": state.model_dump(mode="json"),
         }
     )
@@ -82,6 +83,7 @@ async def test_graph_passes_tool_result_to_agent():
     await graph.ainvoke(
         {
             "session_id": "session-001",
+            "turn_id": "turn-001",
             "state": {
                 "session_id": "session-001",
                 "current_workflow": WorkflowType.RIDE_BOOKING,
@@ -107,6 +109,7 @@ async def test_graph_passes_stt_confidence_to_core_agent():
         {
             "query": "Tôi muốn đặt xe",
             "session_id": "session-001",
+            "turn_id": "turn-001",
             "stt_confidence": 0.91,
         }
     )
@@ -131,9 +134,16 @@ async def test_graph_preserves_adapter_input_fields():
         {
             "query": "Tôi muốn đặt xe",
             "session_id": "session-001",
+            "turn_id": "turn-001",
             "request_id": "request-001",
         }
     )
 
     assert result["request_id"] == "request-001"
     assert result["action"]["action_type"] == ActionType.ASK_USER
+
+
+@pytest.mark.asyncio
+async def test_graph_requires_backend_turn_id():
+    with pytest.raises(ValueError, match="turn_id is required"):
+        await agent.ainvoke({"query": "Hello"})

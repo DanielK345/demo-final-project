@@ -10,6 +10,7 @@ async def test_ride_booking_walking_skeleton():
     agent = LLMAgent()
     agent_input = AgentInput(
         session_id="session-001",
+        turn_id="turn-001",
         transcript="Tôi muốn đặt xe",
         stt_confidence=0.98,
     )
@@ -33,7 +34,7 @@ async def test_agent_continues_the_active_workflow():
     )
 
     action = await agent.handle(
-        AgentInput(session_id="session-001", transcript="Times City"),
+        AgentInput(session_id="session-001", turn_id="turn-001", transcript="Times City"),
         state,
     )
 

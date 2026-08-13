@@ -48,7 +48,7 @@ class UnsafeBookingWorkflow(BaseWorkflow):
 def test_guardrail_rejects_invalid_state_updates():
     with pytest.raises(GuardrailViolationError, match="invalid state"):
         AgentGuardrails().validate_and_sanitize(
-            AgentInput(session_id="session-001", transcript="hello"),
+            AgentInput(session_id="session-001", turn_id="turn-001", transcript="hello"),
             AgentState(session_id="session-001"),
             AgentAction(
                 action_type=ActionType.ASK_USER,
@@ -60,13 +60,9 @@ def test_guardrail_rejects_invalid_state_updates():
 
 @pytest.mark.asyncio
 async def test_agent_blocks_booking_without_confirmation():
-    agent = LLMAgent(
-        workflows={WorkflowType.RIDE_BOOKING: UnsafeBookingWorkflow()}
-    )
+    agent = LLMAgent(workflows={WorkflowType.RIDE_BOOKING: UnsafeBookingWorkflow()})
 
-    action = await agent.handle(
-        AgentInput(session_id="session-001", transcript="Tôi muốn đặt xe")
-    )
+    action = await agent.handle(AgentInput(session_id="session-001", turn_id="turn-001", transcript="Tôi muốn đặt xe"))
 
     assert action.action_type is ActionType.HANDOFF
     assert "create_booking requires" in action.reason
@@ -78,6 +74,7 @@ async def test_agent_records_latest_stt_confidence_in_state_updates():
     action = await LLMAgent().handle(
         AgentInput(
             session_id="session-001",
+            turn_id="turn-001",
             transcript="Tôi muốn đặt xe",
             stt_confidence=0.95,
         )
@@ -87,6 +84,4 @@ async def test_agent_records_latest_stt_confidence_in_state_updates():
 
 
 def test_redact_pii_masks_phone_numbers():
-    assert redact_pii("Customer phone is 090 123 4567") == (
-        "Customer phone is [REDACTED_PHONE]"
-    )
+    assert redact_pii("Customer phone is 090 123 4567") == ("Customer phone is [REDACTED_PHONE]")

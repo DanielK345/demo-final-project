@@ -24,7 +24,7 @@ async def start_faq(
 ):
     state = AgentState(session_id="session-001")
     action = await workflow.handle(
-        AgentInput(session_id="session-001", transcript=question),
+        AgentInput(session_id="session-001", turn_id="turn-001", transcript=question),
         state,
     )
     return action, apply_action(state, action)
@@ -50,6 +50,7 @@ async def test_faq_returns_only_grounded_content_sorted_by_score():
     action = await workflow.handle(
         AgentInput(
             session_id="session-001",
+            turn_id="turn-001",
             tool_result=ToolResult(
                 tool_name=ToolName.RETRIEVE_KNOWLEDGE,
                 call_id=call.tool_call.call_id,
@@ -79,10 +80,7 @@ async def test_faq_returns_only_grounded_content_sorted_by_score():
     )
 
     assert action.action_type is ActionType.RESPOND
-    assert action.message == (
-        "Khách có thể thanh toán bằng tiền mặt. "
-        "Phương thức điện tử phụ thuộc ứng dụng."
-    )
+    assert action.message == ("Khách có thể thanh toán bằng tiền mặt. Phương thức điện tử phụ thuộc ứng dụng.")
     assert "điểm thấp" not in action.message
     assert action.state_updates["current_workflow"] is None
     data = FAQData.model_validate(action.state_updates["collected_data"]["faq"])
@@ -98,6 +96,7 @@ async def test_faq_falls_back_without_grounded_documents(documents):
     action = await workflow.handle(
         AgentInput(
             session_id="session-001",
+            turn_id="turn-001",
             tool_result=ToolResult(
                 tool_name=ToolName.RETRIEVE_KNOWLEDGE,
                 call_id=call.tool_call.call_id,
@@ -121,6 +120,7 @@ async def test_faq_retries_retryable_retrieval_error_once():
     retry = await workflow.handle(
         AgentInput(
             session_id="session-001",
+            turn_id="turn-001",
             tool_result=ToolResult(
                 tool_name=ToolName.RETRIEVE_KNOWLEDGE,
                 call_id=call.tool_call.call_id,
@@ -147,6 +147,7 @@ async def test_faq_handoffs_on_critical_or_mismatched_result():
     critical = await workflow.handle(
         AgentInput(
             session_id="session-001",
+            turn_id="turn-001",
             tool_result=ToolResult(
                 tool_name=ToolName.RETRIEVE_KNOWLEDGE,
                 call_id=call.tool_call.call_id,
@@ -160,6 +161,7 @@ async def test_faq_handoffs_on_critical_or_mismatched_result():
     mismatch = await workflow.handle(
         AgentInput(
             session_id="session-001",
+            turn_id="turn-001",
             tool_result=ToolResult(
                 tool_name=ToolName.RETRIEVE_KNOWLEDGE,
                 call_id="wrong-call",

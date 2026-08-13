@@ -36,9 +36,7 @@ def booking_state(
         session_id="session-001",
         current_workflow=WorkflowType.RIDE_BOOKING,
         current_step=step.value,
-        collected_data={
-            "booking": (data or BookingData()).model_dump(mode="json")
-        },
+        collected_data={"booking": (data or BookingData()).model_dump(mode="json")},
         confirmation=confirmation,
     )
 
@@ -46,7 +44,7 @@ def booking_state(
 @pytest.mark.asyncio
 async def test_booking_starts_by_asking_for_pickup():
     action = await RideBookingWorkflow().handle(
-        AgentInput(session_id="session-001", transcript="Tôi muốn đặt xe"),
+        AgentInput(session_id="session-001", turn_id="turn-001", transcript="Tôi muốn đặt xe"),
         AgentState(session_id="session-001"),
     )
 
@@ -60,6 +58,7 @@ async def test_booking_extracts_route_and_resolves_pickup_first():
     action = await RideBookingWorkflow().handle(
         AgentInput(
             session_id="session-001",
+            turn_id="turn-001",
             transcript="Đặt xe từ Hồ Gươm đến Times City",
         ),
         AgentState(session_id="session-001"),
@@ -79,7 +78,7 @@ async def test_booking_handles_zero_place_candidates():
     workflow = RideBookingWorkflow()
     state = booking_state(step=BookingStep.COLLECT_PICKUP)
     call_action = await workflow.handle(
-        AgentInput(session_id="session-001", transcript="Một nơi không rõ"),
+        AgentInput(session_id="session-001", turn_id="turn-001", transcript="Một nơi không rõ"),
         state,
     )
     waiting = apply_action(state, call_action)
@@ -87,6 +86,7 @@ async def test_booking_handles_zero_place_candidates():
     action = await workflow.handle(
         AgentInput(
             session_id="session-001",
+            turn_id="turn-001",
             tool_result=place_result(call_action.tool_call.call_id, []),
         ),
         waiting,
@@ -103,7 +103,7 @@ async def test_booking_requires_user_to_select_ambiguous_place():
     workflow = RideBookingWorkflow()
     state = booking_state(step=BookingStep.COLLECT_PICKUP)
     call_action = await workflow.handle(
-        AgentInput(session_id="session-001", transcript="Hồ Gươm"),
+        AgentInput(session_id="session-001", turn_id="turn-001", transcript="Hồ Gươm"),
         state,
     )
     waiting = apply_action(state, call_action)
@@ -115,13 +115,14 @@ async def test_booking_requires_user_to_select_ambiguous_place():
     ask = await workflow.handle(
         AgentInput(
             session_id="session-001",
+            turn_id="turn-001",
             tool_result=place_result(call_action.tool_call.call_id, candidates),
         ),
         waiting,
     )
     selecting = apply_action(waiting, ask)
     selected = await workflow.handle(
-        AgentInput(session_id="session-001", transcript="Số 2"),
+        AgentInput(session_id="session-001", turn_id="turn-001", transcript="Số 2"),
         selecting,
     )
 
@@ -139,12 +140,12 @@ async def test_booking_happy_path_requires_confirmation_before_create_booking():
     state = AgentState(session_id="session-001")
 
     ask_pickup = await workflow.handle(
-        AgentInput(session_id="session-001", transcript="Tôi muốn đặt xe"),
+        AgentInput(session_id="session-001", turn_id="turn-001", transcript="Tôi muốn đặt xe"),
         state,
     )
     state = apply_action(state, ask_pickup)
     pickup_call = await workflow.handle(
-        AgentInput(session_id="session-001", transcript="Hồ Gươm"),
+        AgentInput(session_id="session-001", turn_id="turn-001", transcript="Hồ Gươm"),
         state,
     )
     assert pickup_call.tool_call is not None
@@ -154,6 +155,7 @@ async def test_booking_happy_path_requires_confirmation_before_create_booking():
     ask_destination = await workflow.handle(
         AgentInput(
             session_id="session-001",
+            turn_id="turn-001",
             tool_result=place_result(
                 pickup_call.tool_call.call_id,
                 [{"place_id": "pickup-1", "display_name": "Hồ Gươm"}],
@@ -165,7 +167,7 @@ async def test_booking_happy_path_requires_confirmation_before_create_booking():
     state = apply_action(state, ask_destination)
 
     destination_call = await workflow.handle(
-        AgentInput(session_id="session-001", transcript="Times City"),
+        AgentInput(session_id="session-001", turn_id="turn-001", transcript="Times City"),
         state,
     )
     assert destination_call.tool_call is not None
@@ -175,6 +177,7 @@ async def test_booking_happy_path_requires_confirmation_before_create_booking():
     ask_phone = await workflow.handle(
         AgentInput(
             session_id="session-001",
+            turn_id="turn-001",
             tool_result=place_result(
                 destination_call.tool_call.call_id,
                 [{"place_id": "destination-1", "display_name": "Times City"}],
@@ -187,19 +190,16 @@ async def test_booking_happy_path_requires_confirmation_before_create_booking():
     state = apply_action(state, ask_phone)
 
     confirmation = await workflow.handle(
-        AgentInput(session_id="session-001", transcript="0901234567"),
+        AgentInput(session_id="session-001", turn_id="turn-001", transcript="0901234567"),
         state,
     )
     assert confirmation.action_type is ActionType.ASK_USER
     assert confirmation.state_updates["current_step"] == BookingStep.CONFIRM
-    assert (
-        confirmation.state_updates["confirmation"]
-        is ConfirmationStatus.AWAITING_CONFIRMATION
-    )
+    assert confirmation.state_updates["confirmation"] is ConfirmationStatus.AWAITING_CONFIRMATION
     state = apply_action(state, confirmation)
 
     booking_call = await workflow.handle(
-        AgentInput(session_id="session-001", transcript="Đúng, đặt giúp tôi"),
+        AgentInput(session_id="session-001", turn_id="turn-001", transcript="Đúng, đặt giúp tôi"),
         state,
     )
     assert booking_call.action_type is ActionType.CALL_TOOL
@@ -215,6 +215,7 @@ async def test_booking_happy_path_requires_confirmation_before_create_booking():
     completed = await workflow.handle(
         AgentInput(
             session_id="session-001",
+            turn_id="turn-001",
             tool_result=ToolResult(
                 tool_name=ToolName.CREATE_BOOKING,
                 call_id=booking_call.tool_call.call_id,
@@ -253,7 +254,7 @@ async def test_booking_does_not_create_booking_for_unclear_confirmation():
     )
 
     action = await RideBookingWorkflow().handle(
-        AgentInput(session_id="session-001", transcript="Ừm để xem"),
+        AgentInput(session_id="session-001", turn_id="turn-001", transcript="Ừm để xem"),
         state,
     )
 
@@ -280,6 +281,7 @@ async def test_booking_correction_resets_confirmation_and_resolves_again():
     action = await RideBookingWorkflow().handle(
         AgentInput(
             session_id="session-001",
+            turn_id="turn-001",
             transcript="Đổi điểm đến thành Royal City",
         ),
         state,
@@ -307,6 +309,7 @@ async def test_booking_handoffs_on_mismatched_or_failed_tool_result():
     mismatched = await workflow.handle(
         AgentInput(
             session_id="session-001",
+            turn_id="turn-001",
             tool_result=place_result("wrong-call", []),
         ),
         state,
@@ -314,6 +317,7 @@ async def test_booking_handoffs_on_mismatched_or_failed_tool_result():
     failed = await workflow.handle(
         AgentInput(
             session_id="session-001",
+            turn_id="turn-001",
             tool_result=ToolResult(
                 tool_name=ToolName.SEARCH_PLACE,
                 call_id="expected-call",

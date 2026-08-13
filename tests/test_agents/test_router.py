@@ -21,7 +21,7 @@ from src.agents.state import AgentState
     ],
 )
 def test_router_selects_workflow(transcript: str, expected: WorkflowType):
-    agent_input = AgentInput(session_id="session-001", transcript=transcript)
+    agent_input = AgentInput(session_id="session-001", turn_id="turn-001", transcript=transcript)
     state = AgentState(session_id="session-001")
 
     assert AgentRouter().route(agent_input, state) is expected
@@ -30,6 +30,7 @@ def test_router_selects_workflow(transcript: str, expected: WorkflowType):
 def test_router_continues_current_workflow():
     agent_input = AgentInput(
         session_id="session-001",
+        turn_id="turn-001",
         transcript="Tôi muốn hỏi về chính sách",
     )
     state = AgentState(
@@ -52,6 +53,7 @@ def test_router_routes_tool_result_to_current_workflow():
     )
     agent_input = AgentInput(
         session_id="session-001",
+        turn_id="turn-001",
         tool_result=tool_result,
     )
     state = AgentState(
@@ -70,6 +72,7 @@ def test_router_routes_tool_result_to_current_workflow():
 def test_router_rejects_unknown_intent():
     agent_input = AgentInput(
         session_id="session-001",
+        turn_id="turn-001",
         transcript="Xin chào bạn",
     )
     state = AgentState(session_id="session-001")
@@ -81,6 +84,7 @@ def test_router_rejects_unknown_intent():
 def test_router_prioritizes_handoff_intent():
     agent_input = AgentInput(
         session_id="session-001",
+        turn_id="turn-001",
         transcript="Tôi đang đặt xe nhưng muốn gặp tổng đài viên",
     )
     state = AgentState(session_id="session-001")

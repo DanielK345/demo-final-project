@@ -69,6 +69,7 @@ async def test_agent_uses_structured_intent_for_natural_vietnamese_request():
     action = await agent.handle(
         AgentInput(
             session_id="session-001",
+            turn_id="turn-001",
             transcript="Bác đang cạnh bệnh viện, gọi một cuốc về khu Times nhé",
         )
     )
@@ -86,7 +87,7 @@ async def test_deterministic_emergency_skips_understanding_provider():
     agent = LLMAgent(understanding_service=understanding)
 
     action = await agent.handle(
-        AgentInput(session_id="session-001", transcript="Tôi đang gặp nguy hiểm")
+        AgentInput(session_id="session-001", turn_id="turn-001", transcript="Tôi đang gặp nguy hiểm")
     )
 
     assert action.action_type is ActionType.HANDOFF
@@ -114,6 +115,7 @@ async def test_structured_handoff_overrides_active_business_workflow():
     action = await agent.handle(
         AgentInput(
             session_id="session-001",
+            turn_id="turn-001",
             transcript="Tôi muốn nói chuyện trực tiếp với người hỗ trợ",
         ),
         state,
@@ -139,6 +141,7 @@ async def test_tool_result_turn_does_not_call_understanding_provider():
     await agent.handle(
         AgentInput(
             session_id="session-001",
+            turn_id="turn-001",
             tool_result=ToolResult(
                 tool_name=ToolName.SEARCH_PLACE,
                 call_id="call-001",
@@ -154,9 +157,7 @@ async def test_tool_result_turn_does_not_call_understanding_provider():
 
 @pytest.mark.asyncio
 async def test_structured_confirmation_cannot_bypass_incomplete_booking_state():
-    understanding = RecordingUnderstanding(
-        UnderstandingResult(confirmation=ConfirmationIntent.CONFIRM, confidence=0.9)
-    )
+    understanding = RecordingUnderstanding(UnderstandingResult(confirmation=ConfirmationIntent.CONFIRM, confidence=0.9))
     agent = LLMAgent(understanding_service=understanding)
     state = AgentState(
         session_id="session-001",
@@ -165,7 +166,7 @@ async def test_structured_confirmation_cannot_bypass_incomplete_booking_state():
     )
 
     action = await agent.handle(
-        AgentInput(session_id="session-001", transcript="Vâng bác đồng ý"),
+        AgentInput(session_id="session-001", turn_id="turn-001", transcript="Vâng bác đồng ý"),
         state,
     )
 
@@ -204,6 +205,7 @@ async def test_structured_correction_restarts_place_resolution():
     action = await agent.handle(
         AgentInput(
             session_id="session-001",
+            turn_id="turn-001",
             transcript="Không phải chỗ đó, cho bác sang Royal City",
         ),
         state,

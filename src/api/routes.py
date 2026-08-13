@@ -10,7 +10,9 @@ router = APIRouter()
 async def chat(request: ChatRequest) -> ChatResponse:
     """Chat với AI agent."""
     try:
-        result = await agent.ainvoke({"query": request.message})
+        result = await agent.ainvoke(
+            {"query": request.message, "turn_id": request.turn_id}
+        )
         return ChatResponse(
             response=result.get("response", ""),
             analysis=result.get("analysis", ""),
