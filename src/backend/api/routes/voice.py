@@ -56,7 +56,7 @@ from src.backend.api.routes.sessions import _require_session_access
 from src.backend.integrations.voice_client import VoiceProviderError
 from src.backend.schemas.voice import VoiceTurnResponseDTO
 from src.backend.services.voice_service import VoiceService
-from src.models.voice_schemas import ClientControlType, WSClientControl, WSEventType, WSServerEvent
+from src.voice.schemas import ClientControlType, WSClientControl, WSEventType, WSServerEvent
 from src.voice.asr.biasing import correct_place_names
 from src.voice.asr.groq_provider import GroqASRProvider
 from src.voice.config import VoiceSettings, get_voice_settings

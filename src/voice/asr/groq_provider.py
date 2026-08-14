@@ -19,7 +19,7 @@ import wave
 
 import httpx
 
-from src.models.voice_schemas import ASRResult
+from src.voice.schemas import ASRResult
 
 logger = logging.getLogger(__name__)
 

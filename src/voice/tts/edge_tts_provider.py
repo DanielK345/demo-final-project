@@ -15,7 +15,7 @@ from typing import Protocol
 
 import edge_tts
 
-from src.models.voice_schemas import TTSResult
+from src.voice.schemas import TTSResult
 
 logger = logging.getLogger(__name__)
 

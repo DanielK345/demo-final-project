@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from typing import Protocol, runtime_checkable
 
-from src.models.voice_schemas import ASRResult
+from src.voice.schemas import ASRResult
 
 
 @runtime_checkable

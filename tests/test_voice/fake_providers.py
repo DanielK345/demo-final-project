@@ -17,7 +17,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
-from src.models.voice_schemas import ASRResult, TTSResult
+from src.voice.schemas import ASRResult, TTSResult
 
 
 class FakeASRProvider:

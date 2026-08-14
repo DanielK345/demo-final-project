@@ -24,7 +24,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from src.models.voice_schemas import (
+from src.voice.schemas import (
     ASRResult,
     HandoffReason,
     TurnStage,

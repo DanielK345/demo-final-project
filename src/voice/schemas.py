@@ -1,18 +1,7 @@
 """Shared data contracts for the Voice AI pipeline.
 
 Mọi module trong `src/voice/` (audio, asr, tts, text) và route trong
-`src/api/voice_routes.py` phải dùng đúng các model ở đây — không tự định
-nghĩa struct rời rạc để tránh lệch schema giữa các phần (theo Definition
-of Done ở `docs/voice-ai/voice_ai_overview.md` §7).
-
-Nếu đổi/thêm field hoặc WS event mới: cập nhật file này trước khi merge,
-đúng nguyên tắc "Nếu đổi/thêm WS event → cập nhật bảng schema trước khi
-merge" trong overview.
-
-Đặt tên field cố ý khớp với contract của Core Agent
-(`AgentInput`/`AgentAction`/`ToolResult` — xem `feature/agentic-ai` branch,
-`src/agents/schemas.py`) để khi nhánh đó merge vào, `agent_bridge.py` chỉ
-cần đổi chỗ gọi, không cần đổi tên field ở tầng Voice.
+`src/backend/api/routes/voice.py` dùng các model ở đây.
 """
 
 from __future__ import annotations
@@ -25,8 +14,7 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict, Field
 
 # ---------------------------------------------------------------------------
-# ASR / TTS turn results (Phần 3, Phần 5 sẽ implement provider trả ra các
-# model này; Phần 1/2 chỉ cần contract để gateway.py biên dịch/chạy được).
+# ASR / TTS turn results
 # ---------------------------------------------------------------------------
 
 
@@ -54,7 +42,7 @@ class TTSResult(BaseModel):
 
 
 # ---------------------------------------------------------------------------
-# Session / turn state (Phần 2)
+# Session / turn state
 # ---------------------------------------------------------------------------
 
 
@@ -67,7 +55,7 @@ class HandoffReason(StrEnum):
 
 
 class TurnStage(StrEnum):
-    """Trạng thái hiển thị cho UI — khớp 3 icon trong demo (§C Tuần 3)."""
+    """Trạng thái hiển thị cho UI."""
 
     IDLE = "IDLE"
     LISTENING = "LISTENING"  # 🎙️ Đang nghe
@@ -99,7 +87,7 @@ def _new_session_id() -> str:
 
 
 class VoiceSession(BaseModel):
-    """Toàn bộ state của một cuộc gọi voice, lưu trong Redis (D6).
+    """Toàn bộ state của một cuộc gọi voice, lưu trong Redis / Memory.
 
     `agent_state` là opaque blob truyền thẳng vào/nhận về từ Core Agent
     (`AgentState.model_dump()` phía agentic — Voice không diễn giải nội
@@ -120,7 +108,7 @@ class VoiceSession(BaseModel):
 
 
 # ---------------------------------------------------------------------------
-# WebSocket protocol (Phần 7 sẽ cắm demo UI vào đúng contract này)
+# WebSocket protocol
 # ---------------------------------------------------------------------------
 #
 # Kênh nhị phân (binary WS frame):

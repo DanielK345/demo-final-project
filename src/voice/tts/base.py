@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from typing import Protocol, runtime_checkable
 
-from src.models.voice_schemas import TTSResult
+from src.voice.schemas import TTSResult
 
 
 @runtime_checkable
