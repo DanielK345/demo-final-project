@@ -28,7 +28,7 @@ import { TranscriptModal } from "@/features/history/components/TranscriptModal";
 type Message = { id: string; role: "user" | "assistant"; text: string };
 
 const WELCOME_MESSAGE =
-  "Xin chào! Em chỉ cần điểm đón, điểm đến và loại xe (4 chỗ, 7 chỗ hoặc hạng sang). Em không hỏi số điện thoại, email hay thông tin riêng tư.";
+  "Xin chào! Em chỉ cần điểm đón, điểm đến và loại xe (xe máy, ô tô 4 chỗ hoặc ô tô 7 chỗ). Em không hỏi số điện thoại, email hay thông tin riêng tư — số điện thoại liên hệ tài xế được lấy tự động từ tài khoản của anh/chị.";
 
 export const AssistantPage: React.FC = () => {
   const [sessionId, setSessionId] = useState<string | null>(null);

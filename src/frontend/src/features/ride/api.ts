@@ -20,8 +20,10 @@ export interface BookingProgress {
   pickup?: BookingFieldProgress | null;
   destination?: BookingFieldProgress | null;
   vehicle_type?: string | null;
-  missing_field?: "pickup" | "destination" | "vehicle_type" | null;
+  missing_field?: "pickup" | "destination" | "vehicle_type" | "fare_estimate" | "phone_number" | null;
   lifecycle_status?: BookingLifecycleStatus | null;
+  fare_amount?: number | null;
+  currency?: string | null;
 }
 
 export interface RideBooking {

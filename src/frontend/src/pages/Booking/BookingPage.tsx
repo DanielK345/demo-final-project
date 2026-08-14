@@ -4,11 +4,12 @@ import { useNavigate } from "react-router-dom";
 import { MOCK_SERVICES_CATALOG } from "@/features/booking/mockData";
 
 // Nhãn loại xe theo đúng ngôn ngữ tự nhiên mà Core Agent hiểu (xem
-// src/agents/workflows/booking.py) — dùng để soạn câu mở đầu hội thoại.
-const VEHICLE_LABEL: Record<"taxi" | "plus" | "premium", string> = {
-  taxi: "4 chỗ",
-  plus: "7 chỗ",
-  premium: "hạng sang",
+// src/agents/booking_types.py::VehicleType.spoken_label) — dùng để soạn câu mở đầu
+// hội thoại.
+const VEHICLE_LABEL: Record<"MOTORBIKE" | "CAR_4" | "CAR_7", string> = {
+  MOTORBIKE: "xe máy",
+  CAR_4: "ô tô 4 chỗ",
+  CAR_7: "ô tô 7 chỗ",
 };
 
 export const BookingPage: React.FC = () => {

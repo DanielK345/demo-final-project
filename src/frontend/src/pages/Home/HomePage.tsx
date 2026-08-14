@@ -4,7 +4,7 @@ import {
   Sparkles,
   ArrowRight,
   Car,
-  Crown,
+  Bike,
   PlaneTakeoff,
   Briefcase,
   RotateCcw,
@@ -51,7 +51,7 @@ export const HomePage: React.FC = () => {
   const taxiImg =
     "https://lh3.googleusercontent.com/aida-public/AB6AXuDj_WooqtDLqEavzUHrfPdQxg5VQa531E5qcJpzikUOAHnA8nfJova0M0BJAZcyrAFmL_NtO05s9X1gfol0tgIQ1CtzNRIBgLOd1KqvvAWI6Tm5ZA12Nzd4wHFUOkgUY4muFpJ2yLefMaZvKfckfQf5hmwB4JZq-XaqWAM94ENRyW2zj72ntwojdxQxzXSbhHnwwDhZ28PxV75hVdnQfAnU_kD2po3CyLAoeNn7b6S7160sp2Yq7Xa1";
 
-  const premiumImg =
+  const bikeImg =
     "https://lh3.googleusercontent.com/aida-public/AB6AXuDSszSjnPB--yu-oslQ7gLZOyO7UOBtifob125by_K-J0ONF57P4mlOdXWmpw8G-T-TT6ulAJLzPxpOKCuRRASP2rLM5BFzFA3UxA3H-6mSKWrZmyrUPt2yIV2Dgav_vVxx3Jt_6rt9qGoYQYUMC9w8qr8WUbpzariYcvX2oXANH2aAD4hdGdknYMmcKTCc0T17CJr0wogzHoUvW6O6hvduXl2SSq9yTyCFWIZoCvtEPzNkVSfX_m5W";
 
   const airportImg =
@@ -98,16 +98,16 @@ export const HomePage: React.FC = () => {
             Ưu đãi độc quyền
           </span>
           <h2 className="text-2xl md:text-4xl font-extrabold text-white mb-2 leading-tight">
-            Trải nghiệm AloSM Premium
+            Trải nghiệm AloSM Plus
           </h2>
           <p className="text-sm md:text-base text-slate-200 mb-6">
-            Giảm 20% cho chuyến đi đầu tiên với dòng xe điện cao cấp VF9.
+            Giảm 20% cho chuyến đi đầu tiên với xe 7 chỗ rộng rãi, tiện nghi.
           </p>
           <button
             type="button"
             onClick={() =>
               goToAssistant(
-                "Tôi muốn đặt xe AloSM Premium (hạng sang) để nhận ưu đãi giảm 20% cho chuyến đầu tiên.",
+                "Tôi muốn đặt xe AloSM Plus loại ô tô 7 chỗ để nhận ưu đãi giảm 20% cho chuyến đầu tiên.",
               )
             }
             className="inline-flex items-center gap-2 bg-[#00D1C1] hover:bg-[#006a62] text-white font-bold text-xs px-6 py-3 rounded-[12px] transition-colors shadow-lg shadow-[#00D1C1]/20 cursor-pointer"
@@ -126,7 +126,7 @@ export const HomePage: React.FC = () => {
           {/* Card 1: AloSM Taxi */}
           <button
             type="button"
-            onClick={() => goToAssistant("Tôi muốn đặt xe AloSM Taxi loại 4 chỗ.")}
+            onClick={() => goToAssistant("Tôi muốn đặt xe AloSM Taxi loại ô tô 4 chỗ.")}
             className="text-left bg-white rounded-2xl border border-slate-200/80 shadow-[0px_4px_20px_rgba(16,18,19,0.05)] overflow-hidden flex flex-col group cursor-pointer hover:shadow-md transition-shadow dark:bg-[#12161A] dark:border-white/10"
           >
             <div className="h-48 relative overflow-hidden bg-slate-100 dark:bg-white/5">
@@ -155,27 +155,27 @@ export const HomePage: React.FC = () => {
             </div>
           </button>
 
-          {/* Card 2: AloSM Premium */}
+          {/* Card 2: AloSM Bike */}
           <button
             type="button"
-            onClick={() => goToAssistant("Tôi muốn đặt xe AloSM Premium loại hạng sang.")}
+            onClick={() => goToAssistant("Tôi muốn đặt xe AloSM Bike loại xe máy.")}
             className="text-left bg-white rounded-2xl border border-slate-200/80 shadow-[0px_4px_20px_rgba(16,18,19,0.05)] overflow-hidden flex flex-col group cursor-pointer hover:shadow-md transition-shadow dark:bg-[#12161A] dark:border-white/10"
           >
             <div className="h-48 relative overflow-hidden bg-slate-100 dark:bg-white/5">
               <div
                 className="absolute inset-0 bg-cover bg-center transition-transform duration-500 group-hover:scale-105"
-                style={{ backgroundImage: `url('${premiumImg}')` }}
+                style={{ backgroundImage: `url('${bikeImg}')` }}
               />
               <div className="absolute inset-0 bg-gradient-to-t from-[#101213]/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
             </div>
             <div className="p-6 flex-1 flex flex-col justify-between">
               <div>
                 <div className="flex justify-between items-start mb-2">
-                  <h4 className="text-lg font-bold text-[#191C1E] dark:text-white">AloSM Premium</h4>
-                  <Crown className="w-5 h-5 text-[#00D1C1]" />
+                  <h4 className="text-lg font-bold text-[#191C1E] dark:text-white">AloSM Bike</h4>
+                  <Bike className="w-5 h-5 text-[#00D1C1]" />
                 </div>
                 <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
-                  Dịch vụ đẳng cấp với dòng xe sang trọng, không gian riêng tư.
+                  Xe máy công nghệ, len lỏi nội thành — tới nơi nhanh nhất giờ cao điểm.
                 </p>
               </div>
 
