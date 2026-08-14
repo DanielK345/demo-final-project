@@ -1,4 +1,4 @@
-"""PCM16 codec helpers — Phần 1 (`docs/voice_ai_overview.md` §4, module `audio/codec.py`).
+"""PCM16 codec helpers — Phần 1 (`docs/voice-ai/voice_ai_overview.md` §4, module `audio/codec.py`).
 
 Trình duyệt gửi mic audio dạng PCM16 mono ở sample rate tuỳ thiết bị
 (thường 48kHz, đôi khi 44.1/16kHz). VAD (Silero) và ASR (Groq Whisper)
@@ -29,7 +29,7 @@ def utterance_rms(pcm16_audio: bytes) -> float:
     tầng utterance (khác với `EnergyVAD`, vốn chỉ xét từng frame ~32ms). VAD có thể
     false-positive ngắt quãng khiến cả utterance thực chất gần như im lặng dù từng
     có vài frame vượt ngưỡng — `gateway.py` dùng hàm này trước khi gọi ASR để tránh
-    tốn request cho audio rác (xem docs/mustdo_voice.md, mục hallucination khi im lặng).
+    tốn request cho audio rác (xem docs/voice-ai/mustdo_voice.md, mục hallucination khi im lặng).
     """
     samples = pcm16_bytes_to_float32(pcm16_audio)
     if samples.size == 0:

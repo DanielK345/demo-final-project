@@ -356,14 +356,18 @@ async def test_agent_routes_active_booking_correction_to_booking_workflow():
         current_workflow=WorkflowType.RIDE_BOOKING,
         current_step="CONFIRM",
         collected_data={
-            "booking": {
+                "booking": {
                 "pickup": {"place_id": "p1", "display_name": "Hồ Gươm"},
                 "destination": {
                     "place_id": "d1",
                     "display_name": "Times City",
                 },
-                "phone_number": "0901234567",
-            }
+                    "phone_number": "0901234567",
+                    "vehicle_type": "CAR_4",
+                    "fare_estimate_id": "fare-001",
+                    "estimated_fare_amount": 75000,
+                    "estimated_currency": "VND",
+                }
         },
         confirmation=ConfirmationStatus.AWAITING_CONFIRMATION,
     )
@@ -411,7 +415,8 @@ class ToolResultWorkflow(BaseWorkflow):
 
 
 @pytest.mark.asyncio
-async def test_correlated_tool_result_has_priority_over_repair_command():
+@pytest.mark.parametrize("transcript", ["Hủy", "khẩn cấp, cứu tôi"])
+async def test_correlated_tool_result_has_priority_over_repair_and_handoff(transcript):
     state = AgentState(
         session_id="session-001",
         current_workflow=WorkflowType.RIDE_BOOKING,
@@ -428,7 +433,7 @@ async def test_correlated_tool_result_has_priority_over_repair_command():
         AgentInput(
             session_id="session-001",
             turn_id="turn-002",
-            transcript="Hủy",
+            transcript=transcript,
             tool_result=ToolResult(
                 tool_name=ToolName.SEARCH_PLACE,
                 call_id="search-1",

@@ -35,9 +35,9 @@ Backend ── AgentInput + AgentState ──► LLMAgent
 Khi Backend thực thi một `CALL_TOOL`, kết quả được gửi lại ở lượt tiếp theo dưới
 dạng `ToolResult`. Workflow đã yêu cầu tool chịu trách nhiệm diễn giải kết quả.
 
-## 2. Walking skeleton hiện tại
+## 2. Core Agent hiện tại
 
-Walking skeleton đã cung cấp một luồng chạy xuyên suốt:
+Core Agent giữ một luồng xử lý xuyên suốt:
 
 ```text
 AgentInput("Tôi muốn đặt xe")
@@ -47,21 +47,21 @@ AgentInput("Tôi muốn đặt xe")
     → AgentAction(ASK_USER, "Bạn muốn đón ở đâu?")
 ```
 
-Skeleton hiện có:
+Implementation hiện có:
 
 - Shared input/output/state/tool contracts bằng Pydantic.
 - Agent entrypoint và workflow registry.
-- Router deterministic tối thiểu cho bốn workflow.
+- Router deterministic kết hợp structured understanding cho bốn workflow.
 - `BaseWorkflow` và `BaseTool` interfaces.
-- Bốn workflow có hành vi mock tối thiểu.
+- Bốn workflow nhiều lượt với typed business state và conversation repair.
 - Tool builders chỉ validate và tạo `ToolCall`.
-- RAG interfaces và prompt constants.
+- Grounded FAQ/RAG, production guardrails và versioned readiness evaluation.
 - Adapter giữ tương thích với API `ainvoke` của starter template.
 - Unit/smoke tests chạy offline, không cần API key.
 
-Skeleton chưa phải implementation hoàn chỉnh. Intent classifier, session
-persistence, business workflow, tool-result lifecycle, RAG, guardrails và eval
-là phần việc của F1–F8.
+F1–F8 của Core Agent đã được triển khai. External executors, production
+persistence, knowledge ingestion và Voice Runtime vẫn thuộc Backend/Voice; xem
+trạng thái và ranh giới hoàn thành tại [`docs/CORE_AGENT_STATUS.md`](docs/CORE_AGENT_STATUS.md).
 
 ## 3. Cấu trúc source và trách nhiệm
 
@@ -73,6 +73,12 @@ src/agents/
 ├── router.py                 # Intent và workflow routing
 ├── schemas.py                # Shared input/output/tool contracts
 ├── state.py                  # Conversation state contract
+├── state_store.py            # Store abstraction và optimistic concurrency
+├── history.py                # Typed history/delivery reducers
+├── context.py                # Sanitized bounded context projection
+├── repair.py                 # Dialogue repair và workflow interruption
+├── guardrails.py             # Cross-cutting output/state/tool invariants
+├── policy.py                 # Central retry/deadline/budget policy
 ├── workflows/
 │   ├── base.py               # Interface chung cho workflow
 │   ├── booking.py            # F3 Ride Booking
@@ -83,24 +89,23 @@ src/agents/
 │   ├── base.py               # Interface tạo tool call
 │   ├── schemas.py            # Params của từng tool
 │   ├── maps.py               # search_place
-│   ├── booking.py            # create_booking
+│   ├── booking.py            # estimate_fare/create_booking/cancel_booking
 │   ├── trip.py               # lookup_trip
 │   ├── knowledge.py          # retrieve_knowledge
 │   └── handoff.py            # create_handoff
 ├── rag/
 │   ├── retriever.py          # Retrieval interface/result
-│   └── knowledge_base.py     # Knowledge document contract
+│   ├── knowledge_base.py     # Knowledge document contract
+│   └── answer_generator.py   # Grounded answer generation port/fallback
+├── understanding/            # Rule/OpenAI understanding và contextual rewrite
+├── eval/                     # Versioned datasets, evaluator và readiness gates
 └── prompts/
     ├── system.py             # System-level rules
     ├── routing.py            # Routing instructions
     └── workflows.py          # Workflow instructions
 
-tests/test_agents/
-├── test_graph.py             # Compatibility/graph tests
-├── test_smoke.py             # End-to-end walking skeleton
-├── test_router.py            # Routing tests
-├── test_state.py             # State contract tests
-└── test_tools.py             # Tool contract tests
+tests/test_agents/             # Unit, contract và deterministic multi-turn tests
+tests/integration/             # Real-provider tests, explicit opt-in
 ```
 
 Feature owner thêm test vào `tests/test_agents/`. Không đặt test production vào
@@ -134,6 +139,8 @@ AgentInput(
 | `tool_result` | Kết quả Backend trả về sau một `CALL_TOOL` |
 
 Ít nhất một trong `transcript` hoặc `tool_result` phải có dữ liệu.
+Nếu cả hai cùng có mặt, correlated `tool_result` được xử lý trước; Backend phải
+gửi transcript thành turn riêng nếu vẫn cần xử lý nội dung đó.
 
 ### 4.2 `AgentState`
 
@@ -239,6 +246,7 @@ Quy tắc:
 - `state_updates` là partial update, không phải toàn bộ state.
 - `reason` phục vụ debug/evaluation, không đọc cho khách.
 - Text nói với khách phải nằm trong `message`.
+- `ASK_USER`, `RESPOND`, `HANDOFF` và `END_SESSION` bắt buộc có message không rỗng.
 
 ### 4.4 `ToolCall`
 
@@ -349,7 +357,8 @@ Không tạo lại enum/model có cùng ý nghĩa trong file feature riêng.
 
 ## 7. Phân chia F1–F8
 
-Điền tên owner trước khi bắt đầu sprint.
+Owner table dưới đây là thông tin quản lý sprint, không biểu diễn trạng thái
+implementation. Trạng thái kỹ thuật nằm trong `docs/CORE_AGENT_STATUS.md`.
 
 | Feature | Owner | Branch đề xuất | Source chính |
 |---|---|---|---|
@@ -440,6 +449,8 @@ COLLECT_PICKUP
 → COLLECT_DESTINATION
 → RESOLVE_DESTINATION
 → SELECT_DESTINATION_CANDIDATE (nếu cần)
+→ COLLECT_VEHICLE
+→ ESTIMATE_FARE
 → COLLECT_PHONE (nếu cần)
 → CONFIRM
 → CREATE_BOOKING
@@ -450,10 +461,13 @@ COLLECT_PICKUP
 
 - Thu thập và resolve pickup/destination.
 - Xử lý zero/one/multiple place candidates.
-- Thu thập phone theo policy.
-- Đọc lại thông tin và yêu cầu xác nhận.
+- Thu thập loại xe và phone theo policy.
+- Lấy giá dự kiến từ Backend rồi đọc lại tuyến, loại xe và giá để xác nhận.
 - Chỉ phát `create_booking` sau xác nhận rõ ràng.
-- Xử lý booking tool success/error và retry limit.
+- Reject pickup/destination trùng nhau sau resolve.
+- Invalidate fare khi pickup, destination hoặc vehicle thay đổi.
+- Xử lý retry, stale/duplicate result, unknown outcome và reconciliation.
+- Hủy chuyến đã đặt chỉ sau một confirmation riêng.
 
 **Không làm:**
 
@@ -464,12 +478,15 @@ COLLECT_PICKUP
 **Definition of Done:** happy path, multiple candidates, reject/change
 confirmation, tool error và retry-limit tests đều pass.
 
-**Implementation hiện tại:** Booking state được validate bằng `BookingData` và
-lưu dưới `collected_data["booking"]`. Workflow resolve pickup/destination qua
-`search_place`, yêu cầu user chọn khi ambiguous, thu thập phone, bắt buộc
-confirmation rõ ràng rồi mới phát `create_booking`. Tool result sai correlation,
-payload sai hoặc critical error được chuyển handoff; booking ID/ETA/fare chỉ lấy
-từ typed `CreateBookingResult`.
+**Implementation hiện tại (P5 complete):** Booking state được validate bằng
+`BookingData` và lưu dưới `collected_data["booking"]`. Workflow resolve
+pickup/destination qua `search_place`, thu thập `vehicle_type`, gọi
+`estimate_fare`, thu thập phone rồi mới yêu cầu confirmation. `create_booking`
+nhận fare estimate ID và stable idempotency key; guardrail đối chiếu toàn bộ
+params với state đã xác nhận. Search/fare lỗi retryable được retry có giới hạn;
+create/cancel timeout hoặc stale result giữ pending side effect và đi
+reconciliation. Result success replay được xử lý idempotent. Booking hoàn tất có
+thể đi qua confirmation riêng để phát `cancel_booking`.
 
 ### F4 — Trip Lookup Workflow
 
@@ -497,11 +514,20 @@ từ typed `CreateBookingResult`.
 **Definition of Done:** lookup bằng booking ID, lookup bằng phone, missing
 identifier, not-found và tool-error tests đều pass.
 
-**Implementation hiện tại:** Trip lookup data được validate bằng
-`TripLookupData` và lưu dưới `collected_data["trip_lookup"]`. Workflow nhận mã
-chuyến hoặc phone, phát `lookup_trip`, phân biệt not-found với tool error và chỉ
-đọc status/ETA từ typed `LookupTripResult`. Retryable error được gọi lại có giới
-hạn; critical, mismatched hoặc invalid result được handoff.
+**Implementation hiện tại (P6):** Trip lookup data được validate bằng
+`TripLookupData`. Các câu nối tiếp như “xe của tôi tới đâu rồi?” hoặc “còn bao
+lâu?” tự dùng booking vừa lookup/đặt trong state, không bắt user đọc lại ID.
+`lookup_trip` hỗ trợ một hoặc nhiều `TripMatch`; nếu nhiều chuyến, Agent chỉ đọc
+customer-safe pickup/destination label và cho chọn theo thứ tự, không đọc booking
+ID hay full phone. Sau khi chọn, Agent lookup lại booking đã chọn để lấy status
+và ETA mới nhất. Mọi status/ETA vẫn chỉ đến từ typed Backend result.
+Stale callback không phá pending lookup hiện tại, completed result replay được
+xử lý idempotent, và status code từ Backend được trình bày bằng tiếng Việt.
+
+FAQ hỗ trợ câu hỏi nối tiếp bằng grounded topic trước đó. Knowledge documents có
+thể mang citation/version/effective/expiry; source cũ, chưa hiệu lực, điểm thấp
+hoặc chứa prompt injection bị loại trước answer generation. Citation được lưu làm
+metadata, không trộn vào câu đọc cho người dùng.
 
 ### F5 — Human Handoff Workflow
 
@@ -601,6 +627,15 @@ chính sách thật thuộc Backend/Knowledge Service.
 - `eval/`
 - Guardrail/evaluation tests trong `tests/test_agents/`.
 
+Readiness evaluation deterministic:
+
+```bash
+.venv/bin/python -m examples.evaluate_core_agent
+```
+
+Lệnh trên dùng versioned dataset và mock tool results. Thêm `--real-model` để
+đánh giá adapter LLM đã cấu hình mà không gọi Booking Backend thật.
+
 **Guardrails tối thiểu:**
 
 - Không booking khi chưa confirm.
@@ -645,7 +680,7 @@ git pull origin feature/agentic-ai
 git switch -c feat/<feature-name>
 ```
 
-Không branch từ `main` nếu walking skeleton mới nhất chỉ có ở
+Không branch từ `main` nếu Core Agent mới nhất chỉ có ở
 `feature/agentic-ai`.
 
 ## 9. Test và kiểm tra trước PR
@@ -764,7 +799,8 @@ resolve value có trong sanitized context. Timeout, invalid hoặc unsafe output
 đều fallback về raw text. `LLMAgent` đã nối context, gate, rewrite và
 understanding; tool-result/emergency fast path không gọi provider. Confirmation,
 phone và booking identity vẫn cần evidence từ raw transcript. Tại bước booking
-confirmation, workflow luôn đọc raw text để rewrite không thể tạo side effect.
+confirmation hoặc cancel confirmation, workflow luôn đọc raw text để rewrite
+không thể tạo side effect.
 
 ### Conversation repair
 
@@ -777,7 +813,7 @@ P4.2 đã nối `REPEAT`, `CANCEL`, `START_OVER` và `GOODBYE` vào `LLMAgent` s
 global safety/tool-result priority và trước rewrite/understanding. Repeat chỉ
 dùng assistant speech thực sự đã phát; cancel/start-over reset đúng workflow
 namespace; goodbye chỉ end session khi an toàn. Pending side effect
-`create_booking`/`create_handoff` được giữ nguyên và chuyển sang
+`create_booking`/`cancel_booking`/`create_handoff` được giữ nguyên và chuyển sang
 `RECONCILIATION_REQUIRED`, không giả định đã hủy. Các dialogue act còn lại được
 tách sang các phase sau.
 
@@ -819,3 +855,27 @@ AGENT_REWRITE_ENABLED=true \
 
 Các lệnh trong CLI: `/state`, `/history`, `/config`, `/reset`, `/help`, `/quit`.
 Sau handoff/end, dùng `/reset` để tạo session và memory mới. CLI không in API key.
+
+Luồng P5 ngắn để test bằng bàn phím:
+
+```text
+Tôi muốn đặt xe từ VinUni đến Times City bằng xe 4 chỗ
+0901234567
+Đổi xe sang xe máy
+Đúng, đặt giúp tôi
+Hủy chuyến
+Đúng
+```
+
+CLI sẽ tự mock `search_place`, `estimate_fare`, `get_vehicle_options`,
+`create_booking` và `cancel_booking`; LLM understanding, rewrite và vehicle
+recommendation vẫn dùng cấu hình `.env`.
+
+Booking hiểu số hành khách, hành lý và ưu tiên xe. Agent không map cứng nhu cầu
+sang loại xe: nó gọi `get_vehicle_options`, chỉ nhận catalog/availability/giá từ
+Backend, rồi LLM có thể recommend một `option_id` trong đúng danh sách đó. Nếu
+LLM tắt, lỗi hoặc không đủ căn cứ, Agent chỉ trình bày các option để user chọn.
+LLM không được tạo option, giá hay capacity mới; recommendation vẫn cần user
+chọn trước khi đi tiếp.
+Số liên hệ đặt xe phải là số di động Việt Nam 10 chữ số với prefix
+`03/05/07/08/09`; đầu số cũ như `012` bị hỏi lại.

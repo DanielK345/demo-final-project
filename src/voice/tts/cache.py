@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING
 from src.voice.gateway import REPROMPT_MESSAGE
 
 if TYPE_CHECKING:
-    from src.models.voice_schemas import TTSResult
+    from src.voice.schemas import TTSResult
     from src.voice.tts.base import TTSProvider
 
 # Câu tĩnh hay gặp — pre-render bằng CachingTTSProvider.prewarm() lúc khởi

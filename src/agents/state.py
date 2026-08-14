@@ -2,7 +2,7 @@ from datetime import UTC, datetime
 from enum import StrEnum
 from typing import Any, ClassVar
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from src.agents.schemas import ToolName, WorkflowType
 from src.agents.state_types import ConfirmationStatus, InterruptedWorkflow
@@ -90,11 +90,7 @@ class ConversationMessage(BaseModel):
         if self.message_type is ConversationMessageType.TOOL_SUMMARY:
             prefix = f"{self.turn_id}:tool-summary:"
             sequence = self.message_id.removeprefix(prefix)
-            if (
-                not self.message_id.startswith(prefix)
-                or not sequence.isdigit()
-                or int(sequence) < 1
-            ):
+            if not self.message_id.startswith(prefix) or not sequence.isdigit() or int(sequence) < 1:
                 raise ValueError("tool summary message_id has an invalid sequence")
         return self
 
@@ -151,6 +147,8 @@ class ConversationSummary(BaseModel):
 class AgentState(BaseModel):
     """Conversation state supplied by and returned to the backend."""
 
+    model_config = ConfigDict(extra="forbid")
+
     max_history_messages: ClassVar[int] = 20
 
     session_id: str = Field(min_length=1)
@@ -161,33 +159,45 @@ class AgentState(BaseModel):
     pending_tool_name: ToolName | None = None
     confirmation: ConfirmationStatus = ConfirmationStatus.NOT_REQUESTED
     retry_count: int = Field(default=0, ge=0)
+    tool_call_count: int = Field(default=0, ge=0)
     last_stt_confidence: float | None = Field(default=None, ge=0, le=1)
     conversation_history: list[ConversationMessage] = Field(default_factory=list)
     conversation_summary: ConversationSummary | None = None
     interrupted_workflow: InterruptedWorkflow | None = None
     state_version: int = Field(default=0, ge=0)
 
+    @field_validator("session_id")
+    @classmethod
+    def normalize_session_id(cls, value: str) -> str:
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("session_id cannot be blank")
+        return normalized
+
+    @field_validator("pending_tool_call_id")
+    @classmethod
+    def normalize_pending_tool_call_id(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("pending_tool_call_id cannot be blank")
+        return normalized
+
     @model_validator(mode="after")
     def validate_state_invariants(self) -> "AgentState":
         if self.current_step is not None and self.current_workflow is None:
             raise ValueError("current_step requires an active workflow")
-        if (
-            self.interrupted_workflow is not None
-            and self.current_workflow is self.interrupted_workflow.workflow
-        ):
+        if self.interrupted_workflow is not None and self.current_workflow is self.interrupted_workflow.workflow:
             raise ValueError("active and interrupted workflow must be different")
 
         has_pending_id = self.pending_tool_call_id is not None
         has_pending_name = self.pending_tool_name is not None
         if has_pending_id != has_pending_name:
-            raise ValueError(
-                "pending_tool_call_id and pending_tool_name must be set together"
-            )
+            raise ValueError("pending_tool_call_id and pending_tool_name must be set together")
 
         if len(self.conversation_history) > self.max_history_messages:
-            raise ValueError(
-                f"conversation_history cannot exceed {self.max_history_messages} messages"
-            )
+            raise ValueError(f"conversation_history cannot exceed {self.max_history_messages} messages")
 
         message_ids = [message.message_id for message in self.conversation_history]
         if len(message_ids) != len(set(message_ids)):
@@ -203,6 +213,10 @@ class AgentState(BaseModel):
         return self
 
     def apply(self, updates: dict[str, Any]) -> "AgentState":
+        unknown_fields = set(updates).difference(type(self).model_fields)
+        if unknown_fields:
+            fields = ", ".join(sorted(unknown_fields))
+            raise ValueError(f"state updates contain unknown fields: {fields}")
         protected_fields = {"session_id", "state_version"}.intersection(updates)
         if protected_fields:
             fields = ", ".join(sorted(protected_fields))
@@ -214,19 +228,11 @@ class AgentState(BaseModel):
         return type(self).model_validate(values)
 
     def append_message(self, message: ConversationMessage) -> "AgentState":
-        if any(
-            existing.message_id == message.message_id
-            for existing in self.conversation_history
-        ):
+        if any(existing.message_id == message.message_id for existing in self.conversation_history):
             raise ValueError("conversation_history contains duplicate message_id values")
-        if (
-            message.message_type is ConversationMessageType.USER_TRANSCRIPT
-            and any(
-                existing.message_type
-                is ConversationMessageType.USER_TRANSCRIPT
-                and existing.turn_id == message.turn_id
-                for existing in self.conversation_history
-            )
+        if message.message_type is ConversationMessageType.USER_TRANSCRIPT and any(
+            existing.message_type is ConversationMessageType.USER_TRANSCRIPT and existing.turn_id == message.turn_id
+            for existing in self.conversation_history
         ):
             raise ValueError("a turn cannot contain multiple user transcripts")
         history = [*self.conversation_history, message]

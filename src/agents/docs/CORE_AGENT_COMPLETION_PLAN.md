@@ -1,7 +1,7 @@
 # Core Agent Completion Plan — From Baseline to Production-Ready
 
-Tài liệu này là kế hoạch triển khai tiếp theo cho Core Agent GSM-08 sau khi
-walking skeleton và baseline F1–F8 đã hoàn thành.
+Tài liệu này lưu kế hoạch và implementation record của các phase hoàn thiện Core
+Agent GSM-08. Trạng thái/DoD hiện hành nằm tại `CORE_AGENT_STATUS.md`.
 
 Đọc kèm:
 
@@ -13,10 +13,9 @@ walking skeleton và baseline F1–F8 đã hoàn thành.
   và Voice Runtime.
 - [`BACKEND_INTEGRATION.md`](BACKEND_INTEGRATION.md): contract tích hợp Backend.
 
-Tài liệu này thay thế vai trò roadmap tiếp theo của
-`CORE_AGENT_IMPLEMENTATION_PLAN.md`, nhưng không thay shared contracts trong
-`README.md`. Nếu có xung đột, requirement cụ thể đã được lead duyệt và
-`README.md` được ưu tiên.
+Tài liệu này không thay shared contracts trong `README.md` hoặc trạng thái trong
+`CORE_AGENT_STATUS.md`. Nếu có xung đột, requirement cụ thể đã được lead duyệt,
+shared contracts và status hiện hành được ưu tiên.
 
 ---
 
@@ -132,7 +131,10 @@ P4.2 Repeat/Cancel/Restart/Goodbye             implemented
 P4.3 Ride Booking Correction                   implemented
 P4.4 Workflow Interruption + Resume            implemented
 P4.5 Cross-layer Integration + Hardening       implemented
-P5–P8                                        pending
+P5 Ride Booking Completion                  implemented
+P6 Trip Lookup + FAQ/RAG Completion         implemented
+P7 Production Hardening + Contract          implemented
+P8 Offline Evaluation + Readiness Gates     implemented
 ```
 
 ```text
@@ -751,6 +753,33 @@ transition rõ ràng và test deterministic.
 
 ## 9. P5 — Hoàn thiện Ride Booking
 
+### Trạng thái implementation
+
+P5 đã hoàn tất trong Core Agent:
+
+- `VehicleType` hỗ trợ xe máy, ô tô 4 chỗ và ô tô 7 chỗ; đổi loại xe làm mất
+  fare cũ và estimate lại.
+- Tuyến có pickup/destination trùng `place_id` bị từ chối; user có thể thay thế
+  một pending place search bằng địa chỉ mới.
+- Giá từ `estimate_fare` hoặc option Backend trả về là bắt buộc trước
+  phone/confirmation; confirmation đọc lại pickup, destination, vehicle và giá.
+- `create_booking` và `cancel_booking` có stable logical idempotency key; final
+  guardrail đối chiếu params với confirmed state.
+- Read-only error retryable được retry có giới hạn. Unknown/stale side-effect
+  outcome giữ pending call và chuyển reconciliation thay vì phát lại tool.
+- Exact successful result replay không tạo side effect mới.
+- Chuyến đã đặt có flow hủy riêng: request → explicit confirmation →
+  `cancel_booking` → correlated result.
+- Mock interactive CLI đã hỗ trợ fare/cancel để test full workflow.
+- Booking hiểu passenger/luggage/preference rồi gọi `get_vehicle_options`.
+  Backend quyết định catalog/availability/giá; LLM chỉ recommend một option hợp
+  lệ bằng typed `option_id` và reason code. Không còn mapping cứng số người → xe.
+  Mobile phone validation từ chối prefix cũ/sai.
+- Retry limit không chặn trước một địa chỉ mới hợp lệ; lần nhập mới được workflow
+  đánh giá trước khi quyết định retry hoặc handoff.
+
+Verification offline tại thời điểm hoàn tất: `311 passed, 5 skipped`.
+
 ### Mục tiêu
 
 Đưa Booking từ happy-path MVP thành workflow đầy đủ và recoverable.
@@ -780,23 +809,31 @@ pickup hoặc destination đổi
 ```
 
 ```text
-phone hoặc vehicle đổi
+phone đổi
 → reset confirmation
 → giữ resolved locations
 ```
 
-### Tool additions có thể cần
-
-Chỉ thêm sau khi Backend contract được duyệt:
-
 ```text
-estimate_route
-estimate_fare
-cancel_booking
-reconcile_booking
+vehicle đổi
+→ reset confirmation
+→ giữ resolved locations
+→ clear fare estimate
+→ estimate lại
 ```
 
-`call_id` vẫn chỉ dùng correlation. Side-effect idempotency key thuộc Backend.
+### Tool additions đã chốt trong Core Agent
+
+```text
+get_vehicle_options
+estimate_fare
+cancel_booking
+```
+
+`call_id` vẫn chỉ dùng correlation. Agent tạo stable logical idempotency key
+trong tool request; Backend chịu trách nhiệm enforce key, persist kết quả và
+reconcile unknown outcome. Core Agent chưa phát `reconcile_booking`: khi outcome
+không xác định, nó giữ pending side effect và trả `RECONCILIATION_REQUIRED`.
 
 ### Files dự kiến
 
@@ -829,6 +866,34 @@ Mọi critical transition có invariant/test; không có đường nào phát
 ---
 
 ## 10. P6 — Hoàn thiện Trip Lookup và FAQ/RAG
+
+### P6 implementation status
+
+P6.1 Contextual Trip Lookup đã hoàn tất:
+
+- Follow-up “xe tới đâu?”, “còn bao lâu?” route vào Trip Lookup.
+- Identifier được reuse theo thứ tự: booking vừa lookup → booking vừa tạo → hỏi
+  booking ID/phone; không suy diễn từ raw conversation text.
+- `lookup_trip` hỗ trợ typed multi-match result và bước `SELECT_TRIP`.
+- Candidate presentation không đọc booking ID/full phone; chỉ dùng customer-safe
+  route label Backend cung cấp.
+- Sau selection, Agent lookup lại booking đã chọn để lấy status/ETA mới nhất.
+- CLI mock và integration tests cover booking → contextual tracking và phone →
+  multi-trip selection.
+
+P6.2/P6.3 hardening đã hoàn tất:
+
+- Stale Trip/FAQ callbacks bị bỏ qua mà không xóa pending call hiện tại; exact
+  completed Trip Lookup replay không khởi chạy workflow mới.
+- Backend trip status được map sang câu tiếng Việt; status/ETA vẫn chỉ lấy từ
+  typed tool result.
+- FAQ follow-up dùng grounded topic trước đó để tạo retrieval query có context.
+- Knowledge contract hỗ trợ citation/version/effective/expiry có timezone;
+  document chưa hiệu lực, hết hạn, điểm thấp hoặc chứa prompt injection bị loại.
+- Citation/source được lưu riêng khỏi spoken answer; extractive grounded fallback
+  không thêm fact ngoài retrieved documents.
+
+Verification offline: `318 passed, 5 skipped`.
 
 ### 10.1 Trip Lookup
 
@@ -889,6 +954,28 @@ metadata kiểm chứng được.
 ---
 
 ## 11. P7 — Production Guardrails và Integration Contract
+
+### P7 implementation status
+
+P7 Core-side guardrails đã hoàn tất:
+
+- Central `AgentPolicy` định nghĩa retry limit, tool deadline, spoken response
+  limit và session tool-call budget.
+- Guardrail gắn deadline/đếm tool call atomically, validate typed params, chặn
+  field thừa và tool không thuộc active workflow.
+- Booking/cancel confirmation, idempotency và unknown-outcome reconciliation
+  tiếp tục là deterministic invariants.
+- Handoff/diagnostic redaction che phone và booking ID kể cả trong nested business
+  data; raw tool error không được đưa vào handoff context.
+- Tool error contract giới hạn kích thước và chuẩn hóa stable uppercase code.
+- State đã giới hạn history, chỉ có một interrupted workflow, kiểm tra session
+  identity và optimistic state version contract.
+
+Phần Backend-owned như authentication, persistence, encryption, retention,
+rate limiting và executor deadline enforcement được chốt trong integration
+contract, không giả lập bên trong Core Agent.
+
+Verification offline: `323 passed, 5 skipped`.
 
 ### Mục tiêu
 
@@ -982,6 +1069,35 @@ không cần suy đoán state, delivery hoặc retry semantics.
 ---
 
 ## 12. P8 — Evaluation và Readiness Validation
+
+### P8 implementation status
+
+P8 evaluation baseline đã hoàn tất:
+
+- Versioned dataset `readiness-v1` gồm deterministic Vietnamese multi-turn
+  scenarios và mock tool results, không gọi Backend/booking thật.
+- Runner giữ `AgentState` qua từng turn và kiểm tra action, workflow, tool name,
+  subset tool arguments, completion và forbidden spoken terms.
+- Readiness report có pass/action/tool/tool-argument accuracy, workflow completion,
+  PII/confirmation/duplicate-side-effect violation rates và latency average,
+  p50/p95/p99.
+- Readiness gates fail rõ tên threshold; safety gates yêu cầu zero violation.
+- Workflow completion và tool-argument accuracy tham gia readiness gate; một
+  scenario expected-complete chưa kết thúc không thể trả `ready=true`.
+- CLI mặc định offline; `--real-model` là opt-in và vẫn dùng dataset/mock tool
+  results cố định.
+- Evaluation đã phát hiện và sửa case confirmation sớm bị hiểu nhầm thành địa
+  điểm khi pickup/destination còn thiếu.
+
+Chạy:
+
+```bash
+.venv/bin/python -m examples.evaluate_core_agent
+.venv/bin/python -m examples.evaluate_core_agent --real-model
+```
+
+Baseline hiện tại: `8 scenarios`, `15 turns`, readiness `true`.
+Current full verification offline: `342 passed, 5 skipped`.
 
 ### Mục tiêu
 

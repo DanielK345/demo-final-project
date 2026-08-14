@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from src.models.voice_schemas import ASRResult, TurnStage, WSEventType, WSServerEvent
+from src.voice.schemas import ASRResult, TurnStage, WSEventType, WSServerEvent
 from src.voice.audio.vad import EnergyVAD
 from src.voice.config import VoiceSettings
 from src.voice.gateway import GatewaySessionNotFoundError, VoiceGateway

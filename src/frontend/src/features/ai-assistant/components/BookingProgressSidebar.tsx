@@ -1,5 +1,5 @@
 import React from "react";
-import { Car, Clock3, MapPin, Navigation } from "lucide-react";
+import { Car, Clock3, MapPin, Navigation, Wallet } from "lucide-react";
 import type { BookingLifecycleStatus } from "@/features/ride/api";
 
 export type BookingFieldProgress = {
@@ -12,8 +12,10 @@ export type BookingProgress = {
   pickup?: BookingFieldProgress | null;
   destination?: BookingFieldProgress | null;
   vehicle_type?: string | null;
-  missing_field?: "pickup" | "destination" | "vehicle_type" | null;
+  missing_field?: "pickup" | "destination" | "vehicle_type" | "fare_estimate" | "phone_number" | null;
   lifecycle_status?: BookingLifecycleStatus | null;
+  fare_amount?: number | null;
+  currency?: string | null;
 };
 
 const LIFECYCLE_LABELS: Record<BookingLifecycleStatus, string> = {
@@ -23,15 +25,18 @@ const LIFECYCLE_LABELS: Record<BookingLifecycleStatus, string> = {
 };
 
 const LIFECYCLE_STYLES: Record<BookingLifecycleStatus, string> = {
-  PENDING: "bg-amber-100 text-amber-800 border-amber-200",
-  SUCCESS: "bg-emerald-100 text-emerald-800 border-emerald-200",
-  FAILED: "bg-rose-100 text-rose-800 border-rose-200",
+  PENDING: "bg-amber-100 text-amber-800 border-amber-200 dark:bg-amber-500/10 dark:text-amber-300 dark:border-amber-500/30",
+  SUCCESS: "bg-emerald-100 text-emerald-800 border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-300 dark:border-emerald-500/30",
+  FAILED: "bg-rose-100 text-rose-800 border-rose-200 dark:bg-rose-500/10 dark:text-rose-300 dark:border-rose-500/30",
 };
 
+// Đúng 3 loại xe thật có thể đặt được (Core Agent, nhánh feature/agentic-ai) — không
+// còn "PREMIUM/hạng sang" như bản cũ, thay bằng "xe máy" (đúng chuẩn phân loại xe ôm
+// công nghệ ở Việt Nam).
 const VEHICLE_LABELS: Record<string, string> = {
-  "4_SEAT": "4 chỗ",
-  "7_SEAT": "7 chỗ",
-  PREMIUM: "Hạng sang",
+  MOTORBIKE: "Xe máy",
+  CAR_4: "Ô tô 4 chỗ",
+  CAR_7: "Ô tô 7 chỗ",
 };
 
 const FIELD_LABELS: Record<string, string> = {
@@ -69,6 +74,12 @@ function fieldStatus(
   };
 }
 
+function formatFare(amount: number | null | undefined, currency: string | null | undefined): string | null {
+  if (amount == null) return null;
+  const suffix = currency === "VND" || !currency ? "đ" : ` ${currency}`;
+  return `${Math.round(amount).toLocaleString("vi-VN")}${suffix}`;
+}
+
 export const BookingProgressSidebar: React.FC<Props> = ({
   progress,
   lifecycleStatus,
@@ -80,14 +91,18 @@ export const BookingProgressSidebar: React.FC<Props> = ({
     { key: "destination" as const, icon: Navigation },
     { key: "vehicle_type" as const, icon: Car },
   ];
+  const fareLabel = progress ? formatFare(progress.fare_amount, progress.currency) : null;
 
   return (
+    // Cùng tông sáng/viền xám nhạt như khu trò chuyện bên cạnh (AssistantPage.tsx) và
+    // mọi trang khác; đổi sang tối cùng lúc với toàn site qua biến thể `dark:` khi
+    // người dùng bật "Giao diện tối" trong Cài đặt.
     <aside className="w-full lg:w-72 shrink-0">
-      <div className="bg-white border border-slate-200 rounded-2xl shadow-sm p-5 sticky top-6">
-        <h2 className="text-sm font-bold text-slate-800 uppercase tracking-wide">
+      <div className="bg-white border border-slate-200/80 shadow-[0px_4px_20px_rgba(16,18,19,0.05)] rounded-2xl p-5 sticky top-6 dark:bg-[#12161A] dark:border-white/10 dark:shadow-2xl">
+        <h2 className="text-sm font-bold text-[#191C1E] dark:text-white uppercase tracking-wide">
           Thông tin đặt xe
         </h2>
-        <p className="text-xs text-slate-500 mt-1">
+        <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
           Agent chỉ hỏi thông tin còn thiếu.
         </p>
         {status && (
@@ -108,29 +123,43 @@ export const BookingProgressSidebar: React.FC<Props> = ({
                 key={key}
                 className={`rounded-xl border p-3 transition ${
                   status.active
-                    ? "border-[#00D1C1] bg-[#00D1C1]/5"
-                    : "border-slate-100 bg-slate-50"
+                    ? "border-[#00D1C1] bg-[#00D1C1]/10"
+                    : "border-slate-200/80 bg-slate-50 dark:border-white/10 dark:bg-white/5"
                 }`}
               >
-                <div className="flex items-center gap-2 text-xs font-semibold text-slate-500">
+                <div className="flex items-center gap-2 text-xs font-semibold text-slate-500 dark:text-slate-400">
                   <Icon className="w-3.5 h-3.5" />
                   {FIELD_LABELS[key]}
                 </div>
                 <p
                   className={`mt-1 text-sm font-medium ${
-                    status.pending ? "text-slate-400 italic" : "text-slate-800"
+                    status.pending
+                      ? "text-slate-400 italic dark:text-slate-500"
+                      : "text-[#191C1E] dark:text-slate-100"
                   }`}
                 >
                   {status.value}
                 </p>
                 {status.active && (
-                  <p className="mt-1 text-[11px] font-semibold text-[#006a62]">
+                  <p className="mt-1 text-[11px] font-semibold text-[#00D1C1]">
                     Đang chờ thông tin này
                   </p>
                 )}
               </li>
             );
           })}
+          {/* Giá cước ước tính — chỉ xuất hiện khi agent đã tính xong (sau khi chọn xe),
+              không phải 1 field cần điền như 3 mục trên nên không có trạng thái "đang
+              chờ" riêng. */}
+          {fareLabel && (
+            <li className="rounded-xl border border-slate-200/80 bg-slate-50 dark:border-white/10 dark:bg-white/5 p-3">
+              <div className="flex items-center gap-2 text-xs font-semibold text-slate-500 dark:text-slate-400">
+                <Wallet className="w-3.5 h-3.5" />
+                Giá cước ước tính
+              </div>
+              <p className="mt-1 text-sm font-bold text-[#191C1E] dark:text-slate-100">{fareLabel}</p>
+            </li>
+          )}
         </ul>
       </div>
     </aside>

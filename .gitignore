@@ -12,10 +12,20 @@ venv/
 .venv/
 env/
 
-# Environment variables
+# Python tool caches — trước đây chỉ ẩn nhờ .gitignore tự sinh bên trong từng thư
+# mục cache (pytest/ruff tự tạo lúc chạy); khai báo tường minh ở đây để không phụ
+# thuộc việc tool đã chạy ít nhất 1 lần hay chưa.
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.cache/
+
+# Environment variables — mọi biến thể (.env.local, .env.production, .env.staging,
+# ...) đều có thể chứa secret thật nên ignore tất cả; chỉ .env.example (template,
+# không chứa secret, dùng để hướng dẫn setup) được commit.
 .env
-.env.local
-.env.production
+.env.*
+!.env.example
 
 # IDE
 .vscode/
@@ -27,9 +37,16 @@ env/
 # OS
 .DS_Store
 Thumbs.db
+desktop.ini
+$RECYCLE.BIN/
 
-# Data (never commit large data)
-data/
+# Data (never commit large/generated data) — ngoại trừ data nguồn nhỏ, có chủ đích
+# commit (gazetteer địa danh cho Voice AI, xem src/voice/text/gazetteer.py). LƯU Ý:
+# phải dùng "data/*" (không phải "data/") — pattern "data/" chặn git traverse vào cả
+# thư mục nên "!data/gazetteer/" bên dưới sẽ KHÔNG có tác dụng (gotcha kinh điển của
+# gitignore) — đã tự verify bằng `git add` thật (không dùng -f) trước khi chốt.
+data/*
+!data/gazetteer/
 *.db
 *.sqlite3
 
@@ -50,6 +67,8 @@ node_modules/
 .next/
 out/
 .nuxt/
+.vite/
+*.tsbuildinfo
 
 # Build
 *.pyc
@@ -58,6 +77,22 @@ out/
 # AI logs — tracked structure, ignored content
 .ai-log/*.jsonl
 .ai-log/archive/
+
+# Claude Code — file trạng thái/runtime cục bộ của phiên làm việc, KHÔNG phải cấu
+# hình chia sẻ của project (giữ .claude/settings.json — vẫn track như cũ). Trước
+# đây các file này chỉ bị ẩn qua .git/info/exclude (cục bộ theo máy, KHÔNG đi theo
+# repo khi người khác clone mới) — chuyển vào đây để clone mới nào cũng tự động
+# đúng ngay, không phải chờ Claude Code tự ghi lại exclude cục bộ trước.
+.claude/scheduled_tasks.lock
+.claude/scheduled_tasks.json
+.claude/routines/.state/
+.claude/worktrees/
+.claude/checkpoints/
+.claude/mailbox/
+.claude/agent-registry.json
+.claude/agent-memory-local
+.claude/first-run
+.claude/assistant-daemon-state.json
 
 #Duy's docs
 duy_docs/

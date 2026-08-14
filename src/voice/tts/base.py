@@ -1,4 +1,4 @@
-"""TTS provider contract — sở hữu chính thức: Phần 5 (`docs/voice_ai_overview.md` §5).
+"""TTS provider contract — sở hữu chính thức: Phần 5 (`docs/voice-ai/voice_ai_overview.md` §5).
 
 Xem ghi chú ownership ở `src/voice/asr/base.py` — cùng lý do, cùng
 nguyên tắc "không tự ý đổi signature".
@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from typing import Protocol, runtime_checkable
 
-from src.models.voice_schemas import TTSResult
+from src.voice.schemas import TTSResult
 
 
 @runtime_checkable

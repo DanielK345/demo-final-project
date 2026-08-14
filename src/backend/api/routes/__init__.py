@@ -8,9 +8,11 @@ from src.backend.api.routes.calls import router as calls_router
 from src.backend.api.routes.handoffs import router as handoffs_router
 from src.backend.api.routes.health import router as health_router
 from src.backend.api.routes.sessions import router as sessions_router
+from src.backend.api.routes.settings import router as settings_router
+from src.backend.api.routes.trips import router as trips_router
+from src.backend.api.routes.voice import router as voice_router
 from src.backend.integrations.voice_client import resolve_voice_provider
 from src.backend.models.schemas import ChatRequest, ChatResponse
-
 
 router = APIRouter()
 
@@ -19,13 +21,15 @@ router.include_router(calls_router)
 router.include_router(sessions_router)
 router.include_router(bookings_router)
 router.include_router(handoffs_router)
+router.include_router(trips_router)
+router.include_router(settings_router)
 
 
 @router.post("/chat", response_model=ChatResponse)
 async def chat(request: ChatRequest) -> ChatResponse:
     """Legacy chat route kept for compatibility with the current test suite."""
     try:
-        result = await agent.ainvoke({"query": request.message})
+        result = await agent.ainvoke({"query": request.message, "turn_id": request.turn_id})
         return ChatResponse(
             response=result.get("response", ""),
             analysis=result.get("analysis", ""),

@@ -2,6 +2,7 @@ from enum import StrEnum
 
 from pydantic import BaseModel, Field
 
+from src.agents.booking_types import VehicleType
 from src.agents.context_models import (
     BusinessContextField,
     ContextCandidate,
@@ -32,6 +33,7 @@ class CorrectionField(StrEnum):
     DESTINATION = "DESTINATION"
     PHONE_NUMBER = "PHONE_NUMBER"
     VEHICLE_TYPE = "VEHICLE_TYPE"
+    PASSENGER_COUNT = "PASSENGER_COUNT"
 
 
 class Correction(BaseModel):
@@ -57,8 +59,11 @@ class UnderstandingResult(BaseModel):
     intent: UnderstandingIntent = UnderstandingIntent.UNKNOWN
     pickup_query: str | None = None
     destination_query: str | None = None
-    vehicle_type: str | None = None
     phone_number: str | None = None
+    vehicle_type: VehicleType | None = None
+    passenger_count: int | None = Field(default=None, ge=1, le=50)
+    luggage_count: int | None = Field(default=None, ge=0, le=50)
+    vehicle_preference: str | None = Field(default=None, max_length=200)
     booking_id: str | None = None
     confirmation: ConfirmationIntent = ConfirmationIntent.NOT_APPLICABLE
     corrections: list[Correction] = Field(default_factory=list)

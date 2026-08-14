@@ -1,6 +1,7 @@
 import pytest
 
 from src.agents.agent import LLMAgent
+from src.agents.booking_types import VehicleType
 from src.agents.graph import AgentGraphAdapter
 from src.agents.history import build_message_id
 from src.agents.schemas import ActionType, AgentInput, ToolName, ToolResult, ToolStatus
@@ -388,3 +389,39 @@ def test_raw_evidence_safety_removes_ungrounded_corrections():
     )
 
     assert result.corrections == []
+
+
+def test_raw_evidence_safety_keeps_only_grounded_vehicle_data():
+    from src.agents.understanding.safety import enforce_raw_understanding_evidence
+
+    grounded = enforce_raw_understanding_evidence(
+        UnderstandingResult(
+            vehicle_type=VehicleType.MOTORBIKE,
+            corrections=[
+                Correction(
+                    field=CorrectionField.VEHICLE_TYPE,
+                    value=VehicleType.MOTORBIKE.value,
+                )
+            ],
+        ),
+        raw_transcript="Đổi xe sang xe máy",
+    )
+    hallucinated = enforce_raw_understanding_evidence(
+        UnderstandingResult(vehicle_type=VehicleType.CAR_7),
+        raw_transcript="Cho tôi loại xe phù hợp",
+    )
+
+    assert grounded.vehicle_type is VehicleType.MOTORBIKE
+    assert grounded.corrections[0].field is CorrectionField.VEHICLE_TYPE
+    assert hallucinated.vehicle_type is None
+
+
+def test_raw_evidence_safety_rejects_wrong_passenger_count():
+    from src.agents.understanding.safety import enforce_raw_understanding_evidence
+
+    result = enforce_raw_understanding_evidence(
+        UnderstandingResult(passenger_count=5),
+        raw_transcript="Tôi đi 3 người",
+    )
+
+    assert result.passenger_count is None

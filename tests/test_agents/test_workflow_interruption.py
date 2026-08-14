@@ -26,6 +26,10 @@ def complete_locations() -> BookingData:
         {
             "pickup": {"place_id": "p1", "display_name": "Hồ Gươm"},
             "destination": {"place_id": "d1", "display_name": "Times City"},
+            "vehicle_type": "CAR_4",
+            "fare_estimate_id": "fare-001",
+            "estimated_fare_amount": 75000,
+            "estimated_currency": "VND",
         }
     )
 

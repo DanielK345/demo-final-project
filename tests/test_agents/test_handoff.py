@@ -164,6 +164,34 @@ async def test_handoff_preserves_relevant_context():
 
 
 @pytest.mark.asyncio
+async def test_handoff_redacts_nested_phone_and_booking_id():
+    state = AgentState(
+        session_id="session-001",
+        collected_data={
+            "booking": {
+                "phone_number": "0901234567",
+                "booking_id": "GSM-12345",
+                "booking_status": "CONFIRMED",
+            }
+        },
+    )
+
+    action = await HandoffWorkflow().handle(
+        AgentInput(
+            session_id=state.session_id,
+            turn_id="turn-001",
+            transcript="Cho tôi gặp tổng đài viên",
+        ),
+        state,
+    )
+    business_data = action.state_updates["collected_data"]["handoff_context"]["business_data"]
+
+    assert business_data["booking"]["phone_number"] == "[REDACTED_PHONE]"
+    assert business_data["booking"]["booking_id"] == "[REDACTED_BOOKING_ID]"
+    assert business_data["booking"]["booking_status"] == "CONFIRMED"
+
+
+@pytest.mark.asyncio
 async def test_handoff_rejects_state_from_another_session():
     with pytest.raises(ValueError, match="same session"):
         await HandoffWorkflow().handle(

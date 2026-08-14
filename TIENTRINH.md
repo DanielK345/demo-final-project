@@ -1,0 +1,316 @@
+# Tiến trình dự án — AloSM Voice
+
+Tài liệu sống, cập nhật theo phiên làm việc. Lịch sử Voice AI trước 13/08/2026 xem
+[`docs/reports/2026-08-13-voice-ai-progress.md`](docs/reports/2026-08-13-voice-ai-progress.md)
+(đã archive). File này bắt đầu từ phần Database/Supabase trở đi, cùng ngày.
+
+**Branch làm việc:** `feature/voice-ai` (toàn bộ, không đụng branch khác, không merge).
+
+---
+
+## 1. Database Supabase — thiết kế + hạ tầng
+
+- Thiết kế schema 8 bảng (`users`, `auth_tokens`, `ride_sessions`, `bookings`,
+  `trips`, `handoffs`, `calls`, `conversation_events`) — ERD + lý do thiết kế đầy đủ
+  tại [`docs/database_supabase.md`](docs/database_supabase.md).
+- `src/backend/db/base.py` + `models.py`: engine async, tuned cho Supabase
+  Transaction Pooler (tắt prepared statement cache — tránh lỗi kinh điển
+  asyncpg+Supavisor).
+- `alembic.ini` + `migrations/`: đã verify thật (`alembic upgrade head` +
+  `alembic check` khớp 100%, round-trip qua async engine thật trên SQLite local).
+- **Còn lại (cần bạn):** tạo project Supabase thật, dán connection string vào `.env`
+  — xem hướng dẫn 5 bước trong `docs/database_supabase.md`.
+- **Chưa làm (việc tiếp theo, không phải lỗi):** `AuthService`/`SessionService`/
+  `BookingService` vẫn lưu bằng dict RAM, chưa nối vào DB thật.
+
+## 2. Xung đột Voice AI — 2 hệ thống song song
+
+Phát hiện: 1 commit khác (`test_speech_model`, DanielK345) ghi đè hoàn toàn route
+Voice AI cũ, làm app không boot được. Khôi phục xong thì phát hiện tiếp: Frontend đã
+nối thật vào route bị gỡ đó (`AssistantPage.tsx` → `features/voice/api.ts` →
+`POST /voice/turn`). Giải pháp cuối: **cả 2 hệ thống cùng tồn tại** trong
+`src/backend/api/routes/voice.py` (khác path, không đè nhau) — xem
+[`docs/voice-ai/architecture-note-2-voice-systems.md`](docs/voice-ai/architecture-note-2-voice-systems.md).
+Team cần chọn 1 để giữ lâu dài (mustdo.md không liệt kê vì không chặn hoạt động hiện
+tại, nhưng nên dọn sau).
+
+## 3. Tổ chức lại project
+
+Root sạch hơn (bỏ file rác `=0.5.0`, viết lại `README.md` — trước đó rỗng từ lúc tạo),
+gom docs Voice AI vào `docs/voice-ai/`, báo cáo tiến độ cũ vào `docs/reports/`, xoá
+code chết đã verify kỹ (`src/agents/nodes/`, `src/agents/policies/` — scaffold khoá
+học chưa từng hoàn thiện; cụm chat UI cũ `ChatWindow`/`ChatInput`/`MessageBubble`/
+`VoiceVisualizer`/`hooks.ts`/`types.ts` — đã bị thay bởi UI mới trong
+`AssistantPage.tsx`). Phát hiện thêm bug thật: `data/gazetteer/place_names.json`
+(dữ liệu Voice AI) bị `.gitignore` nuốt mất, chưa từng được commit — mọi clone khác
+đều có gazetteer rỗng, lỗi âm thầm. Đã sửa.
+
+## 4. Hoàn thiện 6 trang Frontend "mồ côi" + Backend tương ứng
+
+6 trang tồn tại trong code nhưng không route nào trỏ tới (Home/Booking/Tracking/
+Activity/Payment/Profile) — theo yêu cầu trực tiếp, đã route lại (lồng trong
+`AppLayout` — Sidebar/Topbar/MobileNav vốn build sẵn cho việc này) và nối vào Backend
+thật, không còn `MOCK_*`/`setTimeout` giả:
+
+**Backend mới:** `GET /api/v1/bookings` (lịch sử theo user — mới hoàn toàn),
+`GET/PUT /api/v1/users/me/settings` (mới), `POST /api/v1/auth/change-password` (nối
+vào `AuthService.change_password` đã viết từ trước nhưng chưa dùng). Sửa bug thật:
+`TripService.get_status()` trước trả `trip_id` random mỗi lần gọi — giờ mô phỏng ổn
+định theo `booking_id` (tài xế/xe/biển số/trạng thái tiến triển theo thời gian). Phát
+hiện thêm: `trips_router` định nghĩa sẵn nhưng **chưa từng được mount** — route đó
+trước đây hoàn toàn không truy cập được.
+
+**Frontend:** BookingPage đặt xe qua đúng dialogue engine thật (Core Agent) thay vì
+xây đường riêng; TrackingPage poll trạng thái thật; ActivityPage lịch sử thật;
+Profile/Home dữ liệu người dùng thật; Payment (Cài đặt) lưu thật + đổi mật khẩu thật.
+Ví/coupon: chưa có backend nào cho việc này — hiện trạng thái rỗng trung thực thay vì
+số dư/thẻ giả.
+
+Verify thật qua server đang chạy (không chỉ unit test): đăng nhập → tạo session →
+nhắn tin đặt xe → agent resolve địa điểm → xác nhận → booking tạo thật → xuất hiện ở
+`/bookings` → `/trips/status` trả tài xế ổn định → đổi mật khẩu → đăng nhập lại bằng
+mật khẩu mới. Tất cả đúng status code kỳ vọng.
+
+## 5. QA toàn bộ chuyển màn/button (phiên này)
+
+Rà soát có hệ thống mọi nút bấm và logic điều hướng của Frontend (không chỉ page,
+cả `Sidebar`/`Topbar`/`MobileNav`/`AssistantPage` và các component con) — tìm được
+**8 lỗi thật**, đã sửa hết:
+
+| # | Lỗi | File | Sửa |
+|---|---|---|---|
+| 1 | Nav "Home" luôn sáng highlight bất kể đang ở trang nào (thiếu prop `end` của `NavLink` — path `"/"` match mọi path trong React Router v6/v7) | `Sidebar.tsx`, `MobileNav.tsx` | Thêm `end` |
+| 2 | `NotFoundPage` (404) chữ gần như vô hình — dùng `text-slate-100`/`text-slate-400` (gần trắng) trong khi nền thật `#F8F9FB` (sáng) | `NotFoundPage.tsx` | Đổi màu chữ tối |
+| 3 | Dropdown tài khoản: "Ví AloSM Pay" trỏ tới `/payment` (thực chất là trang Cài đặt), không phải chỗ có "Phương thức thanh toán" thật (`/profile`) | `Topbar.tsx` | Sửa `to="/profile"` |
+| 4 | Nút chuông Thông báo bấm không có phản ứng gì (không có `onClick`) | `Topbar.tsx` | Thêm dropdown "Chưa có thông báo mới" |
+| 5 | Nút Đăng xuất cũ **không xoá session** — token cũ vẫn hợp lệ sau khi "đăng xuất" | `Topbar.tsx` | Gọi `clearAuthSession()` |
+| 6 | Filter "Tháng trước" ở Activity không lọc được gì — không có nhánh xử lý, rơi xuống `return true` giống "Tất cả" | `ActivityList.tsx` | Thêm lọc theo `created_at` (30 ngày) |
+| 7 | Vào `/assistant` không có đường quay lại Home/Booking/... — chỉ có Đăng xuất (mất hết phiên) | `AssistantPage.tsx` | Thêm link "Trang chủ" (tạm thời — xem mục 6: sau đó thay hẳn bằng taskbar thật theo yêu cầu tiếp theo) |
+| 8 | Khi hội thoại tự kết thúc (agent trả `END_SESSION`, vd khách nói "hủy"), code **đăng xuất khỏi cả tài khoản** — trong khi nút "Kết thúc phiên" tường minh chỉ reset hội thoại, không đăng xuất. 2 đường xử lý cùng 1 tình huống khác hẳn nhau | `AssistantPage.tsx` (2 chỗ) | Đồng bộ theo `handleEndSession` |
+
+Cũng dọn thêm code chết phát hiện trong lúc audit (không dùng ở đâu, gây lỗi lint
+thật `rules-of-hooks`): `features/booking/components/{LocationPicker,ServiceSelector,
+BookingPanel}.tsx`, `features/booking/types.ts`, `components/ui/Input.tsx` — cụm UI
+"chọn địa điểm" cũ, bị thay bởi input thường trong `BookingPage.tsx` hiện tại.
+
+Bổ sung 1 việc hoàn thiện nhỏ: nút "Đặt lại chuyến này" (Activity/Home) giờ mở thẳng
+modal xác nhận đặt xe (`openModal: true`) thay vì chỉ điền sẵn địa chỉ rồi phải bấm
+thêm 1 lần — đúng với thiết kế `openModal` đã có sẵn trong `BookingPage.tsx`.
+
+Và 1 lớp bảo vệ logic: `createBookingViaForm` (BookingPage) giờ chỉ gửi "Đúng" khi
+agent thật sự đang ở bước `CONFIRM` — tránh gửi xác nhận mù quáng nếu agent hỏi lại
+điều gì khác (địa điểm chưa rõ, loại xe chưa nhận diện được).
+
+> **Cập nhật (mục 7):** `createBookingViaForm` và modal xác nhận riêng của
+> BookingPage đã bị **gỡ bỏ hoàn toàn** — mọi nút đặt xe giờ nối thẳng vào AI
+> Assistant thay vì có luồng đặt xe riêng. Đoạn trên giữ lại để biết lý do thiết kế
+> ban đầu.
+
+## 6. AssistantPage: taskbar thật, giao diện tối, lịch sử trò chuyện
+
+Theo yêu cầu trực tiếp: trước đây `/assistant` đứng riêng ngoài `AppLayout`, chỉ có
+1 link "Trang chủ" tự chế để quay lại — không phải taskbar thật. Đã sửa tận gốc:
+
+- **Router**: `/assistant` giờ lồng trong `AppLayout` như mọi trang khác — có đầy đủ
+  Sidebar/Topbar/MobileNav để chuyển màn, không còn đường cụt.
+- **Giao diện tối**: khu vực trò chuyện (panel chính + `BookingProgressSidebar`) vẽ
+  lại theo tông tối (`#0B0E11`, chữ trắng/slate sáng, nhấn `#00D1C1`) — nổi bật như 1
+  "phòng trò chuyện" giữa dashboard sáng. Sidebar/Topbar/MobileNav giữ nguyên sáng
+  (đồng bộ với mọi trang khác — đổi cả bộ khung sang tối là việc khác, lớn hơn nhiều,
+  ngoài phạm vi yêu cầu lần này).
+- **Voice-first**: nút mic đặt đầu tiên, to, nổi bật (gradient tối, phóng to khi đang
+  ghi âm). Chat text gấp gọn phía sau nút "Hoặc nhắn tin" — vẫn dùng được đầy đủ,
+  không phải bắt buộc nhìn thấy ngay như trước. (Lưu ý: trình duyệt bắt buộc phải có
+  thao tác bấm của người dùng mới được xin quyền micro — không thể "tự chạy" mic mà
+  không cần bấm gì, đây là giới hạn bảo mật trình duyệt, không phải thiếu sót.)
+- **Lịch sử trò chuyện (tính năng mới)**: nút "Lịch sử trò chuyện" mở panel liệt kê
+  toàn bộ session cũ của user (mới nhất trước, có preview + số tin nhắn), bấm vào 1
+  session hiện popup toàn bộ nội dung dạng bong bóng chat dễ đọc.
+  - Backend: `GET /api/v1/sessions/history` (list) + `GET /api/v1/sessions/history/
+    {session_id}` (transcript) — đọc trực tiếp từ `logs/*.json`, nơi
+    `ConversationLogger` (đã có sẵn từ trước, chưa từng được khai thác) ghi lại từng
+    lượt hội thoại. Verify quyền sở hữu (user A không xem được lịch sử user B).
+  - Phát hiện + sửa tác dụng phụ: mỗi lần `pytest` chạy, `SessionService.
+    _conversation_logger` (class attribute dùng chung) ghi file log THẬT vào `logs/`
+    — trước khi có tính năng này chỉ là rác vô hại, giờ sẽ LẪN VÀO lịch sử trò chuyện
+    thật nếu ai chạy `pytest` trên máy đang chạy server thật. Thêm fixture
+    `autouse` trong `tests/conftest.py` trỏ logger sang thư mục tạm (`tmp_path`) cho
+    mọi test — không đụng `tests/test_backend/test_conversation_logger.py` (tự inject
+    logger riêng, không phụ thuộc mặc định).
+
+## 7. "AI đặt xe ngay" + Giao diện tối toàn site
+
+Theo yêu cầu trực tiếp: (1) mọi nút "Đặt ngay"/"Đặt xe ngay"/"Chọn dịch vụ" phải đổi
+tên và nối THẲNG vào Agentic AI Assistant thay vì tự bấm chọn/điền form; (2)
+AssistantPage đang tối là sai — quay lại giao diện sáng như mọi trang; (3) xây giao
+diện tối cho TOÀN BỘ website, bật/tắt qua Settings.
+
+- **1 đường đặt xe duy nhất — qua AI Assistant**: gỡ bỏ hoàn toàn modal "Confirm
+  Booking" tự điền pickup/dropoff của BookingPage (và `createBookingViaForm`, xem
+  ghi chú ở mục 5). Mọi nút đặt xe trong app — hero "Đặt xe ngay" + 3 card dịch vụ ở
+  HomePage, 3 card dịch vụ ở BookingPage, "Đặt lại chuyến này" ở ActivityList/
+  HomePage, "Đặt xe ngay" ở trạng thái rỗng của TrackingPage — đổi nhãn thành
+  **"AI đặt xe ngay"** / **"AI đặt lại chuyến này"** và điều hướng sang `/assistant`
+  kèm `state.prefill` (câu mô tả chuyến đi bằng ngôn ngữ tự nhiên, vd `"Tôi muốn đặt
+  xe AloSM Premium loại hạng sang."`). `AssistantPage` tự gửi câu này ngay khi có
+  session — dùng đúng cơ chế quick-chip có sẵn (`send()`), không phải luồng riêng.
+  Đã verify qua server thật: các câu prefill (cả có dấu và tên thương hiệu "AloSM
+  Taxi/Premium") được Core Agent hiểu và khởi động đúng `RideBookingWorkflow`.
+- **AssistantPage quay lại giao diện sáng**: panel trò chuyện + `BookingProgressSidebar`
+  vẽ lại nền trắng/viền xám nhạt như mọi trang khác — không còn tự ý tối riêng 1
+  trang. Taskbar thật, voice-first, lịch sử trò chuyện (mục 6) giữ nguyên logic,
+  chỉ đổi màu.
+- **Giao diện tối cho TOÀN BỘ site (mới)**: `ThemeProvider` (`app/providers/
+  ThemeProvider.tsx` + `theme-context.ts` + `useTheme.ts`) áp class `dark` lên
+  `<html>`, kết hợp biến thể `dark:` của Tailwind v4 (`@custom-variant dark` trong
+  `index.css`). Nguồn sự thật kép: `localStorage` (`alosm_theme`, áp ngay cả trước
+  khi đăng nhập, đọc đồng bộ trong `index.html` để tránh nháy sáng→tối lúc tải
+  trang) + backend (`GET/PUT /users/me/settings`, field `theme` — đã có sẵn từ
+  trước nhưng CHƯA từng thật sự đổi giao diện, chỉ lưu vô tri). Bật/tắt tại
+  Cài đặt (Settings) → mục "Giao diện" → bấm "Sáng"/"Tối": đổi ngay lập tức + lưu
+  backend để đồng bộ khi đăng nhập trên thiết bị khác.
+  - Thêm biến thể `dark:` cho TOÀN BỘ trang/khung dùng chung: `AppLayout`,
+    `Sidebar`, `Topbar`, `MobileNav`, `HomePage`, `BookingPage`, `ActivityPage` +
+    `ActivityList`, `ProfilePage`, `TrackingPage` + `TrackingCard`, `PaymentPage`
+    (Cài đặt), `NotFoundPage`, `LoginPage` + `LoginForm`, và các modal/panel của
+    AssistantPage (`HistoryPanel`, `TranscriptModal`, `BookingSuccessPanel`,
+    `LlmStatusNote`) — trước đó 2 modal lịch sử trò chuyện bị hard-code tối cứng,
+    giờ theo đúng theme chung.
+  - Tách `useTheme` ra khỏi `ThemeProvider.tsx` (file riêng `useTheme.ts` +
+    `theme-context.ts`) — gộp chung sẽ vi phạm quy tắc Fast Refresh của Vite
+    (oxlint `react(only-export-components)`), tránh dùng eslint-disable để che.
+  - Verify qua server thật: `PUT /users/me/settings {"theme":"dark"}` → `GET` trả
+    đúng `"theme":"dark"`, round-trip chính xác.
+
+## 8. Trạng thái hiện tại (đã verify, tính đến mục 7)
+
+- `pytest`: 262 passed / 4 skipped / 0 failed (backend không đổi ở mục 7)
+- `tsc -b`: sạch
+- `npm run build`: sạch
+- `oxlint`: **sạch hoàn toàn**, 0 warning
+- Boot server thật: `/health`, `/api/v1/voice/health` đều 200
+- `GET /api/v1/sessions/history` + `GET /api/v1/sessions/history/{id}`: verify thật —
+  đăng nhập → gửi tin nhắn → xuất hiện trong list → xem transcript đúng nội dung →
+  session không phải của mình trả 404 (không rò rỉ dữ liệu chéo user)
+- Settings theme round-trip: `PUT`/`GET /users/me/settings` verify thật qua server
+- Câu "AI đặt xe ngay" prefill: verify thật qua server — Core Agent nhận đúng, khởi
+  động `RideBookingWorkflow`
+
+## 9. Nhập Core Agent + RAG thật từ nhánh `feature/agentic-ai`
+
+Yêu cầu: phân tích toàn bộ phần agentic agent/RAG trên `origin/feature/agentic-ai` và
+đưa vào `feature/voice-ai`, không đụng branch nào khác, không xung đột với logic hiện
+có. Đây là công việc lớn nhất session này — thay cả bộ `src/agents/` MVP đơn giản đã
+xây từ đầu bằng bản đầy đủ, có guardrail/history/repair/understanding thật của nhánh
+kia — không phải chỉ copy file.
+
+**Đã kiểm tra kỹ trước khi động vào gì:**
+- `git merge-base feature/voice-ai origin/feature/agentic-ai` — 2 nhánh tách từ 1 gốc
+  chung, `feature/agentic-ai` có 12 commit riêng chỉ động vào `src/agents/`,
+  `tests/test_agents/`, `examples/` — phạm vi cô lập rõ ràng, không đụng
+  frontend/voice/database.
+- `src/agents/rag/` **giống hệt** giữa 2 nhánh (đã có sẵn từ gốc chung, không đổi) —
+  không phải nhập mới, chỉ cần nối vào backend thật (xem bên dưới).
+- Đọc kỹ `src/agents/docs/BACKEND_INTEGRATION.md` (tài liệu contract chính thức của
+  nhánh kia) để biết chính xác backend phải làm gì — không đoán.
+
+**2 xung đột hành vi thật sự (đã hỏi ý kiến trước khi làm, xem hội thoại):**
+- Core Agent thật **bắt buộc số điện thoại** khi tạo booking (để tài xế liên hệ) —
+  nhưng app đang hứa "không hỏi số điện thoại, email hay thông tin riêng tư". Giải
+  quyết: SĐT lấy tự động từ tài khoản (đã có từ lúc đăng ký), seed thẳng vào
+  `AgentState.collected_data["booking"]["phone_number"]` lúc tạo session — agent thấy
+  đã có sẵn nên tự bỏ qua bước hỏi, không sửa gì trong code của nhánh kia.
+- Core Agent thật đổi hẳn danh mục xe: bỏ `4_SEAT/7_SEAT/PREMIUM`, thay bằng
+  `MOTORBIKE/CAR_4/CAR_7` (xe máy/ô tô 4 chỗ/ô tô 7 chỗ — không còn "hạng sang"). Cập
+  nhật toàn bộ danh mục dịch vụ + câu chào + prefill "AI đặt xe ngay" theo đúng 3 loại
+  xe thật này.
+
+**Đưa vào (`git checkout origin/feature/agentic-ai -- <path>`, thay thế sạch):**
+`src/agents/` (agent.py, schemas.py, state.py, guardrails.py, router.py, +
+`context.py`/`history.py`/`repair.py` (sửa lỗi hội thoại, ngắt lời), +
+`understanding/rewrite_*` (viết lại câu người dùng theo ngữ cảnh trước khi hiểu ý
+định), `vehicle_recommendation.py`, `booking_types.py`, `location_policy.py`,
+`phone_policy.py`, `docs/`), `tests/test_agents/` (326 test, tất cả pass ngay khi vừa
+nhập, chưa đụng gì tới backend), `tests/integration/`, `tests/test_examples/`,
+`examples/`. Xoá 3 file scaffold chết còn sót từ template khoá học
+(`tools/example_tool.py`, `tools/geocode.py`, `tools/trip_status.py` — hardcode
+`lat:0.0`, không ai import).
+
+**Viết lại tầng tích hợp backend (KHÔNG mock, nối service thật):**
+- `AgentToolExecutor` — thêm 3 tool mới (`get_vehicle_options`, `estimate_fare`,
+  `cancel_booking`), viết lại cả các tool cũ:
+  - `PlaceSearchService` (mới) — `search_place` tra thật trên gazetteer địa danh có
+    sẵn (`data/gazetteer/place_names.json`, vốn chỉ dùng cho Voice ASR biasing trước
+    đây), thay vì echo nguyên câu nhập thành 1 candidate giả.
+  - `PricingService` (mới) — giá cước/ETA tính theo công thức khoảng cách × đơn giá
+    từng loại xe, khoảng cách suy deterministic từ hash cặp điểm đón/đến (chưa có
+    Maps API thật — cùng nguyên tắc mô phỏng ổn định đã dùng ở `TripService`), thay
+    cho số cố định 85.000đ mọi chuyến.
+  - `KnowledgeService` (mới) — retriever thật cắm vào `src/agents/rag/` (interface có
+    sẵn từ nhánh kia nhưng chưa có nội dung/retriever cụ thể): bộ 6 tài liệu FAQ thật
+    khớp đúng chính sách đã hiển thị nơi khác trong app + so khớp từ khoá (đã lọc từ
+    dừng tiếng Việt) thay vì luôn trả 2 câu cố định. `FAQWorkflow` của nhánh kia yêu
+    cầu `score >= 0.75` mới chấp nhận (chống trả lời bừa) — giữ nguyên ngưỡng đó, viết
+    nội dung theo đúng khuôn FAQ thật (câu hỏi + câu trả lời) để khớp từ khoá tự nhiên
+    hơn thay vì hạ ngưỡng.
+  - `BookingService.cancel_booking` (mới, idempotent) + lưu thêm `phone_number` mỗi
+    booking để `lookup_trip` tra được theo số điện thoại.
+- `SessionService` — sinh `turn_id` mỗi lượt gọi Agent (bắt buộc theo contract mới),
+  seed SĐT tài khoản vào state phiên mới, viết lại cách suy tín hiệu SUCCESS/FAILED
+  cho UI (nhánh kia bỏ hẳn field `lifecycle_status` khỏi `BookingData` — ưu tiên
+  HANDOFF cho người thật xử lý khi tool lỗi thay vì tự báo lỗi cứng).
+- `routes/__init__.py` (chat route legacy) + `models/schemas.py` — thêm `turn_id` bắt
+  buộc theo `AgentInput` mới.
+- `.env.example` + `src/backend/config.py` — thêm `AGENT_REWRITE_*` (tính năng viết
+  lại câu theo ngữ cảnh, tắt mặc định) — **không** dùng `src/config.py` độc lập của
+  nhánh kia (project này đã tổ chức lại settings về `src/backend/config.py` từ trước).
+
+**Frontend:** danh mục dịch vụ (Home/Booking), câu chào `AssistantPage`, và
+`BookingProgressSidebar` (thêm hiển thị giá cước ước tính) cập nhật theo đúng 3 loại
+xe thật + giữ nguyên toàn bộ luồng "AI đặt xe ngay" đã xây ở mục 7.
+
+**Verify (không chỉ đọc code):**
+- `pytest` toàn bộ: 485 passed / 6 skipped / 0 failed (từ 262 lên 485 — thêm 326 test
+  của `tests/test_agents/` từ nhánh kia, tất cả pass nguyên trong project này).
+- `ruff check` trên toàn bộ file mới/sửa: sạch (đã đối chiếu 62 lỗi ruff còn lại trên
+  toàn repo — toàn bộ đều ở file KHÔNG liên quan tới việc này, có từ trước).
+- Live-boot server thật, đi hết 1 lượt đặt xe hoàn chỉnh qua API thật (không phải
+  test giả lập): đăng ký tài khoản → "Tôi muốn đặt xe" → "Chợ Bến Thành" (search_place
+  thật khớp gazetteer) → "Sân bay Tân Sơn Nhất" → "ô tô 4 chỗ" → agent tự tính giá
+  31.800đ và hỏi xác nhận (**không hỏi số điện thoại** — verify đúng ý muốn) → "Đúng"
+  → booking thật được tạo, `GET /api/v1/bookings` thấy đúng chuyến với dữ liệu thật.
+  Test thêm FAQ/RAG thật (2 câu khớp ngưỡng 0.75, trả lời đúng nội dung) và tra cứu
+  chuyến theo mã/SĐT.
+- Xác nhận không đụng branch nào khác: chỉ làm việc bằng `git show`/
+  `git checkout origin/feature/agentic-ai -- <path>` (không `checkout`/switch sang
+  nhánh đó), `git branch --show-current` luôn là `feature/voice-ai`,
+  `origin/feature/agentic-ai` không đổi ref sau khi xong.
+
+## 10. Việc còn lại (`mustdo.md` — cần người/credential thật)
+
+1. Tạo project Supabase thật (database production).
+2. Chọn 1 trong 2 hệ thống Voice AI để giữ lâu dài (không chặn, chỉ nên dọn sau).
+3. Payment Gateway thật (VNPay/MoMo/Stripe) — nếu muốn Ví AloSM Pay hoạt động thật.
+4. Coupon/loyalty — cần quyết định nghiệp vụ trước khi code.
+5. 2FA thật (TOTP/SMS) — hiện chỉ persist lựa chọn, chưa enforce lúc đăng nhập.
+6. `OPENAI_API_KEY` thật nếu muốn bật LLM hiểu ngôn ngữ tự nhiên đầy đủ (`AGENT_LLM_*`)
+   và tính năng viết lại câu theo ngữ cảnh (`AGENT_REWRITE_*`, mục 9).
+7. Maps/routing API thật nếu muốn khoảng cách/giá cước chính xác theo GPS thay vì suy
+   deterministic từ hash cặp điểm đón/đến (mục 9 — `PricingService`).
+8. Router/dialogue-act detector rule-based (khi tắt LLM) đôi lúc hiểu sai câu hỏi FAQ
+   thành lệnh huỷ/khác (quan sát khi verify mục 9) — thuộc logic gốc của nhánh
+   feature/agentic-ai, sẽ tự cải thiện khi bật `AGENT_LLM_ENABLED`/`AGENT_REWRITE_ENABLED`
+   thật, không sửa trong project này để giữ đúng logic gốc.
+
+## 11. Lệnh kiểm tra nhanh
+
+```bash
+# Backend
+python -m pytest -q
+uvicorn src.main:app --reload --port 8000
+
+# Frontend
+cd src/frontend
+npx tsc -b && npm run build && npm run lint
+npm run dev
+```

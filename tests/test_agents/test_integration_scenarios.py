@@ -132,9 +132,28 @@ async def test_booking_happy_path_through_langgraph():
         )
     )
     assert ask_vehicle.action_type is ActionType.ASK_USER
-    assert "loại xe" in ask_vehicle.message
+    assert "bao nhiêu người" in ask_vehicle.message
 
-    confirmation = await scenario.user_turn("xe 4 chỗ")
+    fare_call = await scenario.user_turn("Ô tô 4 chỗ")
+    assert fare_call.action_type is ActionType.CALL_TOOL
+    assert fare_call.tool_call is not None
+    assert fare_call.tool_call.tool_name is ToolName.ESTIMATE_FARE
+
+    ask_phone = await scenario.tool_turn(
+        successful_result(
+            fare_call,
+            data={
+                "estimate_id": "fare-001",
+                "fare_amount": 75000,
+                "currency": "VND",
+                "eta_minutes": 6,
+            },
+        )
+    )
+    assert ask_phone.action_type is ActionType.ASK_USER
+    assert "số điện thoại" in ask_phone.message
+
+    confirmation = await scenario.user_turn("0901234567")
     assert confirmation.action_type is ActionType.ASK_USER
     assert "xác nhận" in confirmation.message
 
@@ -145,7 +164,10 @@ async def test_booking_happy_path_through_langgraph():
     assert booking_call.tool_call.params == {
         "pickup_place_id": "pickup-1",
         "destination_place_id": "destination-1",
-        "phone_number": "authenticated_account",
+        "phone_number": "0901234567",
+        "vehicle_type": "CAR_4",
+        "fare_estimate_id": "fare-001",
+        "idempotency_key": booking_call.tool_call.params["idempotency_key"],
     }
 
     completed = await scenario.tool_turn(

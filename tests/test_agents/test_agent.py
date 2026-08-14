@@ -38,7 +38,7 @@ class RecordingWorkflow(BaseWorkflow):
         self.received_input = agent_input
         return AgentAction(
             action_type=ActionType.ASK_USER,
-            message="Để đặt xe, anh/chị cần cung cấp điểm đón, điểm đến và loại xe",
+            message="Bạn muốn đón ở đâu?",
             reason="Recording workflow handled the turn.",
         )
 
@@ -99,7 +99,23 @@ async def test_agent_uses_injected_workflow_registry():
 
     assert workflow.was_called is True
     assert action.action_type is ActionType.ASK_USER
-    assert "điểm đón" in action.message
+    assert action.message == "Bạn muốn đón ở đâu?"
+
+
+@pytest.mark.asyncio
+async def test_agent_rejects_replayed_turn_after_history_is_persisted():
+    agent = LLMAgent()
+    agent_input = AgentInput(
+        session_id="session-001",
+        turn_id="turn-001",
+        transcript="Tôi muốn đặt xe",
+    )
+    state = AgentState(session_id="session-001")
+    first_action = await agent.handle(agent_input, state)
+    persisted = state.apply(first_action.state_updates)
+
+    with pytest.raises(DuplicateHistoryMessageError):
+        await agent.handle(agent_input, persisted)
 
 
 @pytest.mark.asyncio

@@ -6,7 +6,7 @@ COLLECT_PICKUP → COLLECT_DESTINATION → CONFIRM → BOOKED, xử lý `stt_con
 BR-003-tương-đương qua `failed_count`) — **không phải** `src/agents/graph.py`
 (LangGraph agent đó chỉ còn phục vụ route `/chat` legacy, xem
 `src/backend/api/routes/__init__.py`). Xác nhận bằng cách đọc code thật, không đoán
-— xem `docs/prompt_voice_integration_real_be_fe.md`.
+— xem `docs/voice-ai/prompt_voice_integration_real_be_fe.md`.
 
 Gọi thẳng `SessionService()` bằng Python (cùng process) — không qua HTTP, không cần
 token auth: `SessionService.sessions` là **class attribute**, mọi instance
@@ -63,7 +63,13 @@ class SessionBridge:
         stt_confidence: float | None = None,
     ) -> SessionTurnResult | None:
         """Trả None nếu session không tồn tại hoặc đã kết thúc — gateway tự xử lý
-        (không raise để khỏi ép gateway phải try/except riêng cho từng loại lỗi)."""
+        (không raise để khỏi ép gateway phải try/except riêng cho từng loại lỗi).
+
+        LƯU Ý (13/08/2026): `SessionService.process_message` đã đổi thành `async def`
+        khi Core Agent thật (`src.agents.agent.LLMAgent`) được nối vào — trước đó là
+        state machine rule-based đồng bộ. Contract phần response (`action`/`message`/
+        `state`/`booking`) không đổi, chỉ cần `await` thêm — xem
+        `src/backend/services/session_service.py::process_message`."""
         try:
             result = await self._service.process_message(session_id, text, stt_confidence)
         except (KeyError, ValueError):

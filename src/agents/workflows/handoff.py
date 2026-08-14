@@ -1,7 +1,7 @@
 from enum import StrEnum
 from typing import Any
 
-from src.agents.guardrails import redact_pii
+from src.agents.guardrails import redact_pii, redact_pii_data
 from src.agents.policy import AgentPolicy
 from src.agents.schemas import (
     ActionType,
@@ -63,11 +63,7 @@ class HandoffWorkflow(BaseWorkflow):
 
         handoff_reason = self.detect_reason(agent_input, state, understanding)
         context = self.build_context(agent_input, state, handoff_reason)
-        collected_data = {
-            key: value
-            for key, value in state.collected_data.items()
-            if key != self.context_key
-        }
+        collected_data = {key: value for key, value in state.collected_data.items() if key != self.context_key}
         collected_data[self.context_key] = context
 
         return AgentAction(
@@ -97,22 +93,13 @@ class HandoffWorkflow(BaseWorkflow):
             return HandoffReason.COMPLAINT
         if any(term in transcript for term in self._USER_REQUEST_TERMS):
             return HandoffReason.USER_REQUEST
-        if (
-            understanding is not None
-            and understanding.intent is UnderstandingIntent.HUMAN_HANDOFF
-        ):
+        if understanding is not None and understanding.intent is UnderstandingIntent.HUMAN_HANDOFF:
             return HandoffReason.USER_REQUEST
-        if (
-            agent_input.tool_result is not None
-            and agent_input.tool_result.status is ToolStatus.ERROR
-        ):
+        if agent_input.tool_result is not None and agent_input.tool_result.status is ToolStatus.ERROR:
             return HandoffReason.CRITICAL_TOOL_ERROR
         if state.retry_count >= self.policy.max_retry_count:
             return HandoffReason.RETRY_LIMIT
-        if (
-            agent_input.stt_confidence is not None
-            and agent_input.stt_confidence < self.policy.low_confidence_threshold
-        ):
+        if agent_input.stt_confidence is not None and agent_input.stt_confidence < self.policy.low_confidence_threshold:
             return HandoffReason.LOW_CONFIDENCE
         return HandoffReason.UNABLE_TO_CONTINUE
 
@@ -122,32 +109,24 @@ class HandoffWorkflow(BaseWorkflow):
         state: AgentState,
         handoff_reason: HandoffReason,
     ) -> dict[str, Any]:
-        business_data = {
-            key: value
-            for key, value in state.collected_data.items()
-            if key != self.context_key
-        }
+        business_data = {key: value for key, value in state.collected_data.items() if key != self.context_key}
         context: dict[str, Any] = {
             "session_id": state.session_id,
             "reason_code": handoff_reason.value,
             "summary": self._build_summary(agent_input, state, handoff_reason),
-            "source_workflow": (
-                state.current_workflow.value
-                if state.current_workflow is not None
-                else None
-            ),
+            "source_workflow": (state.current_workflow.value if state.current_workflow is not None else None),
             "source_step": state.current_step,
             "retry_count": state.retry_count,
             "stt_confidence": agent_input.stt_confidence,
-            "business_data": business_data,
+            "business_data": redact_pii_data(business_data),
         }
 
         if agent_input.tool_result is not None:
             context["tool_result"] = {
                 "tool_name": agent_input.tool_result.tool_name.value,
-                "call_id": agent_input.tool_result.call_id,
+                "call_id": redact_pii(agent_input.tool_result.call_id),
                 "status": agent_input.tool_result.status.value,
-                "error": agent_input.tool_result.error,
+                "error_code": agent_input.tool_result.error_code,
             }
 
         return context
@@ -162,11 +141,7 @@ class HandoffWorkflow(BaseWorkflow):
         if len(transcript) > 300:
             transcript = f"{transcript[:297]}..."
 
-        source = (
-            state.current_workflow.value
-            if state.current_workflow is not None
-            else "NO_ACTIVE_WORKFLOW"
-        )
+        source = state.current_workflow.value if state.current_workflow is not None else "NO_ACTIVE_WORKFLOW"
         user_text = transcript or "No user transcript was provided."
         return (
             f"Reason={handoff_reason.value}; workflow={source}; "

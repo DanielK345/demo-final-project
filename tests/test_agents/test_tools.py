@@ -1,9 +1,11 @@
 import pytest
 from pydantic import ValidationError
 
+from src.agents.booking_types import VehicleType
 from src.agents.schemas import (
     ActionType,
     AgentAction,
+    AgentInput,
     ToolCall,
     ToolName,
     ToolResult,
@@ -11,7 +13,12 @@ from src.agents.schemas import (
     WorkflowType,
 )
 from src.agents.state import AgentState
-from src.agents.tools.booking import CreateBookingTool
+from src.agents.tools.booking import (
+    CancelBookingTool,
+    CreateBookingTool,
+    EstimateFareTool,
+    GetVehicleOptionsTool,
+)
 from src.agents.tools.call_id import build_call_id
 from src.agents.tools.handoff import CreateHandoffTool
 from src.agents.tools.knowledge import RetrieveKnowledgeTool
@@ -51,6 +58,34 @@ def test_trip_lookup_requires_an_identifier():
                 "pickup_place_id": "pickup-1",
                 "destination_place_id": "destination-1",
                 "phone_number": "0900000000",
+                "vehicle_type": VehicleType.CAR_4,
+                "fare_estimate_id": "fare-001",
+                "idempotency_key": "booking-key-001",
+            },
+        ),
+        (
+            EstimateFareTool(),
+            {
+                "pickup_place_id": "pickup-1",
+                "destination_place_id": "destination-1",
+                "vehicle_type": VehicleType.MOTORBIKE,
+            },
+        ),
+        (
+            GetVehicleOptionsTool(),
+            {
+                "pickup_place_id": "pickup-1",
+                "destination_place_id": "destination-1",
+                "passenger_count": 3,
+                "luggage_count": 2,
+                "preference": "comfortable",
+            },
+        ),
+        (
+            CancelBookingTool(),
+            {
+                "booking_id": "booking-001",
+                "idempotency_key": "cancel-key-001",
             },
         ),
         (RetrieveKnowledgeTool(), {"query": "Giá cước là bao nhiêu?"}),
@@ -75,9 +110,65 @@ def test_tool_params_reject_blank_required_text():
         SearchPlaceTool().build_call("call-001", query="   ")
 
 
+def test_create_booking_rejects_invalid_mobile_phone():
+    with pytest.raises(ValidationError, match="valid Vietnamese mobile"):
+        CreateBookingTool().build_call(
+            "call-001",
+            pickup_place_id="pickup-1",
+            destination_place_id="destination-1",
+            phone_number="0123456789",
+            vehicle_type=VehicleType.CAR_4,
+            fare_estimate_id="fare-001",
+            idempotency_key="booking-key-001",
+        )
+
+
 def test_call_tool_action_requires_tool_call():
     with pytest.raises(ValidationError):
         AgentAction(action_type=ActionType.CALL_TOOL)
+
+
+@pytest.mark.parametrize(
+    "action_type",
+    [ActionType.ASK_USER, ActionType.RESPOND, ActionType.HANDOFF, ActionType.END_SESSION],
+)
+def test_customer_facing_actions_require_a_message(action_type):
+    with pytest.raises(ValidationError, match="require a message"):
+        AgentAction(action_type=action_type)
+
+
+def test_input_accepts_tool_result_with_transcript_for_callback_priority():
+    result = ToolResult(
+        tool_name=ToolName.SEARCH_PLACE,
+        call_id="call-001",
+        status=ToolStatus.SUCCESS,
+        data={"candidates": []},
+    )
+
+    agent_input = AgentInput(
+        session_id="session-001",
+        turn_id="turn-001",
+        transcript="khẩn cấp",
+        tool_result=result,
+        stt_confidence=0.2,
+    )
+
+    assert agent_input.tool_result is result
+
+
+def test_shared_identifiers_reject_blank_values():
+    with pytest.raises(ValidationError, match="identity cannot be blank"):
+        AgentInput(session_id="   ", turn_id="turn-001", transcript="hello")
+
+    with pytest.raises(ValidationError, match="identity cannot be blank"):
+        ToolCall(tool_name=ToolName.SEARCH_PLACE, call_id="   ")
+
+    with pytest.raises(ValidationError, match="identity cannot be blank"):
+        ToolResult(
+            tool_name=ToolName.SEARCH_PLACE,
+            call_id="   ",
+            status=ToolStatus.SUCCESS,
+        )
 
 
 def test_failed_tool_result_requires_error_details():

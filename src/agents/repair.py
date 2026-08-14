@@ -52,6 +52,21 @@ _CORRECTION_PATTERNS = (
         ),
     ),
     (
+        CorrectionField.VEHICLE_TYPE,
+        re.compile(
+            r"\b(?:đổi|sửa|thay)\s+(?:lại\s+)?(?:loại\s+)?xe\b",
+            re.IGNORECASE,
+        ),
+    ),
+    (
+        CorrectionField.PASSENGER_COUNT,
+        re.compile(
+            r"\b(?:đổi|sửa|thay)\s+(?:lại\s+)?(?:số\s+)?"
+            r"(?:người|hành\s*khách)\b",
+            re.IGNORECASE,
+        ),
+    ),
+    (
         None,
         re.compile(r"\b(?:tôi\s+muốn\s+)?sửa\s+(?:lại\s+)?thông\s+tin\b", re.IGNORECASE),
     ),
@@ -76,7 +91,11 @@ _WORKFLOW_NAMESPACES = {
     WorkflowType.FAQ: "faq",
     WorkflowType.HUMAN_HANDOFF: "handoff_context",
 }
-_SIDE_EFFECT_TOOLS = {ToolName.CREATE_BOOKING, ToolName.CREATE_HANDOFF}
+_SIDE_EFFECT_TOOLS = {
+    ToolName.CREATE_BOOKING,
+    ToolName.CANCEL_BOOKING,
+    ToolName.CREATE_HANDOFF,
+}
 _START_OVER_PROMPTS = {
     WorkflowType.RIDE_BOOKING: (
         "COLLECT_PICKUP",
@@ -266,6 +285,21 @@ class ConversationRepairHandler:
 
     @staticmethod
     def _cancel(agent_input: AgentInput, state: AgentState) -> AgentAction:
+        booking = _completed_booking(state)
+        if state.current_workflow is None and booking is not None:
+            return AgentAction(
+                action_type=ActionType.ASK_USER,
+                message=(
+                    f"Bạn xác nhận muốn hủy chuyến {booking.booking_id} đã đặt không?"
+                ),
+                state_updates={
+                    "current_workflow": WorkflowType.RIDE_BOOKING,
+                    "current_step": BookingStep.CONFIRM_CANCEL,
+                    "confirmation": ConfirmationStatus.AWAITING_CONFIRMATION,
+                    "retry_count": 0,
+                },
+                reason="Cancellation of a completed booking requires confirmation.",
+            )
         interrupted = state.interrupted_workflow
         targets_interrupted = interrupted is not None and (
             state.current_workflow is None
@@ -549,6 +583,17 @@ def _requires_reconciliation(state: AgentState) -> bool:
     return state.pending_tool_name in _SIDE_EFFECT_TOOLS
 
 
+def _completed_booking(state: AgentState) -> BookingData | None:
+    try:
+        booking = BookingData.model_validate(state.collected_data.get("booking", {}))
+    except ValueError:
+        return None
+    status = (booking.booking_status or "").casefold()
+    if booking.booking_id and status not in {"cancelled", "canceled"}:
+        return booking
+    return None
+
+
 def _reconciliation_action(act: DialogueAct) -> AgentAction:
     operation = {
         DialogueAct.CORRECT: "sửa thông tin",
@@ -661,6 +706,12 @@ def _prompt_for_step(workflow: WorkflowType, step: str) -> str:
         (WorkflowType.RIDE_BOOKING, BookingStep.COLLECT_PHONE.value): (
             "Tiếp tục đặt xe. Bạn vui lòng cung cấp số điện thoại."
         ),
+        (WorkflowType.RIDE_BOOKING, BookingStep.COLLECT_VEHICLE.value): (
+            "Tiếp tục đặt xe. Bạn đi bao nhiêu người, có hành lý hoặc ưu tiên gì?"
+        ),
+        (WorkflowType.RIDE_BOOKING, BookingStep.SELECT_VEHICLE_OPTION.value): (
+            "Tiếp tục đặt xe. Bạn vui lòng chọn một phương án xe đã báo."
+        ),
         (WorkflowType.RIDE_BOOKING, BookingStep.SELECT_PICKUP_CANDIDATE.value): (
             "Tiếp tục đặt xe. Bạn vui lòng chọn lại điểm đón trong các kết quả trước."
         ),
@@ -668,10 +719,13 @@ def _prompt_for_step(workflow: WorkflowType, step: str) -> str:
             "Tiếp tục đặt xe. Bạn vui lòng chọn lại điểm đến trong các kết quả trước."
         ),
         (WorkflowType.RIDE_BOOKING, BookingStep.SELECT_CORRECTION_FIELD.value): (
-            "Tiếp tục đặt xe. Bạn muốn sửa điểm đón, điểm đến hay số điện thoại?"
+            "Tiếp tục đặt xe. Bạn muốn sửa điểm đón, điểm đến, số người, loại xe hay số điện thoại?"
         ),
         (WorkflowType.TRIP_LOOKUP, TripLookupStep.COLLECT_IDENTIFIER.value): (
             "Tiếp tục tra cứu. Bạn vui lòng cung cấp mã chuyến hoặc số điện thoại."
+        ),
+        (WorkflowType.TRIP_LOOKUP, TripLookupStep.SELECT_TRIP.value): (
+            "Tiếp tục tra cứu. Bạn vui lòng chọn số thứ tự của chuyến cần xem."
         ),
     }
     return prompts.get(

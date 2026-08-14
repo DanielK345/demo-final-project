@@ -18,7 +18,7 @@ async def test_ride_booking_walking_skeleton():
     action = await agent.handle(agent_input)
 
     assert action.action_type is ActionType.ASK_USER
-    assert "điểm đón" in action.message
+    assert action.message == "Bạn muốn đón ở đâu?"
     assert action.state_updates["current_workflow"] is WorkflowType.RIDE_BOOKING
     assert action.state_updates["current_step"] == "COLLECT_PICKUP"
     assert "booking" in action.state_updates["collected_data"]

@@ -10,7 +10,7 @@ export const LoginPage: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen w-full flex items-center justify-center relative overflow-hidden bg-slate-50 p-4">
+    <div className="min-h-screen w-full flex items-center justify-center relative overflow-hidden bg-slate-50 dark:bg-[#0B0E11] p-4">
       {/* Decorative Radial Grid Pattern Background */}
       <div
         className="absolute inset-0 z-0 opacity-40 pointer-events-none"

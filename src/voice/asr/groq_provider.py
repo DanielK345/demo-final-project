@@ -1,7 +1,7 @@
-"""Groq Whisper ASR provider — Phần 3, D1 (`docs/voice_ai_overview.md`).
+"""Groq Whisper ASR provider — Phần 3, D1 (`docs/voice-ai/voice_ai_overview.md`).
 
 CHƯA test với `GROQ_API_KEY` thật trong môi trường build code này — xem
-`docs/mustdo_voice.md`. Implement theo tài liệu công khai của Groq
+`docs/voice-ai/mustdo_voice.md`. Implement theo tài liệu công khai của Groq
 (endpoint OpenAI-compatible `/audio/transcriptions`,
 https://console.groq.com/docs/speech-to-text, model `whisper-large-v3-turbo`).
 
@@ -19,7 +19,7 @@ import wave
 
 import httpx
 
-from src.models.voice_schemas import ASRResult
+from src.voice.schemas import ASRResult
 
 logger = logging.getLogger(__name__)
 
@@ -45,7 +45,7 @@ def estimate_confidence(payload: dict) -> float:
     `no_speech_prob`.
 
     Đây là heuristic, không phải xác suất chuẩn — cần hiệu chỉnh bằng test
-    tay với audio thật (Tuần 5, `docs/voice_ai_overview.md` §8) trước khi
+    tay với audio thật (Tuần 5, `docs/voice-ai/voice_ai_overview.md` §8) trước khi
     dùng để quyết định BR-001 trong môi trường thật.
     """
     segments = payload.get("segments") or []
@@ -60,7 +60,7 @@ def estimate_confidence(payload: dict) -> float:
 
 
 # Câu Whisper hay "bịa" ra khi audio thực chất gần như im lặng/không có tiếng nói
-# thật — quan sát được khi test tay với GROQ_API_KEY thật (docs/mustdo_voice.md).
+# thật — quan sát được khi test tay với GROQ_API_KEY thật (docs/voice-ai/mustdo_voice.md).
 # `estimate_confidence()` KHÔNG bắt được case này (no_speech_prob=0, avg_logprob
 # cao — Whisper "tự tin" với chính câu nó bịa ra). Danh sách này không đầy đủ, chỉ
 # chặn các case đã tự gặp — mở rộng khi phát hiện thêm câu hallucination khác.
@@ -90,7 +90,7 @@ class GroqASRProvider:
     ) -> None:
         if not api_key:
             raise ValueError(
-                "GroqASRProvider cần GROQ_API_KEY (xem docs/mustdo_voice.md, mục ASR/TTS provider)."
+                "GroqASRProvider cần GROQ_API_KEY (xem docs/voice-ai/mustdo_voice.md, mục ASR/TTS provider)."
             )
         self._api_key = api_key
         self._model = model

@@ -1,6 +1,6 @@
 """Test `SessionBridge` — verify nó gọi đúng `SessionService` thật (không mock), vì
 đây chính là điểm tích hợp quan trọng nhất với Backend (xem
-docs/prompt_voice_integration_real_be_fe.md). Dùng instance `SessionService()` riêng
+docs/voice-ai/prompt_voice_integration_real_be_fe.md). Dùng instance `SessionService()` riêng
 cho mỗi test để không rò rỉ state qua `sessions` (class attribute dùng chung)."""
 
 import pytest
@@ -44,15 +44,22 @@ async def test_send_message_drives_real_booking_flow():
 
 
 @pytest.mark.asyncio
-async def test_send_message_low_confidence_increments_failed_count_like_real_chat():
+async def test_send_message_low_confidence_triggers_immediate_handoff():
+    """Trước đây (SessionService rule-based cũ): 1 lượt confidence thấp chỉ tăng
+    `failed_count`, phải 2 lượt liên tiếp mới handoff. Sau khi Core Agent thật
+    (`src.agents.agent.LLMAgent` + `AgentGuardrails`) được nối vào làm dialogue
+    engine, hành vi đã đổi — xác nhận bằng cách gọi trực tiếp
+    `SessionService.process_message` thật: confidence=0.2 handoff ngay từ lượt đầu.
+    Test này verify `SessionBridge` phản ánh đúng hành vi THẬT hiện tại của
+    SessionService, không phải giả định cũ."""
     bridge, service = _bridge()
     created = await bridge.start_session()
     session_id = created["session_id"]
 
     turn = await bridge.send_message(session_id, "ừm gì đó", stt_confidence=0.2)
     assert turn is not None
-    assert turn.action == "ASK_USER"
-    assert service.get_session(session_id)["failed_count"] == 1
+    assert turn.action == "HANDOFF"
+    assert service.get_session(session_id)["handoff_triggered"] is True
 
 
 @pytest.mark.asyncio

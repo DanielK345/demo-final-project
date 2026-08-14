@@ -151,6 +151,32 @@ def test_context_excludes_arbitrary_data_and_masks_sensitive_values():
     assert "[REDACTED_BOOKING_ID]" in serialized
 
 
+def test_booking_context_includes_vehicle_and_current_fare_estimate():
+    booking = BookingData.model_validate(
+        {
+            "vehicle_type": "CAR_7",
+            "fare_estimate_id": "fare-001",
+            "estimated_fare_amount": 105000,
+            "estimated_currency": "VND",
+            "estimated_eta_minutes": 8,
+            "estimated_distance_km": 15.5,
+        }
+    )
+    state = AgentState(
+        session_id="session-001",
+        current_workflow=WorkflowType.RIDE_BOOKING,
+        current_step="COLLECT_PHONE",
+        collected_data={"booking": booking.model_dump(mode="json")},
+    )
+
+    context = ConversationContextBuilder().build(context_input(), state)
+    snapshot = {field.path: field.value for field in context.business_snapshot}
+
+    assert snapshot["booking.vehicle_type"] == "CAR_7"
+    assert snapshot["booking.fare_estimate_id"] == "fare-001"
+    assert snapshot["booking.estimated_fare_amount"] == "105000.0"
+
+
 def test_context_exposes_typed_booking_candidates_without_extra_payload():
     booking = BookingData(
         pickup_candidates=[

@@ -566,24 +566,24 @@ thuộc integration giữa Voice, Backend và Agent.
 
 ## 12. Feature roadmap
 
-Trạng thái baseline:
+Trạng thái Core Agent hiện tại:
 
-- Walking skeleton: hoàn thành.
-- F1 Core & Routing: đã merge.
-- F5 Human Handoff: đã merge.
+- F1–F8: implemented.
+- Conversation history/context/rewrite: implemented.
+- Conversation repair và workflow interruption: implemented.
+- Booking/Trip/FAQ production hardening phía Core: implemented.
+- Offline readiness evaluation: implemented.
 
-Thứ tự còn lại:
+Các integration còn lại thuộc Backend/Voice:
 
 ```text
-F2 State & Memory
-→ F6 Tool Calling lifecycle
-→ F3 Ride Booking
-→ F4 Trip Lookup
-→ F7 FAQ + RAG
-→ F8 Evaluation tổng hợp
+external tool executors
+→ production persistence/knowledge ingestion
+→ Voice Runtime/STT/TTS/telephony
+→ Backend/Voice integration and audio E2E
 ```
 
-F8 guardrails/tests phải được viết xuyên suốt, không chờ đến cuối.
+Chi tiết trạng thái và acceptance boundary nằm tại `CORE_AGENT_STATUS.md`.
 
 ---
 

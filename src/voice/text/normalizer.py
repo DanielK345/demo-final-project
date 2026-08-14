@@ -1,5 +1,5 @@
 """Chuẩn hoá transcript trước khi đưa vào Core Agent — Phần 4
-(`docs/voice_ai_overview.md` §5/§6, Ref `S1-6`).
+(`docs/voice-ai/voice_ai_overview.md` §5/§6, Ref `S1-6`).
 
 Phạm vi đã hỗ trợ (đủ cho các câu thường gặp khi đặt xe/tra cứu chuyến):
 
@@ -17,7 +17,7 @@ khác trong tiếng Việt ("năm nay" = năm/year, "ba" = bố/dad...) nên **k
 **CHƯA hỗ trợ:** số ghép nhiều bậc đơn vị trong cùng một cụm (vd. "một trăm
 nghìn" = 100.000 sẽ chỉ được chuẩn hoá thành "100 nghìn", không gộp tiếp
 thành "100.000") — đây là bài tập capstone, ưu tiên các mẫu hay gặp thực tế,
-mở rộng dần khi gặp câu thật xử lý sai (Tuần 4/5, xem `docs/mustdo_voice.md`).
+mở rộng dần khi gặp câu thật xử lý sai (Tuần 4/5, xem `docs/voice-ai/mustdo_voice.md`).
 """
 
 from __future__ import annotations

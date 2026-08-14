@@ -14,9 +14,15 @@ from src.agents.schemas import (
     AgentAction,
     AgentInput,
     ToolName,
+    ToolStatus,
     WorkflowType,
 )
 from src.agents.state import AgentState, ConfirmationStatus
+from src.agents.tools.schemas import (
+    CancelBookingResult,
+    CreateBookingResult,
+    LookupTripResult,
+)
 from src.agents.understanding.base import LanguageUnderstandingPort
 from src.agents.understanding.factory import build_understanding_service
 from src.agents.understanding.interpretation import TurnInterpretation
@@ -28,9 +34,11 @@ from src.agents.understanding.rewrite_models import RewriteResult
 from src.agents.understanding.safety import enforce_raw_understanding_evidence
 from src.agents.workflows.base import BaseWorkflow
 from src.agents.workflows.booking import RideBookingWorkflow
+from src.agents.workflows.booking_models import BookingData
 from src.agents.workflows.faq import FAQWorkflow
 from src.agents.workflows.handoff import HandoffWorkflow
 from src.agents.workflows.trip_lookup import TripLookupWorkflow
+from src.agents.workflows.trip_lookup_models import TripLookupData
 
 
 class LLMAgent:
@@ -73,6 +81,10 @@ class LLMAgent:
         if current_state.session_id != agent_input.session_id:
             raise ValueError("agent input and state must belong to the same session")
 
+        replay_action = self._completed_side_effect_replay(agent_input, current_state)
+        if replay_action is not None:
+            return self._validate_action(agent_input, current_state, replay_action)
+
         immediate_handoff = self.router.requires_immediate_handoff(
             agent_input,
             current_state,
@@ -107,8 +119,7 @@ class LLMAgent:
         faq_requested_during_workflow = (
             understanding is not None
             and understanding.intent is UnderstandingIntent.FAQ
-            and current_state.current_workflow
-            in {WorkflowType.RIDE_BOOKING, WorkflowType.TRIP_LOOKUP}
+            and current_state.current_workflow in {WorkflowType.RIDE_BOOKING, WorkflowType.TRIP_LOOKUP}
         )
         if faq_requested_during_workflow and current_state.interrupted_workflow is not None:
             return self._validate_action(
@@ -117,9 +128,7 @@ class LLMAgent:
                 self.repair_handler.nested_interruption_action(),
             )
         if faq_requested_during_workflow:
-            faq_interruption = self.repair_handler.prepare_faq_interruption(
-                current_state
-            )
+            faq_interruption = self.repair_handler.prepare_faq_interruption(current_state)
 
         try:
             workflow_type = (
@@ -183,6 +192,56 @@ class LLMAgent:
                 )
         return self._validate_action(agent_input, current_state, action)
 
+    @staticmethod
+    def _completed_side_effect_replay(
+        agent_input: AgentInput,
+        state: AgentState,
+    ) -> AgentAction | None:
+        result = agent_input.tool_result
+        if (
+            result is None
+            or state.current_workflow is not None
+            or state.pending_tool_name is not None
+            or result.status is not ToolStatus.SUCCESS
+        ):
+            return None
+        try:
+            booking = BookingData.model_validate(state.collected_data.get("booking", {}))
+            if result.tool_name is ToolName.CREATE_BOOKING and result.call_id == booking.completed_booking_call_id:
+                payload = CreateBookingResult.model_validate(result.data)
+                if payload.booking_id != booking.booking_id:
+                    return None
+                return AgentAction(
+                    action_type=ActionType.RESPOND,
+                    message="Chuyến xe này đã được đặt thành công trước đó.",
+                    reason="An already completed create_booking result was replayed.",
+                )
+            if result.tool_name is ToolName.CANCEL_BOOKING and result.call_id == booking.completed_cancellation_call_id:
+                payload = CancelBookingResult.model_validate(result.data)
+                if payload.booking_id != booking.booking_id:
+                    return None
+                return AgentAction(
+                    action_type=ActionType.RESPOND,
+                    message="Chuyến xe này đã được hủy trước đó.",
+                    reason="An already completed cancel_booking result was replayed.",
+                )
+            if result.tool_name is ToolName.LOOKUP_TRIP:
+                trip = TripLookupData.model_validate(state.collected_data.get("trip_lookup", {}))
+                if result.call_id != trip.completed_lookup_call_id:
+                    return None
+                payload = LookupTripResult.model_validate(result.data)
+                replayed_ids = {match.booking_id for match in payload.trips} if payload.trips else {payload.booking_id}
+                if trip.found_booking_id not in replayed_ids:
+                    return None
+                return AgentAction(
+                    action_type=ActionType.RESPOND,
+                    message="Kết quả này đã được xử lý trước đó; thông tin chuyến không thay đổi.",
+                    reason="An already completed lookup_trip result was replayed.",
+                )
+        except ValueError:
+            return None
+        return None
+
     async def _understand(
         self,
         agent_input: AgentInput,
@@ -230,7 +289,10 @@ class LLMAgent:
 
     @staticmethod
     def _requires_raw_workflow_text(state: AgentState) -> bool:
-        return state.current_workflow is WorkflowType.RIDE_BOOKING and state.current_step == "CONFIRM"
+        return state.current_workflow is WorkflowType.RIDE_BOOKING and state.current_step in {
+            "CONFIRM",
+            "CONFIRM_CANCEL",
+        }
 
     def _validate_action(
         self,
@@ -247,11 +309,10 @@ class LLMAgent:
         except GuardrailViolationError as exc:
             if state.pending_tool_name in {
                 ToolName.CREATE_BOOKING,
+                ToolName.CANCEL_BOOKING,
                 ToolName.CREATE_HANDOFF,
             }:
-                validated = self.guardrails.safe_reconciliation_handoff(
-                    f"Guardrail violation: {exc}"
-                )
+                validated = self.guardrails.safe_reconciliation_handoff(f"Guardrail violation: {exc}")
             else:
                 validated = self.guardrails.safe_handoff(f"Guardrail violation: {exc}")
         return record_turn_history(agent_input, state, validated)

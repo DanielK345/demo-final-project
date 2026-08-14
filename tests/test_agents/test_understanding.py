@@ -5,6 +5,7 @@ import pytest
 from openai import APIConnectionError
 
 from src.agents.agent import LLMAgent
+from src.agents.booking_types import VehicleType
 from src.agents.schemas import ActionType, AgentInput, ToolName, ToolResult, ToolStatus
 from src.agents.state import AgentState
 from src.agents.understanding.base import UnderstandingProviderError
@@ -249,6 +250,61 @@ async def test_rule_understanding_extracts_phone_correction_from_confirmation_li
             value="0987654321",
         )
     ]
+
+
+@pytest.mark.asyncio
+async def test_rule_understanding_extracts_vehicle_and_vehicle_correction():
+    service = RuleBasedUnderstanding()
+
+    selected = await service.understand(
+        "Cho tôi xe 7 chỗ",
+        UnderstandingContext(session_id="session-001"),
+    )
+    corrected = await service.understand(
+        "Đổi xe sang xe máy",
+        UnderstandingContext(session_id="session-001"),
+    )
+
+    assert selected.vehicle_type is VehicleType.CAR_7
+    assert corrected.vehicle_type is VehicleType.MOTORBIKE
+    assert corrected.corrections == [
+        Correction(field=CorrectionField.VEHICLE_TYPE, value="MOTORBIKE")
+    ]
+
+
+@pytest.mark.asyncio
+async def test_rule_understanding_keeps_vehicle_out_of_destination_query():
+    result = await RuleBasedUnderstanding().understand(
+        "Đặt xe từ VinUni đến Times City bằng xe 4 chỗ nhé",
+        UnderstandingContext(session_id="session-001"),
+    )
+
+    assert result.destination_query == "Times City"
+    assert result.vehicle_type is VehicleType.CAR_4
+
+
+@pytest.mark.asyncio
+async def test_rule_understanding_extracts_passenger_count_and_rejects_invalid_phone():
+    result = await RuleBasedUnderstanding().understand(
+        "Tôi đi ba người, số điện thoại 0123456789",
+        UnderstandingContext(session_id="session-001"),
+    )
+
+    assert result.passenger_count == 3
+    assert result.phone_number is None
+
+
+@pytest.mark.asyncio
+async def test_rule_understanding_extracts_vehicle_needs_without_polluting_route():
+    result = await RuleBasedUnderstanding().understand(
+        "Đặt xe từ VinUni đến Times City cho 3 người, có 2 vali, muốn thoải mái",
+        UnderstandingContext(session_id="session-001"),
+    )
+
+    assert result.destination_query == "Times City"
+    assert result.passenger_count == 3
+    assert result.luggage_count == 2
+    assert result.vehicle_preference == "comfortable"
 
 
 @pytest.mark.asyncio

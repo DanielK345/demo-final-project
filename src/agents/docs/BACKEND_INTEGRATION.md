@@ -59,7 +59,9 @@ Core Agent không giữ mutable session state nên có thể scale horizontally.
 
 ## 3. Turn request
 
-Một turn phải có transcript hoặc `tool_result`:
+Một turn phải có transcript hoặc `tool_result`. Nếu callback được giao cùng
+transcript, Core Agent ưu tiên correlate/xử lý `tool_result`; Backend phải gửi
+user transcript thành turn riêng nếu cần xử lý tiếp:
 
 ```json
 {
@@ -97,6 +99,9 @@ Tool-result turn:
 
 `session_id` của input phải khớp state đã load. Backend không được nhận state từ
 client như dữ liệu tin cậy; state phải được load bằng identity/session đã xác thực.
+
+Identifier không được rỗng hoặc chỉ chứa khoảng trắng. `state_updates` có field
+không thuộc `AgentState` bị reject thay vì âm thầm bỏ qua.
 
 `turn_id` là bắt buộc, do Backend/Voice tạo và phải ổn định khi retry cùng một
 input turn. Mỗi user transcript, tool-result turn hoặc event-driven invocation
@@ -199,8 +204,17 @@ theo concurrency policy.
 | `HANDOFF` | Chuyển case/cuộc gọi cùng safe context trong state |
 | `END_SESSION` | Đóng lifecycle và áp retention policy |
 
+Mọi action customer-facing (`ASK_USER`, `RESPOND`, `HANDOFF`, `END_SESSION`)
+phải có `message` không rỗng. `CALL_TOOL` không tạo assistant speech.
+
 Backend không đọc `reason` cho khách. `reason` chỉ dành cho diagnostic/evaluation
 và vẫn phải qua access-controlled logging.
+
+Mỗi `ToolCall` có `timeout_seconds` do central `AgentPolicy` gắn vào. Executor
+phải áp deadline này; timeout của read-only tool có thể trả lỗi retryable, còn
+timeout của `create_booking`/`cancel_booking` phải đi qua reconciliation vì kết
+quả side effect có thể chưa xác định. `AgentState.tool_call_count` là budget đã
+dùng trong session và được Core Agent tăng atomically cùng pending call.
 
 ## 6. Tool dispatch
 
@@ -209,13 +223,25 @@ Mapping tối thiểu:
 | `tool_name` | Backend integration |
 |---|---|
 | `search_place` | Mapbox/Google Places adapter |
+| `get_vehicle_options` | Vehicle catalog, capacity, availability and pricing |
+| `estimate_fare` | Pricing/route estimate service |
 | `create_booking` | Booking service |
+| `cancel_booking` | Booking cancellation service |
 | `lookup_trip` | Trip service/PostgreSQL-backed service |
 | `retrieve_knowledge` | Knowledge/RAG service |
 | `create_handoff` | Operator/case service nếu action này được sử dụng |
 
 Backend phải validate params bằng contract tương ứng trước khi gọi provider.
 Không đổi `call_id` khi tạo `ToolResult`.
+
+Core guardrail cũng validate toàn bộ params lần cuối và chỉ cho phép tool thuộc
+active workflow. Field thừa, field thiếu hoặc tool sai workflow bị chặn trước
+dispatch.
+
+`lookup_trip` có thể trả một trip hoặc `trips[]` khi phone khớp nhiều chuyến.
+Mỗi match phải có internal `booking_id`; `pickup_label`/`destination_label` nếu
+có phải là customer-safe short label, không phải full private address. Core
+Agent không đọc booking ID hoặc phone khi yêu cầu user chọn chuyến.
 
 ## 7. Tool result and errors
 
@@ -251,18 +277,30 @@ Normalized failure:
 
 `error` phải là safe message, không chứa credentials, stack trace hoặc raw
 provider payload. Backend map provider-specific errors sang stable error codes.
+`error` tối đa 500 ký tự; `error_code` tối đa 64 ký tự và dùng uppercase
+`A-Z`, `0-9`, `_` (ví dụ `TIMEOUT`, `UNAVAILABLE`, `UNKNOWN_OUTCOME`).
 
 ## 8. Idempotency and duplicate delivery
 
 `call_id` dùng cho correlation, không thay thế idempotency key của side effect.
 
-Đặc biệt với `create_booking`:
+Đặc biệt với `create_booking` và `cancel_booking`:
 
-- Backend tạo/reuse idempotency key ổn định từ session và logical operation;
+- Agent gửi stable logical `idempotency_key`; Backend phải lưu và enforce key đó;
 - lưu kết quả trước khi acknowledge;
-- duplicate dispatch phải trả cùng business result, không tạo chuyến mới;
+- duplicate dispatch phải trả cùng business result, không tạo/hủy lần hai;
 - duplicate/stale `ToolResult` không được tự ý gắn vào pending call khác;
-- timeout không đồng nghĩa booking thất bại; Backend phải reconcile trước retry.
+- timeout không đồng nghĩa operation thất bại; Backend phải reconcile trước retry.
+
+`estimate_fare` phải trả `estimate_id`, `fare_amount`, `currency` và có thể trả
+ETA/distance. `create_booking` phải validate `pickup_place_id`,
+`destination_place_id`, `vehicle_type` và `fare_estimate_id` vẫn hợp lệ tại thời
+điểm tạo chuyến.
+
+`get_vehicle_options` nhận nhu cầu semantic (`passenger_count`, luggage và
+preference nếu có) cùng tuyến đã resolve. Backend là nguồn duy nhất của option,
+capacity, availability, `estimate_id` và giá. LLM chỉ được trả lại một
+`option_id` thuộc result này; Backend vẫn phải validate option khi booking.
 
 ## 9. State persistence
 
@@ -319,8 +357,10 @@ Backend/Voice/platform policy.
 - [ ] State update dùng validation và optimistic concurrency.
 - [ ] Persist thành công trước khi execute action.
 - [ ] Tool dispatch giữ nguyên `call_id`.
+- [ ] Executor áp đúng `timeout_seconds` và không vượt session tool budget.
+- [ ] Tool được dispatch đúng active workflow, params không có field thừa.
 - [ ] Tool success/error payload đúng schema.
-- [ ] `create_booking` có idempotency và reconciliation.
+- [ ] `create_booking`/`cancel_booking` có idempotency và reconciliation.
 - [ ] PII không xuất hiện trong log mặc định.
 - [ ] Handoff truyền safe context.
 - [ ] Integration tests cover timeout, duplicate và version conflict.

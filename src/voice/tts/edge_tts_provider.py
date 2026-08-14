@@ -1,4 +1,4 @@
-"""Edge-TTS provider — Phần 5, D2 (`docs/voice_ai_overview.md`).
+"""Edge-TTS provider — Phần 5, D2 (`docs/voice-ai/voice_ai_overview.md`).
 
 Edge-TTS gọi API không chính thức của Microsoft (qua package `edge-tts`,
 kết nối WebSocket tới `speech.platform.bing.com`) — rủi ro đã ghi trong
@@ -15,7 +15,7 @@ from typing import Protocol
 
 import edge_tts
 
-from src.models.voice_schemas import TTSResult
+from src.voice.schemas import TTSResult
 
 logger = logging.getLogger(__name__)
 

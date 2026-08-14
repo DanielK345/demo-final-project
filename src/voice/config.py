@@ -3,7 +3,7 @@
 Lý do tách: `src/backend/config.py` là `Settings` của team Backend, không có field
 nào của Voice. Thêm field vào đó sẽ là sửa file người khác đang sở hữu — thay vào đó
 Voice tự đọc `.env` (cùng file) qua class riêng, không đụng gì tới `Settings` của họ.
-Xem `docs/prompt_voice_integration_real_be_fe.md` cho quyết định tích hợp đầy đủ.
+Xem `docs/voice-ai/prompt_voice_integration_real_be_fe.md` cho quyết định tích hợp đầy đủ.
 """
 
 from __future__ import annotations
@@ -61,7 +61,7 @@ class VoiceSettings(BaseSettings):
     voice_max_utterance_seconds: int = Field(default=30, ge=5)
 
     # Ngưỡng RMS tối thiểu của cả utterance trước khi tốn 1 lần gọi Groq API — chặn
-    # hallucination khi audio gần như im lặng (phát hiện thật, xem docs/mustdo_voice.md).
+    # hallucination khi audio gần như im lặng (phát hiện thật, xem docs/voice-ai/mustdo_voice.md).
     voice_min_utterance_rms: float = Field(default=0.01, ge=0.0, le=1.0)
 
     # Ngưỡng confidence RIÊNG của Voice — chỉ áp dụng thêm 1 lớp thận trọng phía client

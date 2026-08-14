@@ -1,0 +1,28 @@
+{
+  "_comment": "SEED DATA — vài chục địa danh TP.HCM phổ biến để pipeline chạy demo được. CHƯA phải danh sách thật của AloSM, xem docs/mustdo_voice.md. Đội vận hành cần bổ sung/thay thế bằng danh sách địa danh thật (điểm đón/đến hay dùng, trụ sở, khu vực phủ sóng dịch vụ) trước khi dùng cho demo/production.",
+  "place_names": [
+    "Vincom Đồng Khởi",
+    "Landmark 81",
+    "Chợ Bến Thành",
+    "Sân bay Tân Sơn Nhất",
+    "Bến xe Miền Đông",
+    "Bến xe Miền Tây",
+    "Nhà thờ Đức Bà",
+    "Bưu điện Thành phố",
+    "Bitexco Financial Tower",
+    "Aeon Mall Tân Phú",
+    "Vincom Thảo Điền",
+    "Crescent Mall",
+    "Gigamall Thủ Đức",
+    "Ga Sài Gòn",
+    "Đại học Bách Khoa",
+    "Đại học Quốc gia TP.HCM",
+    "Công viên Tao Đàn",
+    "Phố đi bộ Nguyễn Huệ",
+    "Chợ Bình Tây",
+    "Diamond Plaza",
+    "Saigon Centre",
+    "Bến Bạch Đằng",
+    "Thảo Cầm Viên"
+  ]
+}
