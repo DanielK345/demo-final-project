@@ -3,6 +3,7 @@ from typing import Any
 import pytest
 
 from src.agents.graph import AgentGraphAdapter
+from src.agents.history import acknowledge_assistant_delivery, build_message_id
 from src.agents.schemas import (
     ActionType,
     AgentAction,
@@ -11,7 +12,12 @@ from src.agents.schemas import (
     ToolStatus,
     WorkflowType,
 )
-from src.agents.state import AgentState
+from src.agents.state import (
+    AgentState,
+    AssistantDeliveryEvent,
+    ConversationRole,
+    DeliveryStatus,
+)
 from src.agents.workflows.booking_models import BookingData
 from src.agents.workflows.faq_models import FAQData
 from src.agents.workflows.trip_lookup_models import TripLookupData
@@ -22,6 +28,7 @@ class GraphScenario:
 
     def __init__(self, session_id: str) -> None:
         self.session_id = session_id
+        self.turn_sequence = 0
         self.state = AgentState(session_id=session_id)
         self.graph = AgentGraphAdapter()
 
@@ -40,15 +47,33 @@ class GraphScenario:
         return await self._turn(tool_result=result.model_dump(mode="json"))
 
     async def _turn(self, **values: Any) -> AgentAction:
+        self.turn_sequence += 1
+        turn_id = f"turn-{self.turn_sequence:03d}"
         response = await self.graph.ainvoke(
             {
                 "session_id": self.session_id,
+                "turn_id": turn_id,
                 "state": self.state.model_dump(mode="json"),
                 **values,
             }
         )
         action = AgentAction.model_validate(response["action"])
         self.state = self.state.apply(action.state_updates)
+        if action.action_type is not ActionType.CALL_TOOL and action.message:
+            history = acknowledge_assistant_delivery(
+                self.state.conversation_history,
+                AssistantDeliveryEvent(
+                    session_id=self.session_id,
+                    turn_id=turn_id,
+                    message_id=build_message_id(
+                        turn_id,
+                        ConversationRole.ASSISTANT,
+                    ),
+                    status=DeliveryStatus.DELIVERED,
+                ),
+                session_id=self.session_id,
+            )
+            self.state = self.state.apply({"conversation_history": history})
         return action
 
 
@@ -74,6 +99,7 @@ async def test_booking_happy_path_through_langgraph():
     assert ask_pickup.action_type is ActionType.ASK_USER
     assert scenario.state.current_workflow is WorkflowType.RIDE_BOOKING
     assert scenario.state.last_stt_confidence == 0.98
+    assert scenario.state.conversation_history[-1].delivery_status is DeliveryStatus.DELIVERED
 
     pickup_call = await scenario.user_turn("Hồ Gươm")
     assert pickup_call.action_type is ActionType.CALL_TOOL
@@ -84,11 +110,7 @@ async def test_booking_happy_path_through_langgraph():
     ask_destination = await scenario.tool_turn(
         successful_result(
             pickup_call,
-            data={
-                "candidates": [
-                    {"place_id": "pickup-1", "display_name": "Hồ Gươm"}
-                ]
-            },
+            data={"candidates": [{"place_id": "pickup-1", "display_name": "Hồ Gươm"}]},
         )
     )
     assert ask_destination.action_type is ActionType.ASK_USER
@@ -110,9 +132,28 @@ async def test_booking_happy_path_through_langgraph():
         )
     )
     assert ask_vehicle.action_type is ActionType.ASK_USER
-    assert "loại xe" in ask_vehicle.message
+    assert "bao nhiêu người" in ask_vehicle.message
 
-    confirmation = await scenario.user_turn("xe 4 chỗ")
+    fare_call = await scenario.user_turn("Ô tô 4 chỗ")
+    assert fare_call.action_type is ActionType.CALL_TOOL
+    assert fare_call.tool_call is not None
+    assert fare_call.tool_call.tool_name is ToolName.ESTIMATE_FARE
+
+    ask_phone = await scenario.tool_turn(
+        successful_result(
+            fare_call,
+            data={
+                "estimate_id": "fare-001",
+                "fare_amount": 75000,
+                "currency": "VND",
+                "eta_minutes": 6,
+            },
+        )
+    )
+    assert ask_phone.action_type is ActionType.ASK_USER
+    assert "số điện thoại" in ask_phone.message
+
+    confirmation = await scenario.user_turn("0901234567")
     assert confirmation.action_type is ActionType.ASK_USER
     assert "xác nhận" in confirmation.message
 
@@ -123,7 +164,10 @@ async def test_booking_happy_path_through_langgraph():
     assert booking_call.tool_call.params == {
         "pickup_place_id": "pickup-1",
         "destination_place_id": "destination-1",
-        "phone_number": "authenticated_account",
+        "phone_number": "0901234567",
+        "vehicle_type": "CAR_4",
+        "fare_estimate_id": "fare-001",
+        "idempotency_key": booking_call.tool_call.params["idempotency_key"],
     }
 
     completed = await scenario.tool_turn(
@@ -140,9 +184,7 @@ async def test_booking_happy_path_through_langgraph():
     assert "5 phút" in completed.message
     assert scenario.state.current_workflow is None
     assert scenario.state.pending_tool_call_id is None
-    booking_data = BookingData.model_validate(
-        scenario.state.collected_data["booking"]
-    )
+    booking_data = BookingData.model_validate(scenario.state.collected_data["booking"])
     assert booking_data.booking_id == "booking-001"
 
 
@@ -172,9 +214,7 @@ async def test_trip_lookup_happy_path_through_langgraph():
     assert completed.action_type is ActionType.RESPOND
     assert "Đang đến điểm đón" in completed.message
     assert "4 phút" in completed.message
-    trip_data = TripLookupData.model_validate(
-        scenario.state.collected_data["trip_lookup"]
-    )
+    trip_data = TripLookupData.model_validate(scenario.state.collected_data["trip_lookup"])
     assert trip_data.trip_status == "Đang đến điểm đón"
 
 
@@ -182,9 +222,7 @@ async def test_trip_lookup_happy_path_through_langgraph():
 async def test_grounded_faq_through_langgraph():
     scenario = GraphScenario("integration-faq")
 
-    retrieval_call = await scenario.user_turn(
-        "Dịch vụ hỗ trợ thanh toán thế nào?"
-    )
+    retrieval_call = await scenario.user_turn("Dịch vụ hỗ trợ thanh toán thế nào?")
     assert retrieval_call.action_type is ActionType.CALL_TOOL
     assert retrieval_call.tool_call is not None
     assert retrieval_call.tool_call.tool_name is ToolName.RETRIEVE_KNOWLEDGE
@@ -247,9 +285,7 @@ async def test_handoff_policies_through_langgraph(
 async def test_handoff_redacts_phone_in_summary_through_langgraph():
     scenario = GraphScenario("integration-handoff-pii")
 
-    action = await scenario.user_turn(
-        "Cho tôi gặp tổng đài viên, số của tôi là 090 123 4567"
-    )
+    action = await scenario.user_turn("Cho tôi gặp tổng đài viên, số của tôi là 090 123 4567")
 
     assert action.action_type is ActionType.HANDOFF
     summary = scenario.state.collected_data["handoff_context"]["summary"]

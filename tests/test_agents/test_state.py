@@ -6,7 +6,9 @@ from src.agents.state import (
     AgentState,
     ConfirmationStatus,
     ConversationMessage,
+    ConversationMessageType,
     ConversationRole,
+    DeliveryStatus,
 )
 
 
@@ -44,6 +46,14 @@ def test_state_rejects_protected_field_updates():
         state.apply({"state_version": 10})
 
 
+def test_state_rejects_unknown_fields_and_update_typos():
+    with pytest.raises(ValidationError, match="Extra inputs are not permitted"):
+        AgentState(session_id="session-001", current_workfow="RIDE_BOOKING")
+
+    with pytest.raises(ValueError, match="unknown fields: current_workfow"):
+        AgentState(session_id="session-001").apply({"current_workfow": "RIDE_BOOKING"})
+
+
 def test_current_step_requires_active_workflow():
     with pytest.raises(ValidationError, match="active workflow"):
         AgentState(session_id="session-001", current_step="COLLECT_PICKUP")
@@ -78,8 +88,12 @@ def test_append_message_keeps_bounded_history():
     for index in range(AgentState.max_history_messages + 2):
         state = state.append_message(
             ConversationMessage(
+                message_id=f"turn-{index}:user",
+                turn_id=f"turn-{index}",
                 role=ConversationRole.USER,
+                message_type=ConversationMessageType.USER_TRANSCRIPT,
                 content=f"message-{index}",
+                delivery_status=DeliveryStatus.FINAL,
             )
         )
 
@@ -91,3 +105,15 @@ def test_append_message_keeps_bounded_history():
 def test_state_validates_stt_confidence():
     with pytest.raises(ValidationError):
         AgentState(session_id="session-001", last_stt_confidence=1.1)
+
+
+def test_state_rejects_blank_session_and_pending_call_identifiers():
+    with pytest.raises(ValidationError, match="session_id cannot be blank"):
+        AgentState(session_id="   ")
+
+    with pytest.raises(ValidationError, match="pending_tool_call_id cannot be blank"):
+        AgentState(
+            session_id="session-001",
+            pending_tool_call_id="   ",
+            pending_tool_name=ToolName.SEARCH_PLACE,
+        )

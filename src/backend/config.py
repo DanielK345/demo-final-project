@@ -33,6 +33,16 @@ class Settings(BaseSettings):
     agent_llm_timeout_seconds: float = Field(default=5.0, gt=0)
     agent_llm_reasoning_effort: Literal["none", "low", "medium"] = "none"
 
+    # Core Agent contextual user-message rewrite (từ feature/agentic-ai — rollout độc
+    # lập với "understanding" ở trên: bật riêng để LLM viết lại câu người dùng cho rõ
+    # nghĩa hơn theo ngữ cảnh hội thoại trước khi hiểu ý định, tắt mặc định).
+    agent_rewrite_enabled: bool = False
+    agent_rewrite_provider: Literal["openai"] = "openai"
+    agent_rewrite_model: str = "gpt-5.6-luna"
+    agent_rewrite_base_url: str | None = None
+    agent_rewrite_timeout_seconds: float = Field(default=5.0, gt=0)
+    agent_rewrite_reasoning_effort: Literal["none", "low", "medium"] = "none"
+
     # Voice prototype (STT/TTS)
     google_api_key: str = Field(
         default="",

@@ -10,5 +10,7 @@ class FAQStep(StrEnum):
 
 class FAQData(BaseModel):
     question: str | None = None
+    previous_question: str | None = None
     sources: list[str] = Field(default_factory=list)
+    citations: list[str] = Field(default_factory=list)
     answer: str | None = None

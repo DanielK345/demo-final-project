@@ -12,6 +12,7 @@ from src.agents.state import AgentState
 class AgentTurnGraphState(TypedDict, total=False):
     query: str
     session_id: str
+    turn_id: str
     stt_confidence: float | None
     state: AgentState | dict[str, Any]
     tool_result: ToolResult | dict[str, Any]
@@ -62,9 +63,14 @@ class AgentGraphAdapter:
             values.get("session_id")
             or (state.session_id if state is not None else uuid4())
         )
+        raw_turn_id = values.get("turn_id")
+        if not isinstance(raw_turn_id, str) or not raw_turn_id.strip():
+            raise ValueError("turn_id is required")
+        turn_id = raw_turn_id.strip()
         return {
             "agent_input": AgentInput(
                 session_id=session_id,
+                turn_id=turn_id,
                 transcript=query,
                 stt_confidence=values.get("stt_confidence"),
                 tool_result=tool_result,

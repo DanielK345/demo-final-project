@@ -1,7 +1,10 @@
+import re
+from datetime import UTC, datetime
 from typing import Any
 
 from pydantic import ValidationError
 
+from src.agents.policy import AgentPolicy
 from src.agents.rag.answer_generator import (
     ExtractiveAnswerGenerator,
     GroundedAnswerGenerator,
@@ -19,6 +22,7 @@ from src.agents.tools.call_id import build_call_id
 from src.agents.tools.knowledge import RetrieveKnowledgeTool
 from src.agents.tools.lifecycle import (
     ToolLifecycleError,
+    ToolResultMismatchError,
     clear_pending_tool_updates,
     correlate_tool_result,
     normalize_tool_failure,
@@ -43,17 +47,21 @@ class FAQWorkflow(BaseWorkflow):
         *,
         min_score: float = 0.75,
         top_k: int = 3,
-        max_retry_count: int = 2,
+        max_retry_count: int | None = None,
+        policy: AgentPolicy | None = None,
     ) -> None:
         if not 0 <= min_score <= 1:
             raise ValueError("min_score must be between 0 and 1")
-        if top_k < 1 or max_retry_count < 1:
+        if top_k < 1 or (max_retry_count is not None and max_retry_count < 1):
             raise ValueError("FAQ limits must be positive")
         self.knowledge_tool = knowledge_tool or RetrieveKnowledgeTool()
         self.answer_generator = answer_generator or ExtractiveAnswerGenerator()
         self.min_score = min_score
         self.top_k = top_k
-        self.max_retry_count = max_retry_count
+        self.policy = policy or AgentPolicy()
+        self.max_retry_count = (
+            max_retry_count if max_retry_count is not None else self.policy.retry_limit(ToolName.RETRIEVE_KNOWLEDGE)
+        )
 
     async def handle(
         self,
@@ -97,9 +105,11 @@ class FAQWorkflow(BaseWorkflow):
                 },
                 reason="An FAQ question is required before retrieval.",
             )
-        data.question = question
+        data.previous_question = data.question
+        data.question = self._contextual_question(question, data)
         data.answer = None
         data.sources = []
+        data.citations = []
         return self._request_knowledge(state, data)
 
     def _request_knowledge(
@@ -148,6 +158,12 @@ class FAQWorkflow(BaseWorkflow):
         assert result is not None
         try:
             correlate_tool_result(result, state)
+        except ToolResultMismatchError:
+            return AgentAction(
+                action_type=ActionType.ASK_USER,
+                message="Tôi đã bỏ qua kết quả tra cứu cũ và vẫn đang chờ thông tin mới.",
+                reason="A stale knowledge result was ignored without clearing the pending call.",
+            )
         except ToolLifecycleError as exc:
             return await self._handoff(agent_input, state, str(exc))
 
@@ -195,6 +211,7 @@ class FAQWorkflow(BaseWorkflow):
 
         data.answer = answer
         data.sources = list(dict.fromkeys(document.source for document in documents))
+        data.citations = list(dict.fromkeys(document.citation_id or document.source for document in documents))
         return AgentAction(
             action_type=ActionType.RESPOND,
             message=answer,
@@ -205,10 +222,7 @@ class FAQWorkflow(BaseWorkflow):
                 "retry_count": 0,
                 **clear_pending_tool_updates(),
             },
-            reason=(
-                "FAQ answer is grounded in validated knowledge sources: "
-                f"{', '.join(data.sources)}"
-            ),
+            reason=(f"FAQ answer is grounded in validated knowledge sources: {', '.join(data.sources)}"),
         )
 
     def _select_grounded_documents(
@@ -218,7 +232,10 @@ class FAQWorkflow(BaseWorkflow):
         grounded = [
             document
             for document in documents
-            if document.score >= self.min_score and document.source.strip()
+            if document.score >= self.min_score
+            and document.source.strip()
+            and self._is_current(document)
+            and not self._contains_prompt_injection(document.content)
         ]
         grounded.sort(key=lambda document: document.score, reverse=True)
         return grounded[: self.top_k]
@@ -226,6 +243,7 @@ class FAQWorkflow(BaseWorkflow):
     def _fallback(self, state: AgentState, data: FAQData) -> AgentAction:
         data.answer = None
         data.sources = []
+        data.citations = []
         return AgentAction(
             action_type=ActionType.RESPOND,
             message=(
@@ -267,3 +285,33 @@ class FAQWorkflow(BaseWorkflow):
             return FAQStep(state.current_step)
         except ValueError:
             return None
+
+    @staticmethod
+    def _contextual_question(question: str, data: FAQData) -> str:
+        normalized = " ".join(question.casefold().split())
+        is_follow_up = any(
+            normalized.startswith(prefix) for prefix in ("còn ", "thế còn ", "vậy còn ", "trường hợp đó", "cái đó")
+        )
+        if is_follow_up and data.previous_question:
+            return f"{data.previous_question} Follow-up: {question}"
+        return question
+
+    @staticmethod
+    def _is_current(document: KnowledgeDocument) -> bool:
+        now = datetime.now(UTC)
+        if document.effective_at and document.effective_at > now:
+            return False
+        return not document.expires_at or document.expires_at >= now
+
+    @staticmethod
+    def _contains_prompt_injection(content: str) -> bool:
+        normalized = " ".join(content.casefold().split())
+        patterns = (
+            r"ignore (?:all |the )?(?:previous|prior|system) instructions",
+            r"bỏ qua (?:mọi |tất cả )?(?:chỉ dẫn|hướng dẫn|quy tắc)",
+            r"system prompt",
+            r"developer message",
+            r"hãy gọi (?:tool|công cụ)",
+            r"tiết lộ (?:prompt|bí mật|api key)",
+        )
+        return any(re.search(pattern, normalized) for pattern in patterns)
