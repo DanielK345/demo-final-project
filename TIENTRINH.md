@@ -196,16 +196,113 @@ diện tối cho TOÀN BỘ website, bật/tắt qua Settings.
 - Câu "AI đặt xe ngay" prefill: verify thật qua server — Core Agent nhận đúng, khởi
   động `RideBookingWorkflow`
 
-## 9. Việc còn lại (`mustdo.md` — cần người/credential thật)
+## 9. Nhập Core Agent + RAG thật từ nhánh `feature/agentic-ai`
+
+Yêu cầu: phân tích toàn bộ phần agentic agent/RAG trên `origin/feature/agentic-ai` và
+đưa vào `feature/voice-ai`, không đụng branch nào khác, không xung đột với logic hiện
+có. Đây là công việc lớn nhất session này — thay cả bộ `src/agents/` MVP đơn giản đã
+xây từ đầu bằng bản đầy đủ, có guardrail/history/repair/understanding thật của nhánh
+kia — không phải chỉ copy file.
+
+**Đã kiểm tra kỹ trước khi động vào gì:**
+- `git merge-base feature/voice-ai origin/feature/agentic-ai` — 2 nhánh tách từ 1 gốc
+  chung, `feature/agentic-ai` có 12 commit riêng chỉ động vào `src/agents/`,
+  `tests/test_agents/`, `examples/` — phạm vi cô lập rõ ràng, không đụng
+  frontend/voice/database.
+- `src/agents/rag/` **giống hệt** giữa 2 nhánh (đã có sẵn từ gốc chung, không đổi) —
+  không phải nhập mới, chỉ cần nối vào backend thật (xem bên dưới).
+- Đọc kỹ `src/agents/docs/BACKEND_INTEGRATION.md` (tài liệu contract chính thức của
+  nhánh kia) để biết chính xác backend phải làm gì — không đoán.
+
+**2 xung đột hành vi thật sự (đã hỏi ý kiến trước khi làm, xem hội thoại):**
+- Core Agent thật **bắt buộc số điện thoại** khi tạo booking (để tài xế liên hệ) —
+  nhưng app đang hứa "không hỏi số điện thoại, email hay thông tin riêng tư". Giải
+  quyết: SĐT lấy tự động từ tài khoản (đã có từ lúc đăng ký), seed thẳng vào
+  `AgentState.collected_data["booking"]["phone_number"]` lúc tạo session — agent thấy
+  đã có sẵn nên tự bỏ qua bước hỏi, không sửa gì trong code của nhánh kia.
+- Core Agent thật đổi hẳn danh mục xe: bỏ `4_SEAT/7_SEAT/PREMIUM`, thay bằng
+  `MOTORBIKE/CAR_4/CAR_7` (xe máy/ô tô 4 chỗ/ô tô 7 chỗ — không còn "hạng sang"). Cập
+  nhật toàn bộ danh mục dịch vụ + câu chào + prefill "AI đặt xe ngay" theo đúng 3 loại
+  xe thật này.
+
+**Đưa vào (`git checkout origin/feature/agentic-ai -- <path>`, thay thế sạch):**
+`src/agents/` (agent.py, schemas.py, state.py, guardrails.py, router.py, +
+`context.py`/`history.py`/`repair.py` (sửa lỗi hội thoại, ngắt lời), +
+`understanding/rewrite_*` (viết lại câu người dùng theo ngữ cảnh trước khi hiểu ý
+định), `vehicle_recommendation.py`, `booking_types.py`, `location_policy.py`,
+`phone_policy.py`, `docs/`), `tests/test_agents/` (326 test, tất cả pass ngay khi vừa
+nhập, chưa đụng gì tới backend), `tests/integration/`, `tests/test_examples/`,
+`examples/`. Xoá 3 file scaffold chết còn sót từ template khoá học
+(`tools/example_tool.py`, `tools/geocode.py`, `tools/trip_status.py` — hardcode
+`lat:0.0`, không ai import).
+
+**Viết lại tầng tích hợp backend (KHÔNG mock, nối service thật):**
+- `AgentToolExecutor` — thêm 3 tool mới (`get_vehicle_options`, `estimate_fare`,
+  `cancel_booking`), viết lại cả các tool cũ:
+  - `PlaceSearchService` (mới) — `search_place` tra thật trên gazetteer địa danh có
+    sẵn (`data/gazetteer/place_names.json`, vốn chỉ dùng cho Voice ASR biasing trước
+    đây), thay vì echo nguyên câu nhập thành 1 candidate giả.
+  - `PricingService` (mới) — giá cước/ETA tính theo công thức khoảng cách × đơn giá
+    từng loại xe, khoảng cách suy deterministic từ hash cặp điểm đón/đến (chưa có
+    Maps API thật — cùng nguyên tắc mô phỏng ổn định đã dùng ở `TripService`), thay
+    cho số cố định 85.000đ mọi chuyến.
+  - `KnowledgeService` (mới) — retriever thật cắm vào `src/agents/rag/` (interface có
+    sẵn từ nhánh kia nhưng chưa có nội dung/retriever cụ thể): bộ 6 tài liệu FAQ thật
+    khớp đúng chính sách đã hiển thị nơi khác trong app + so khớp từ khoá (đã lọc từ
+    dừng tiếng Việt) thay vì luôn trả 2 câu cố định. `FAQWorkflow` của nhánh kia yêu
+    cầu `score >= 0.75` mới chấp nhận (chống trả lời bừa) — giữ nguyên ngưỡng đó, viết
+    nội dung theo đúng khuôn FAQ thật (câu hỏi + câu trả lời) để khớp từ khoá tự nhiên
+    hơn thay vì hạ ngưỡng.
+  - `BookingService.cancel_booking` (mới, idempotent) + lưu thêm `phone_number` mỗi
+    booking để `lookup_trip` tra được theo số điện thoại.
+- `SessionService` — sinh `turn_id` mỗi lượt gọi Agent (bắt buộc theo contract mới),
+  seed SĐT tài khoản vào state phiên mới, viết lại cách suy tín hiệu SUCCESS/FAILED
+  cho UI (nhánh kia bỏ hẳn field `lifecycle_status` khỏi `BookingData` — ưu tiên
+  HANDOFF cho người thật xử lý khi tool lỗi thay vì tự báo lỗi cứng).
+- `routes/__init__.py` (chat route legacy) + `models/schemas.py` — thêm `turn_id` bắt
+  buộc theo `AgentInput` mới.
+- `.env.example` + `src/backend/config.py` — thêm `AGENT_REWRITE_*` (tính năng viết
+  lại câu theo ngữ cảnh, tắt mặc định) — **không** dùng `src/config.py` độc lập của
+  nhánh kia (project này đã tổ chức lại settings về `src/backend/config.py` từ trước).
+
+**Frontend:** danh mục dịch vụ (Home/Booking), câu chào `AssistantPage`, và
+`BookingProgressSidebar` (thêm hiển thị giá cước ước tính) cập nhật theo đúng 3 loại
+xe thật + giữ nguyên toàn bộ luồng "AI đặt xe ngay" đã xây ở mục 7.
+
+**Verify (không chỉ đọc code):**
+- `pytest` toàn bộ: 485 passed / 6 skipped / 0 failed (từ 262 lên 485 — thêm 326 test
+  của `tests/test_agents/` từ nhánh kia, tất cả pass nguyên trong project này).
+- `ruff check` trên toàn bộ file mới/sửa: sạch (đã đối chiếu 62 lỗi ruff còn lại trên
+  toàn repo — toàn bộ đều ở file KHÔNG liên quan tới việc này, có từ trước).
+- Live-boot server thật, đi hết 1 lượt đặt xe hoàn chỉnh qua API thật (không phải
+  test giả lập): đăng ký tài khoản → "Tôi muốn đặt xe" → "Chợ Bến Thành" (search_place
+  thật khớp gazetteer) → "Sân bay Tân Sơn Nhất" → "ô tô 4 chỗ" → agent tự tính giá
+  31.800đ và hỏi xác nhận (**không hỏi số điện thoại** — verify đúng ý muốn) → "Đúng"
+  → booking thật được tạo, `GET /api/v1/bookings` thấy đúng chuyến với dữ liệu thật.
+  Test thêm FAQ/RAG thật (2 câu khớp ngưỡng 0.75, trả lời đúng nội dung) và tra cứu
+  chuyến theo mã/SĐT.
+- Xác nhận không đụng branch nào khác: chỉ làm việc bằng `git show`/
+  `git checkout origin/feature/agentic-ai -- <path>` (không `checkout`/switch sang
+  nhánh đó), `git branch --show-current` luôn là `feature/voice-ai`,
+  `origin/feature/agentic-ai` không đổi ref sau khi xong.
+
+## 10. Việc còn lại (`mustdo.md` — cần người/credential thật)
 
 1. Tạo project Supabase thật (database production).
 2. Chọn 1 trong 2 hệ thống Voice AI để giữ lâu dài (không chặn, chỉ nên dọn sau).
 3. Payment Gateway thật (VNPay/MoMo/Stripe) — nếu muốn Ví AloSM Pay hoạt động thật.
 4. Coupon/loyalty — cần quyết định nghiệp vụ trước khi code.
 5. 2FA thật (TOTP/SMS) — hiện chỉ persist lựa chọn, chưa enforce lúc đăng nhập.
-6. `OPENAI_API_KEY` thật nếu muốn bật LLM hiểu ngôn ngữ tự nhiên đầy đủ.
+6. `OPENAI_API_KEY` thật nếu muốn bật LLM hiểu ngôn ngữ tự nhiên đầy đủ (`AGENT_LLM_*`)
+   và tính năng viết lại câu theo ngữ cảnh (`AGENT_REWRITE_*`, mục 9).
+7. Maps/routing API thật nếu muốn khoảng cách/giá cước chính xác theo GPS thay vì suy
+   deterministic từ hash cặp điểm đón/đến (mục 9 — `PricingService`).
+8. Router/dialogue-act detector rule-based (khi tắt LLM) đôi lúc hiểu sai câu hỏi FAQ
+   thành lệnh huỷ/khác (quan sát khi verify mục 9) — thuộc logic gốc của nhánh
+   feature/agentic-ai, sẽ tự cải thiện khi bật `AGENT_LLM_ENABLED`/`AGENT_REWRITE_ENABLED`
+   thật, không sửa trong project này để giữ đúng logic gốc.
 
-## 10. Lệnh kiểm tra nhanh
+## 11. Lệnh kiểm tra nhanh
 
 ```bash
 # Backend
