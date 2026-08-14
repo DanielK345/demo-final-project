@@ -30,7 +30,7 @@ def _token_from_header(authorization: str | None) -> str:
     return authorization.removeprefix("Bearer ") if authorization else ""
 
 
-def _user_id_from_header(authorization: str | None) -> str:
+def _user_from_header(authorization: str | None) -> dict[str, str]:
     token = _token_from_header(authorization)
     user = auth_service.get_user_for_token(token)
     if user is None:
@@ -38,7 +38,11 @@ def _user_id_from_header(authorization: str | None) -> str:
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Vui lòng đăng nhập để bắt đầu hội thoại",
         )
-    return user["user_id"]
+    return user
+
+
+def _user_id_from_header(authorization: str | None) -> str:
+    return _user_from_header(authorization)["user_id"]
 
 
 def _require_session_access(session_id: str, authorization: str | None) -> str:
@@ -71,8 +75,10 @@ async def create_session(
     request: CreateSessionDTO,
     authorization: str | None = Header(default=None),
 ) -> SessionCreatedDTO:
-    user_id = _user_id_from_header(authorization)
-    created = controller.service.create_session(user_id, request.channel, request.device_id)
+    user = _user_from_header(authorization)
+    created = controller.service.create_session(
+        user["user_id"], request.channel, request.device_id, phone=user.get("phone")
+    )
     token = _token_from_header(authorization)
     if token:
         auth_service.bind_session_to_token(token, str(created["session_id"]))

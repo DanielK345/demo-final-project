@@ -107,7 +107,9 @@ class AuthService:
         record["session_id"] = session_id
 
     def _auth_response(self, user: dict[str, str]) -> dict[str, object]:
-        session = self._session_service.create_session(user["user_id"], "WEB_VOICE", "browser")
+        session = self._session_service.create_session(
+            user["user_id"], "WEB_VOICE", "browser", phone=user.get("phone")
+        )
         token = self._issue_token(user["user_id"], session["session_id"])
         return {
             **self._public_user(user),

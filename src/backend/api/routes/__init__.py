@@ -30,7 +30,7 @@ router.include_router(settings_router)
 async def chat(request: ChatRequest) -> ChatResponse:
     """Legacy chat route kept for compatibility with the current test suite."""
     try:
-        result = await agent.ainvoke({"query": request.message})
+        result = await agent.ainvoke({"query": request.message, "turn_id": request.turn_id})
         return ChatResponse(
             response=result.get("response", ""),
             analysis=result.get("analysis", ""),

@@ -17,7 +17,14 @@ class SessionService:
     _conversation_logger = ConversationLogger()
     _MAX_TOOL_TURNS = 8
 
-    def create_session(self, user_id: str, channel: str, device_id: str | None = None) -> dict[str, object]:
+    def create_session(
+        self,
+        user_id: str,
+        channel: str,
+        device_id: str | None = None,
+        *,
+        phone: str | None = None,
+    ) -> dict[str, object]:
         session_id = f"sess_{uuid4().hex[:12]}"
         now = datetime.now(UTC).isoformat()
         log_path = self._conversation_logger.start_session(
@@ -30,6 +37,13 @@ class SessionService:
             "session_id": session_id,
             "call_id": f"call_{uuid4().hex[:8]}",
             "user_id": user_id,
+            # SĐT có sẵn từ tài khoản (đăng ký bắt buộc phone) — Core Agent
+            # (feature/agentic-ai) yêu cầu phone thật để tài xế liên hệ khi tạo
+            # booking, nhưng KHÔNG hỏi lại trong hội thoại (giữ đúng lời hứa "không hỏi
+            # số điện thoại, email hay thông tin riêng tư"): seed thẳng vào state của
+            # Agent lúc khởi tạo phiên, xem _load_agent_state bên dưới. Agent chỉ hỏi
+            # lại nếu tài khoản thật sự chưa có SĐT (phone=None).
+            "user_phone": phone,
             "status": "ACTIVE",
             "channel": channel,
             "device_id": device_id,
@@ -38,7 +52,7 @@ class SessionService:
             "intent": None,
             "pickup": None,
             "destination": None,
-            "vehicle_type": "4_SEAT",
+            "vehicle_type": None,
             "confirmation_status": "pending",
             "failed_count": 0,
             "booking_id": None,
@@ -95,6 +109,7 @@ class SessionService:
         if session["status"] != "ACTIVE":
             raise ValueError("Phiên hội thoại đã kết thúc")
 
+        user_id = session.get("user_id")
         agent_state = self._load_agent_state(session_id, session)
         action = await self._run_agent_turn(
             session_id=session_id,
@@ -107,7 +122,12 @@ class SessionService:
 
         while action.action_type is ActionType.CALL_TOOL and tool_turns < self._MAX_TOOL_TURNS:
             assert action.tool_call is not None
-            tool_result = await self._tool_executor.execute(action.tool_call, session_id=session_id)
+            tool_result = await self._tool_executor.execute(
+                action.tool_call,
+                session_id=session_id,
+                user_id=str(user_id) if user_id is not None else None,
+                agent_state=agent_state,
+            )
             action = await self._run_agent_turn(
                 session_id=session_id,
                 agent_state=agent_state,
@@ -138,20 +158,29 @@ class SessionService:
         stt_confidence: float | None = None,
         tool_result=None,
     ) -> AgentAction:
+        # turn_id: bắt buộc theo contract mới (xem src/agents/docs/BACKEND_INTEGRATION.md
+        # §3) — mỗi lượt gọi Agent (kể cả lượt tool-result nối tiếp trong cùng 1 turn
+        # người dùng) có 1 turn_id riêng. App hiện chưa có cơ chế client-side retry nên
+        # tạo mới mỗi lượt là đủ đúng — "ổn định khi retry cùng input" chỉ áp dụng khi
+        # có thật 1 request lặp lại, chưa xảy ra ở luồng hiện tại.
         agent_input = AgentInput(
             session_id=session_id,
+            turn_id=f"turn_{uuid4().hex[:12]}",
             transcript=transcript,
             stt_confidence=stt_confidence,
             tool_result=tool_result,
         )
         return await self._agent.handle(agent_input, agent_state)
 
-    @staticmethod
-    def _load_agent_state(session_id: str, session: dict[str, object]) -> AgentState:
+    def _load_agent_state(self, session_id: str, session: dict[str, object]) -> AgentState:
         raw_state = session.get("agent_state")
         if isinstance(raw_state, dict):
             return AgentState.model_validate(raw_state)
-        return AgentState(session_id=session_id)
+        phone = session.get("user_phone")
+        collected_data: dict[str, object] = {}
+        if isinstance(phone, str) and phone.strip():
+            collected_data["booking"] = {"phone_number": phone}
+        return AgentState(session_id=session_id, collected_data=collected_data)
 
     @staticmethod
     def _sync_legacy_session_fields(
@@ -171,10 +200,10 @@ class SessionService:
                 session["vehicle_type"] = booking["vehicle_type"]
             if booking.get("booking_id"):
                 session["booking_id"] = booking["booking_id"]
-            lifecycle = booking.get("lifecycle_status")
+            session["booking_progress"] = SessionService._booking_progress(booking)
+            lifecycle = SessionService._booking_lifecycle_status(booking, action)
             if lifecycle:
                 session["booking_lifecycle_status"] = lifecycle
-            session["booking_progress"] = SessionService._booking_progress(booking)
 
         session["current_workflow"] = (
             agent_state.current_workflow.value if agent_state.current_workflow else None
@@ -183,6 +212,20 @@ class SessionService:
         session["handoff_triggered"] = action.action_type is ActionType.HANDOFF
         if action.action_type is ActionType.END_SESSION:
             session["status"] = "ENDED"
+
+    @staticmethod
+    def _booking_lifecycle_status(booking: dict[str, object], action: AgentAction) -> str | None:
+        """Nhánh feature/agentic-ai bỏ hẳn field `lifecycle_status` khỏi BookingData
+        (workflow mới ưu tiên HANDOFF cho người thật xử lý thay vì tự báo lỗi cứng khi
+        tool thất bại) — suy ra lại tín hiệu SUCCESS/FAILED cho UI (BookingSuccessPanel)
+        từ những gì thật sự có: booking_id + booking_status nghĩa là đã tạo chuyến
+        thành công; HANDOFF trong lúc đang có dữ liệu đặt xe dở dang (đã có điểm đón
+        hoặc điểm đến nhưng chưa có booking_id) nghĩa là agent không tự hoàn tất được."""
+        if booking.get("booking_id") and booking.get("booking_status"):
+            return "SUCCESS"
+        if action.action_type is ActionType.HANDOFF and (booking.get("pickup") or booking.get("destination")):
+            return "FAILED"
+        return None
 
     @staticmethod
     def _booking_progress(booking: dict[str, object]) -> dict[str, object]:
@@ -208,6 +251,8 @@ class SessionService:
             booking.get("destination_query"),
         )
         vehicle_type = booking.get("vehicle_type")
+        phone_number = booking.get("phone_number")
+        fare_estimate_id = booking.get("fare_estimate_id")
         missing_field = None
         if pickup is None:
             missing_field = "pickup"
@@ -215,13 +260,18 @@ class SessionService:
             missing_field = "destination"
         elif not vehicle_type:
             missing_field = "vehicle_type"
+        elif not fare_estimate_id:
+            missing_field = "fare_estimate"
+        elif not phone_number:
+            missing_field = "phone_number"
 
         return {
             "pickup": pickup,
             "destination": destination,
             "vehicle_type": vehicle_type,
             "missing_field": missing_field,
-            "lifecycle_status": booking.get("lifecycle_status"),
+            "fare_amount": booking.get("estimated_fare_amount") or booking.get("fare_amount"),
+            "currency": booking.get("estimated_currency") or booking.get("currency"),
         }
 
     def _format_action_response(
@@ -246,14 +296,12 @@ class SessionService:
                 booking = {
                     "booking_id": booking_data["booking_id"],
                     "status": booking_data.get("booking_status", "CONFIRMED"),
-                    "lifecycle_status": booking_data.get("lifecycle_status"),
-                    "estimated_fare": int(booking_data.get("fare_amount") or 85000),
+                    "lifecycle_status": session.get("booking_lifecycle_status"),
+                    "estimated_fare": int(booking_data.get("fare_amount") or 0),
                 }
 
         message = action.message or "Em đang hỗ trợ anh/chị."
         lifecycle_status = session.get("booking_lifecycle_status")
-        if lifecycle_status is None and isinstance(booking_data, dict):
-            lifecycle_status = booking_data.get("lifecycle_status")
 
         state = {
             key: session.get(key)
