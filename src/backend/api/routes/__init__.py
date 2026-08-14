@@ -8,7 +8,6 @@ from src.backend.api.routes.calls import router as calls_router
 from src.backend.api.routes.handoffs import router as handoffs_router
 from src.backend.api.routes.health import router as health_router
 from src.backend.api.routes.sessions import router as sessions_router
-from src.backend.api.routes.voice import router as voice_router
 from src.backend.integrations.voice_client import resolve_voice_provider
 from src.backend.models.schemas import ChatRequest, ChatResponse
 
@@ -18,7 +17,6 @@ router = APIRouter()
 router.include_router(auth_router)
 router.include_router(calls_router)
 router.include_router(sessions_router)
-router.include_router(voice_router)
 router.include_router(bookings_router)
 router.include_router(handoffs_router)
 

@@ -7,7 +7,7 @@ from typing import Literal
 import httpx
 from openai import AsyncOpenAI
 
-from src.config import Settings, get_settings
+from src.backend.config import Settings, get_settings
 
 
 VoiceProviderName = Literal["openai", "gemini"]

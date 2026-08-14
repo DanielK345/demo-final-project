@@ -65,7 +65,7 @@ class SessionBridge:
         """Trả None nếu session không tồn tại hoặc đã kết thúc — gateway tự xử lý
         (không raise để khỏi ép gateway phải try/except riêng cho từng loại lỗi)."""
         try:
-            result = self._service.process_message(session_id, text, stt_confidence)
+            result = await self._service.process_message(session_id, text, stt_confidence)
         except (KeyError, ValueError):
             return None
         return SessionTurnResult(

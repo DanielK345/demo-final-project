@@ -8,7 +8,7 @@ from src.backend.integrations.voice_client import (
     resolve_voice_provider,
 )
 from src.backend.services.session_service import SessionService
-from src.config import Settings, get_settings
+from src.backend.config import Settings, get_settings
 
 
 class VoiceService:

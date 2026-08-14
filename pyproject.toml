@@ -26,4 +26,7 @@ dependencies = [
     "sqlalchemy>=2.0.0",
     "uvicorn[standard]>=0.34.0",
     "openai>=2.20.0",
+    "rapidfuzz>=3.14.5",
+    "edge-tts>=7.2.8",
+    "numpy>=1.26.4",
 ]
