@@ -27,13 +27,20 @@ import { TranscriptModal } from "@/features/history/components/TranscriptModal";
 
 type Message = { id: string; role: "user" | "assistant"; text: string };
 
-const WELCOME_MESSAGE =
-  "Xin chào! Em chỉ cần điểm đón, điểm đến và loại xe (xe máy, ô tô 4 chỗ hoặc ô tô 7 chỗ). Em không hỏi số điện thoại, email hay thông tin riêng tư — số điện thoại liên hệ tài xế được lấy tự động từ tài khoản của anh/chị.";
+// Chào thân thiện + hỏi han trước, RỒI MỚI hỏi cần giúp gì — theo đúng yêu cầu, thay
+// vì câu cũ mở đầu bằng liệt kê yêu cầu kỹ thuật (loại xe/không hỏi SĐT) nghe khô
+// khan, giống thông báo hệ thống hơn là chào hỏi. Thông tin kỹ thuật đó vẫn còn,
+// chuyển thành dòng phụ nhỏ dưới tiêu đề trang (xem bên dưới) — không mất đi, chỉ
+// không còn là ấn tượng đầu tiên nữa. Cá nhân hoá bằng tên thật của khách.
+function buildWelcomeMessage(userName: string): string {
+  return `Xin chào ${userName}! Em là trợ lý AloSM, rất vui được đồng hành cùng anh/chị hôm nay 😊 Anh/chị đang cần em hỗ trợ gì ạ — đặt xe, theo dõi chuyến đi, hay có thắc mắc nào khác không?`;
+}
 
 export const AssistantPage: React.FC = () => {
   const [sessionId, setSessionId] = useState<string | null>(null);
+  const userName = getUserName();
   const [messages, setMessages] = useState<Message[]>([
-    { id: "welcome", role: "assistant", text: WELCOME_MESSAGE },
+    { id: "welcome", role: "assistant", text: buildWelcomeMessage(userName) },
   ]);
   const [text, setText] = useState("");
   const [isSending, setIsSending] = useState(false);
@@ -50,10 +57,9 @@ export const AssistantPage: React.FC = () => {
   const [isTextInputOpen, setIsTextInputOpen] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
-  const userName = getUserName();
 
   const resetConversationUi = useCallback(() => {
-    setMessages([{ id: "welcome", role: "assistant", text: WELCOME_MESSAGE }]);
+    setMessages([{ id: "welcome", role: "assistant", text: buildWelcomeMessage(getUserName()) }]);
     setBookingProgress(null);
     setLifecycleStatus(null);
     setCompletedBooking(null);
@@ -315,6 +321,10 @@ export const AssistantPage: React.FC = () => {
         </h1>
         <p className="text-slate-500 dark:text-slate-400 mt-2">
           Nói tự nhiên hoặc nhắn tin. AloSM luôn hỏi xác nhận trước khi đặt xe.
+        </p>
+        <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">
+          Hỗ trợ xe máy, ô tô 4 chỗ và ô tô 7 chỗ · Không hỏi số điện thoại hay email
+          trong hội thoại — SĐT liên hệ tài xế lấy tự động từ tài khoản của anh/chị.
         </p>
         <div className="mt-4 max-w-xl mx-auto text-left">
           <LlmStatusNote />
