@@ -508,7 +508,37 @@ bằng `useVoiceActivityRecorder` mới — tự phát hiện giọng nói bằn
 Đã qua `tsc -b`/`oxlint`/`npm run build` sạch. Thuần frontend (Web Audio API chạy
 trong trình duyệt), không đổi API/backend.
 
-## 17. Việc còn lại (`mustdo.md` — cần người/credential thật)
+## 17. Nhận diện màu sắc tham khảo GreenSM (không sao chép asset/logo)
+
+Theo yêu cầu trực tiếp ("tham khảo giao diện của web đặt xe GREENSM... na ná... nhưng
+luồng logic/chuyển màn phải giữ nguyên"): tra cứu bố cục trang chủ GreenSM (fetch
+`greensm.com` — xanhsm.com tự chuyển hướng sang đây) để nắm tinh thần thiết kế: tông
+xanh lá sống động làm màu thương hiệu chủ đạo, hero banner đậm, lưới dịch vụ dạng
+card có icon, bo góc vừa phải, nhiều khoảng trắng.
+
+Đổi toàn bộ mã màu thương hiệu xuyên suốt app: `#00D1C1` (cyan/teal cũ) → `#00A651`
+(xanh lá sống động), `#006a62` → `#04763B` — áp dụng đồng loạt cho **toàn bộ 23 file**
+đang dùng 2 mã màu này (Sidebar/Topbar/MobileNav, mọi trang, mọi component Voice AI,
+`index.css`) bằng 1 lượt thay thế chuỗi có kiểm soát (không đổi bất kỳ logic/class
+layout nào khác — thuần đổi giá trị màu). Đổi luôn dạng `rgba(0, 209, 193, ...)` ở
+`index.css`/`LoginPage.tsx` (không bắt được bằng thay thế theo mã hex) sang
+`rgba(0, 166, 81, ...)` tương ứng. Đổi tên biến CSS `--color-kinetic-teal` (không còn
+đúng nữa) thành `--color-brand-green`.
+
+**Không đổi**: logo (`logo.svg`), tên thương hiệu "AloSM", cấu trúc route/luồng
+chuyển màn, logic nghiệp vụ — đúng yêu cầu "giữ nguyên luồng logic". Không thêm các
+section mang tính marketing site của GreenSM (banner tải app, tuyển tài xế, footer
+nhiều cột) vì đó là nội dung cho trang chủ CHƯA đăng nhập/marketing, không phù hợp
+ngữ cảnh app của mình (toàn bộ trang đều nằm sau đăng nhập, có Sidebar/Topbar) — và vì
+không có app di động thật/chương trình tuyển tài xế thật để đưa nội dung đó vào mà
+không tự bịa.
+
+Đã qua `tsc -b`/`oxlint`/`npm run build` sạch (thuần đổi giá trị màu, không có rủi ro
+logic). Lưu ý quy trình: lượt sửa màu này được công cụ của bạn tự commit trong lúc tôi
+đang làm (commit `80d58e9 "update"`) — không phải tôi tự commit, nhưng đã xác nhận
+đúng nội dung khớp 100% với thay đổi đã thực hiện.
+
+## 18. Việc còn lại (`mustdo.md` — cần người/credential thật)
 
 1. Tạo project Supabase thật (database production).
 2. Chọn 1 trong 2 hệ thống Voice AI để giữ lâu dài (không chặn, chỉ nên dọn sau).
@@ -524,7 +554,7 @@ trong trình duyệt), không đổi API/backend.
    feature/agentic-ai, sẽ tự cải thiện khi bật `AGENT_LLM_ENABLED`/`AGENT_REWRITE_ENABLED`
    thật, không sửa trong project này để giữ đúng logic gốc.
 
-## 18. Lệnh kiểm tra nhanh
+## 19. Lệnh kiểm tra nhanh
 
 ```bash
 # Backend
