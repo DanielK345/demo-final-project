@@ -418,7 +418,46 @@ message tiếng Việt thân thiện (`"Vui lòng đăng nhập..."`), không ph
 Chi tiết các field/luồng backend chưa có (passenger_count, nút Hủy ở bước CONFIRM,
 caption thời gian thực khi gọi) — xem `mustdo.md` mục 7.
 
-## 14. Việc còn lại (`mustdo.md` — cần người/credential thật)
+## 14. Tự hoàn thiện các mục `mustdo.md` làm được không cần credential ngoài
+
+Theo yêu cầu trực tiếp ("những cái nào trong mustdo mà tự cải thiện tự làm được thì
+bạn cứ hoàn thiện"), rà lại toàn bộ `mustdo.md` và hoàn thiện đúng những phần không
+cần tài khoản/API key bên ngoài, không cần quyết định nghiệp vụ:
+
+- **2FA thật (TOTP)** — trước chỉ là toggle trang trí ("sắp ra mắt"). Giờ enforce thật
+  ở bước đăng nhập: `AuthService` sinh secret TOTP thật (`pyotp`, thuần Python, không
+  cần dịch vụ ngoài), chỉ bật sau khi xác nhận đúng 1 mã thật (tránh tự khoá tài khoản
+  bằng secret chưa verify), `login()` trả `pending_token` tạm thay vì access token
+  ngay nếu tài khoản đã bật 2FA, phải xác thực đúng mã ở
+  `/auth/2fa/verify-login` mới lấy được access token thật. `/auth/login` giữ nguyên
+  hành vi cũ cho tài khoản chưa bật (không phá flow demo). Frontend: `LoginForm.tsx`
+  có bước nhập mã 6 số; `PaymentPage.tsx` có luồng bật/tắt thật (hiện secret + otpauth
+  URL để thêm vào Google Authenticator, xác nhận bằng mã thật). Không làm QR ảnh (cần
+  thêm dependency `qrcode`/`Pillow`) — chỉ text/otpauth URL, nhập tay vẫn hoạt động
+  đầy đủ, giữ đúng tinh thần hạn chế dependency mới đã có sẵn trong `auth_service.py`.
+  Test mới: `tests/test_api/test_two_factor_auth.py` (4 test, dùng `pyotp` sinh mã
+  thật, không mock).
+- **TrackingPage — mô phỏng nâng cao (không cần Maps API key)** — marker tài xế trước
+  đứng yên 1 chỗ cố định suốt chuyến; giờ di chuyển thật theo đúng trạng thái thật
+  (searching/accepted/arriving/in_transit/completed) mỗi lần poll, kèm CSS transition
+  mượt và thêm pin điểm đến (trước chỉ có điểm đón). Vẫn là toạ độ % minh hoạ trên ảnh
+  tĩnh, không phải GPS thật — phần GPS thật vẫn cần Google Maps API key (giữ nguyên
+  trong mustdo.md).
+- **Xác nhận `OPENAI_API_KEY` đã hoạt động** — `mustdo.md` mục 6 trước ghi
+  "AGENT_LLM_ENABLED=false mặc định" (đã lỗi thời — code default là `true`, xem
+  `src/backend/config.py`). Verify qua server thật: `GET /api/v1/status` trả
+  `"understanding_mode": "openai"` — LLM thật đã hoạt động, đánh dấu mục này xong.
+
+**Phát hiện quan trọng không thuộc phạm vi trên (đã ghi rõ vào `mustdo.md` mục 8, KHÔNG
+tự sửa):** trong lúc verify, phát hiện nhánh đã được merge thêm 1 refactor lớn từ
+`feature/agentic-ai` (tái cấu trúc `src/agents/` — không phải do tôi làm, xảy ra song
+song khi tôi đang code, tác giả chính là bạn). Sau merge đó, chạy lại đúng kịch bản đặt
+xe từng verify thành công (mục 13) không còn tới được `current_step: CONFIRM` nữa — mọi
+lượt đều báo "Hệ thống đang phản hồi chậm" rồi rơi vào `HANDOFF`. Không động vào
+`src/agents/` (công việc đang dở của bạn, ngoài phạm vi 2FA/tracking) — chỉ ghi nhận
+trung thực để bạn biết và tự xác nhận/sửa.
+
+## 15. Việc còn lại (`mustdo.md` — cần người/credential thật)
 
 1. Tạo project Supabase thật (database production).
 2. Chọn 1 trong 2 hệ thống Voice AI để giữ lâu dài (không chặn, chỉ nên dọn sau).
@@ -434,7 +473,7 @@ caption thời gian thực khi gọi) — xem `mustdo.md` mục 7.
    feature/agentic-ai, sẽ tự cải thiện khi bật `AGENT_LLM_ENABLED`/`AGENT_REWRITE_ENABLED`
    thật, không sửa trong project này để giữ đúng logic gốc.
 
-## 15. Lệnh kiểm tra nhanh
+## 16. Lệnh kiểm tra nhanh
 
 ```bash
 # Backend

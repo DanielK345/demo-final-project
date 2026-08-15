@@ -7,6 +7,7 @@ pydantic-settings>=2.7.0
 python-dotenv>=1.0.0
 redis>=5.2.0
 celery>=5.4.0
+pyotp>=2.9.0               # 2FA TOTP thật (AuthService) — thuần Python, không cần dịch vụ ngoài
 
 # Database / persistence
 sqlalchemy>=2.0.0

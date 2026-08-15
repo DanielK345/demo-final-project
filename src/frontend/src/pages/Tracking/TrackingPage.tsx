@@ -17,6 +17,20 @@ const STATUS_MAP: Record<TripStatusResponse["status"], TrackingTripDetails["stat
   COMPLETED: "completed",
 };
 
+// Toạ độ % thuần minh hoạ trên ảnh nền tĩnh — KHÔNG phải GPS thật (chưa có Maps
+// provider, xem mustdo.md mục 3). Trước đây marker tài xế đứng yên 1 chỗ cố định bất
+// kể trạng thái/ETA thật đổi thế nào; giờ marker DI CHUYỂN thật theo đúng trạng thái
+// thật trả về từ TripService mỗi lần poll (mô phỏng nâng cao — không cần API key).
+const PICKUP_POINT = { left: 30, top: 55 };
+const DESTINATION_POINT = { left: 76, top: 22 };
+const DRIVER_WAYPOINT: Record<TrackingTripDetails["status"], { left: number; top: number } | null> = {
+  searching: null,
+  accepted: { left: 88, top: 82 },
+  arriving: { left: 44, top: 64 },
+  in_transit: { left: 54, top: 40 },
+  completed: DESTINATION_POINT,
+};
+
 export const TrackingPage: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
@@ -129,22 +143,42 @@ export const TrackingPage: React.FC = () => {
             style={{ backgroundImage: `url(${mapBgUrl})` }}
           />
           <div className="absolute inset-0 bg-gradient-to-t from-slate-900/40 via-transparent to-transparent pointer-events-none" />
-          <div className="absolute top-1/2 left-1/3 -translate-x-1/2 -translate-y-1/2 flex flex-col items-center">
+          <div
+            className="absolute -translate-x-1/2 -translate-y-1/2 flex flex-col items-center"
+            style={{ left: `${PICKUP_POINT.left}%`, top: `${PICKUP_POINT.top}%` }}
+          >
             <div className="px-2.5 py-1 bg-[#191C1E] text-white text-[10px] font-bold rounded-lg shadow-md mb-1">
               Điểm đón
             </div>
             <div className="w-4 h-4 bg-[#00D1C1] rounded-full border-2 border-white shadow-lg animate-ping" />
           </div>
-          {trip?.driver && (
-            <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col items-center">
-              <div className="px-2.5 py-1 bg-[#006a62] text-white text-[10px] font-bold rounded-lg shadow-md mb-1 flex items-center gap-1">
-                <span>Tài xế ({trip.eta})</span>
-              </div>
-              <div className="w-8 h-8 rounded-full bg-white shadow-xl flex items-center justify-center text-[#006a62] border-2 border-[#00D1C1]">
-                <Navigation className="w-4 h-4 transform rotate-45" />
-              </div>
+          <div
+            className="absolute -translate-x-1/2 -translate-y-1/2 flex flex-col items-center"
+            style={{ left: `${DESTINATION_POINT.left}%`, top: `${DESTINATION_POINT.top}%` }}
+          >
+            <div className="px-2.5 py-1 bg-[#006a62] text-white text-[10px] font-bold rounded-lg shadow-md mb-1">
+              Điểm đến
             </div>
-          )}
+            <div className="w-4 h-4 bg-white rounded-full border-2 border-[#006a62] shadow-lg" />
+          </div>
+          {trip?.driver &&
+            (() => {
+              const point = DRIVER_WAYPOINT[trip.status];
+              if (!point) return null;
+              return (
+                <div
+                  className="absolute -translate-x-1/2 -translate-y-1/2 flex flex-col items-center transition-[left,top] duration-[1400ms] ease-in-out"
+                  style={{ left: `${point.left}%`, top: `${point.top}%` }}
+                >
+                  <div className="px-2.5 py-1 bg-[#006a62] text-white text-[10px] font-bold rounded-lg shadow-md mb-1 flex items-center gap-1">
+                    <span>Tài xế ({trip.eta})</span>
+                  </div>
+                  <div className="w-8 h-8 rounded-full bg-white shadow-xl flex items-center justify-center text-[#006a62] border-2 border-[#00D1C1]">
+                    <Navigation className="w-4 h-4 transform rotate-45" />
+                  </div>
+                </div>
+              );
+            })()}
         </div>
 
         {/* Right Column: Tracking Detail Card */}
