@@ -3,14 +3,14 @@ import os
 import pytest
 
 from src.agents.agent import LLMAgent
-from src.agents.schemas import ActionType, AgentInput, ToolName
-from src.agents.understanding.models import (
+from src.agents.core.booking_types import CorrectionField
+from src.agents.legacy.understanding.models import (
     ConfirmationIntent,
-    CorrectionField,
     UnderstandingContext,
     UnderstandingIntent,
 )
-from src.agents.understanding.openai import OpenAIUnderstandingAdapter
+from src.agents.legacy.understanding.openai import OpenAIUnderstandingAdapter
+from src.agents.schemas import ActionType, AgentInput, ToolName
 from src.config import get_settings
 
 pytestmark = [

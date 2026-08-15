@@ -7,9 +7,8 @@ from examples.core_agent_chat import (
 )
 from src.agents.agent import LLMAgent
 from src.agents.graph import AgentGraphAdapter
+from src.agents.legacy.understanding.rules import RuleBasedUnderstanding
 from src.agents.schemas import ActionType, ToolCall, ToolName
-from src.agents.understanding.rewrite_service import PassthroughContextualRewriter
-from src.agents.understanding.rules import RuleBasedUnderstanding
 
 
 def test_mock_backend_returns_multiple_ho_guom_candidates():
@@ -41,10 +40,7 @@ def test_mock_backend_does_not_invent_ambiguous_places(query):
 
 @pytest.mark.asyncio
 async def test_interactive_session_keeps_state_and_executes_mock_tools(capsys):
-    agent = LLMAgent(
-        understanding_service=RuleBasedUnderstanding(),
-        message_rewriter=PassthroughContextualRewriter(),
-    )
+    agent = LLMAgent(understanding_service=RuleBasedUnderstanding())
     session = InteractiveSession(
         "interactive-test",
         graph=AgentGraphAdapter(agent),
@@ -64,10 +60,7 @@ async def test_interactive_session_keeps_state_and_executes_mock_tools(capsys):
 
 @pytest.mark.asyncio
 async def test_interactive_handoff_is_terminal_until_reset():
-    agent = LLMAgent(
-        understanding_service=RuleBasedUnderstanding(),
-        message_rewriter=PassthroughContextualRewriter(),
-    )
+    agent = LLMAgent(understanding_service=RuleBasedUnderstanding())
     session = InteractiveSession(
         "interactive-test",
         graph=AgentGraphAdapter(agent),

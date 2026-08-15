@@ -5,8 +5,7 @@ from pathlib import Path
 
 from src.agents.agent import LLMAgent
 from src.agents.eval import BehaviorEvaluator, load_evaluation_dataset
-from src.agents.understanding.rewrite_service import PassthroughContextualRewriter
-from src.agents.understanding.rules import RuleBasedUnderstanding
+from src.agents.legacy.understanding.rules import RuleBasedUnderstanding
 
 DEFAULT_DATASET = Path("src/agents/eval/datasets/readiness_v1.json")
 
@@ -16,10 +15,7 @@ async def run(dataset_path: Path, *, real_model: bool = False) -> int:
     agent = (
         LLMAgent()
         if real_model
-        else LLMAgent(
-            understanding_service=RuleBasedUnderstanding(),
-            message_rewriter=PassthroughContextualRewriter(),
-        )
+        else LLMAgent(understanding_service=RuleBasedUnderstanding())
     )
     report = await BehaviorEvaluator().evaluate_conversations(
         agent,

@@ -2,22 +2,18 @@ import pytest
 
 from examples.core_agent_chat import InteractiveSession
 from src.agents.agent import LLMAgent
+from src.agents.core.booking import BookingData, BookingStep
 from src.agents.graph import AgentGraphAdapter
+from src.agents.legacy.understanding.rules import RuleBasedUnderstanding
 from src.agents.schemas import ActionType
 from src.agents.state import ConversationMessageType
-from src.agents.understanding.rewrite_service import PassthroughContextualRewriter
-from src.agents.understanding.rules import RuleBasedUnderstanding
-from src.agents.workflows.booking_models import BookingData, BookingStep
 
 
 def offline_session(session_id: str) -> InteractiveSession:
     return InteractiveSession(
         session_id,
         graph=AgentGraphAdapter(
-            LLMAgent(
-                understanding_service=RuleBasedUnderstanding(),
-                message_rewriter=PassthroughContextualRewriter(),
-            )
+            LLMAgent(understanding_service=RuleBasedUnderstanding())
         ),
     )
 
