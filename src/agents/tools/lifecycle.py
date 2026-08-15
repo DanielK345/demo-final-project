@@ -2,8 +2,8 @@ from typing import Any
 
 from pydantic import BaseModel
 
-from src.agents.schemas import ToolCall, ToolName, ToolResult, ToolStatus
-from src.agents.state import AgentState
+from src.agents.contracts.schemas import ToolCall, ToolName, ToolResult, ToolStatus
+from src.agents.contracts.state import AgentState
 from src.agents.tools.schemas import (
     CancelBookingResult,
     CreateBookingResult,

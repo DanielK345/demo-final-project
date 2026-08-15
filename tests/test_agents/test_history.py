@@ -1,7 +1,24 @@
 import pytest
 from pydantic import ValidationError
 
-from src.agents.history import (
+from src.agents.contracts.schemas import (
+    ActionType,
+    AgentAction,
+    AgentInput,
+    ToolName,
+    ToolResult,
+    ToolStatus,
+)
+from src.agents.contracts.state import (
+    AgentState,
+    AssistantDeliveryEvent,
+    ConversationMessage,
+    ConversationMessageType,
+    ConversationRole,
+    ConversationSummary,
+    DeliveryStatus,
+)
+from src.agents.core.history import (
     DeliveryEventMismatchError,
     DuplicateHistoryMessageError,
     HistorySessionMismatchError,
@@ -10,23 +27,6 @@ from src.agents.history import (
     append_history_messages,
     build_message_id,
     record_turn_history,
-)
-from src.agents.schemas import (
-    ActionType,
-    AgentAction,
-    AgentInput,
-    ToolName,
-    ToolResult,
-    ToolStatus,
-)
-from src.agents.state import (
-    AgentState,
-    AssistantDeliveryEvent,
-    ConversationMessage,
-    ConversationMessageType,
-    ConversationRole,
-    ConversationSummary,
-    DeliveryStatus,
 )
 
 
@@ -54,14 +54,14 @@ def assistant_message(turn_id: str = "turn-001") -> ConversationMessage:
 
 
 def test_agent_input_requires_turn_id():
-    from src.agents.schemas import AgentInput
+    from src.agents.contracts.schemas import AgentInput
 
     with pytest.raises(ValidationError, match="turn_id"):
         AgentInput(session_id="session-001", transcript="Tôi muốn đặt xe")
 
 
 def test_agent_input_normalizes_and_rejects_blank_turn_id():
-    from src.agents.schemas import AgentInput
+    from src.agents.contracts.schemas import AgentInput
 
     agent_input = AgentInput(
         session_id="session-001",

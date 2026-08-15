@@ -136,20 +136,17 @@ Turn N+1
 
 Nhờ vậy session có thể resume sau disconnect hoặc được xử lý ở instance khác.
 
-### 3.3 Workflow quyết định business step
+### 3.3 Model chọn semantic action; policy bảo vệ nghiệp vụ
 
-Router chỉ chọn hoặc tiếp tục workflow. Workflow mới quyết định:
-
-- field nào còn thiếu;
-- có cần hỏi user không;
-- có cần gọi tool không;
-- tool result có ý nghĩa gì;
-- cần retry, hoàn thành hay handoff.
+Conversation model đọc transcript, history và typed state để trả lời tự nhiên
+hoặc chọn semantic tool tiếp theo. Capability handler kiểm tra tool đó có hợp lệ
+với state hay không, dựng external `ToolCall` từ state và reduce `ToolResult`.
+Không có router/FSM production parse lại transcript sau model.
 
 ### 3.4 Business-critical rules phải deterministic
 
-LLM có thể hỗ trợ hiểu ngôn ngữ tự nhiên, nhưng các quy tắc sau phải được kiểm
-soát bằng state machine, schema và guardrail:
+LLM hiểu ngôn ngữ tự nhiên và điều khiển hội thoại, nhưng các quy tắc sau phải
+được kiểm soát bằng typed state, capability policy và guardrail:
 
 - không booking trước xác nhận;
 - không tự chọn candidate địa điểm khi còn mơ hồ;
@@ -169,6 +166,7 @@ Contract chi tiết nằm trong `schemas.py` và `state.py`.
 
 ```text
 session_id
+turn_id
 transcript
 stt_confidence
 tool_result
@@ -184,7 +182,11 @@ current_workflow
 current_step
 collected_data
 pending_tool_call_id
+pending_tool_name
+confirmation
 retry_count
+model_failure_count
+conversation_history
 ```
 
 State được mở rộng theo F2 nhưng phải giữ backward compatibility hợp lý và không
@@ -218,36 +220,34 @@ ToolResult: tool_name + call_id + status + data/error
 ## 5. Một lượt hội thoại được xử lý thế nào?
 
 ```text
-1. Backend nhận transcript hoặc ToolResult.
-2. Backend load AgentState theo session_id.
-3. LLMAgent kiểm tra session isolation.
-4. Router áp dụng handoff policy tổng quát.
-5. Nếu đã có current_workflow, tiếp tục workflow đó.
-6. Nếu chưa có workflow, classify intent.
-7. Agent lấy workflow từ registry.
-8. Workflow đọc input/state và quyết định bước kế tiếp.
-9. Workflow trả đúng một AgentAction.
-10. Backend apply state_updates, persist và thực thi action.
+1. Backend nhận transcript hoặc correlated `ToolResult` và load `AgentState`.
+2. `LLMAgent` kiểm tra session, confidence, pending/replay policy.
+3. `ModelDrivenAgent` gửi instructions, typed context và tool đang khả dụng cho model.
+4. Model trả lời hoặc chọn một semantic tool.
+5. Capability policy validate state; tool nội bộ update state hoặc phát external `ToolCall`.
+6. External `ToolResult` được reducer tương ứng validate và đưa lại model để diễn đạt.
+7. Guardrail kiểm tra action/state/side effect lần cuối.
+8. Backend apply `state_updates`, persist và thực thi action.
 ```
 
 Nếu action là `CALL_TOOL`:
 
 ```text
-Workflow
-  ↓ build ToolCall
+Semantic capability
+  ↓ validate state + build ToolCall
 AgentAction(CALL_TOOL)
   ↓
 Backend executes
   ↓
 ToolResult
   ↓ correlate call_id/tool_name
-Current Workflow
+Typed result reducer + model
   ↓
 Next AgentAction
 ```
 
-Workflow gọi tool nào thì workflow đó diễn giải result. Router không diễn giải
-Maps candidates, booking result, ETA hay retrieved documents.
+Reducer của capability sở hữu schema/result tương ứng. Model chỉ diễn đạt facts
+đã validate; không tự suy diễn Maps candidates, booking result, ETA hay source.
 
 ---
 
@@ -255,44 +255,24 @@ Maps candidates, booking result, ETA hay retrieved documents.
 
 ### Ride Booking
 
-```text
-COLLECT_PICKUP
-→ RESOLVE_PICKUP
-→ SELECT_PICKUP_CANDIDATE (nếu ambiguous)
-→ COLLECT_DESTINATION
-→ RESOLVE_DESTINATION
-→ SELECT_DESTINATION_CANDIDATE (nếu ambiguous)
-→ COLLECT_PHONE / VEHICLE (theo contract MVP)
-→ ESTIMATE_ROUTE / FARE (nếu được yêu cầu)
-→ CONFIRM
-→ CREATE_BOOKING
-→ COMPLETE
-```
+Model thu thập/sửa slot theo bất kỳ thứ tự nào bằng `update_booking`. Backend
+resolve location và trả status/candidates có type. Model chọn candidate/vehicle;
+policy dựng tóm tắt xác nhận deterministic rồi mới cho phép `create_booking`.
 
 Nếu user sửa pickup, destination, vehicle hoặc fare-sensitive data, confirmation
 cũ phải được reset theo policy.
 
 ### Trip Lookup
 
-```text
-COLLECT_IDENTIFIER
-→ LOOKUP_TRIP
-→ PROCESS_RESULT
-→ RESPOND / RETRY / HANDOFF
-```
+Model thu thập booking ID/phone và gọi `lookup_trip`. Reducer validate kết quả;
+nếu nhiều chuyến, model dùng `select_trip`, sau đó diễn đạt facts từ state.
 
 Identifier là booking ID hoặc phone. ETA và trip status chỉ lấy từ tool result.
 
 ### FAQ + RAG
 
-```text
-RECEIVE_QUESTION
-→ RETRIEVE_KNOWLEDGE
-→ VALIDATE_SCORE / SOURCE
-→ GROUNDED_RESPONSE
-   ├── đủ context → RESPOND
-   └── thiếu context → FALLBACK / HANDOFF
-```
+Model gọi `retrieve_knowledge`; capability lọc score/freshness/source theo policy
+rồi model chỉ được trả lời từ documents đã qua lọc.
 
 ### Human Handoff
 
@@ -443,22 +423,22 @@ Tham khảo:
 |---|---|---|
 | Realtime voice | Pipecat/LiveKit pipeline | Voice Gateway sở hữu audio/STT/TTS |
 | Session workflow | LiveKit AgentSession | Backend + `AgentState` duy trì session |
-| Specialized flow | LiveKit tasks/handoffs | Router + `BaseWorkflow` implementations |
+| Specialized capability | LiveKit tasks/tools | capability registry + semantic tools |
 | Tool schema | LiveKit/OpenAI/Vocode | `ToolCall`, typed params, `ToolResult` |
 | Safe side effects | Vocode action worker | Backend Tool Executor, ngoài Agent |
 | Structured output | OpenAI Agents SDK | Pydantic `AgentAction` validation |
-| Human escalation | LiveKit/OpenAI handoff | Handoff workflow + Backend/Voice execution |
+| Human escalation | LiveKit/OpenAI handoff | typed handoff action + Backend/Voice execution |
 | Streaming/interruption | Pipecat frames | Voice layer; Agent nhận final transcript turn |
 | Behavioral testing | LiveKit/OpenAI evals | Offline pytest + scenario/eval suite |
 
-Kết quả là một kiến trúc **hybrid deterministic agent**:
+Kết quả là một kiến trúc **model-driven agent with deterministic boundaries**:
 
 ```text
 LLM/NLU flexibility
         +
 Typed contracts
         +
-Deterministic state machine
+Typed state + deterministic policy
         +
 Backend-controlled side effects
 ```
@@ -494,8 +474,8 @@ Voice Agent không giống chatbot thuần text. Implementation phải chú ý:
 
 ### Latency
 
-- router và deterministic transition không cần gọi LLM khi state đã rõ;
-- chỉ retrieve/call model khi cần;
+- policy checks và correlated result validation không gọi thêm model;
+- model chỉ nhận những semantic tools đang khả dụng với state;
 - message trả TTS nên được tạo nhanh và ngắn;
 - đo riêng STT, Agent, tool và TTS latency;
 - không đưa background analytics vào realtime path.
@@ -516,8 +496,8 @@ Voice Agent không giống chatbot thuần text. Implementation phải chú ý:
 | Emergency bị giữ ở bot | Deterministic handoff policy |
 | Prompt injection | Structured contracts + business-rule enforcement |
 
-Prompt là một lớp guardrail, không phải lớp duy nhất. Validation, state machine,
-Backend policy và tests mới bảo đảm business-critical behavior.
+Prompt là một lớp guardrail, không phải lớp duy nhất. Validation, typed state,
+deterministic policy, Backend policy và tests mới bảo đảm business-critical behavior.
 
 ---
 
@@ -569,8 +549,8 @@ thuộc integration giữa Voice, Backend và Agent.
 Trạng thái Core Agent hiện tại:
 
 - F1–F8: implemented.
-- Conversation history/context/rewrite: implemented.
-- Conversation repair và workflow interruption: implemented.
+- Conversation history/typed context: implemented.
+- Correction, interruption và draft-abandon confirmation: implemented.
 - Booking/Trip/FAQ production hardening phía Core: implemented.
 - Offline readiness evaluation: implemented.
 

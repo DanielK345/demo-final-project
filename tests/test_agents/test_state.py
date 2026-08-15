@@ -1,8 +1,8 @@
 import pytest
 from pydantic import ValidationError
 
-from src.agents.schemas import ToolName, WorkflowType
-from src.agents.state import (
+from src.agents.contracts.schemas import ToolName, WorkflowType
+from src.agents.contracts.state import (
     AgentState,
     ConfirmationStatus,
     ConversationMessage,
