@@ -98,6 +98,18 @@ async def booking_demo() -> None:
             {"candidates": [{"place_id": "p2", "display_name": "Times City"}]},
         )
     )
+    fare = await session.user("Ô tô 4 chỗ")
+    await session.tool(
+        success(
+            fare,
+            {
+                "estimate_id": "demo-fare-001",
+                "fare_amount": 75000,
+                "currency": "VND",
+                "eta_minutes": 6,
+            },
+        )
+    )
     await session.user("0901234567")
     booking = await session.user("Đúng, đặt giúp tôi")
     await session.tool(

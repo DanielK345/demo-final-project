@@ -2,11 +2,14 @@ from typing import Any
 
 from pydantic import BaseModel
 
-from src.agents.schemas import ToolCall, ToolName, ToolResult, ToolStatus
-from src.agents.state import AgentState
+from src.agents.contracts.schemas import ToolCall, ToolName, ToolResult, ToolStatus
+from src.agents.contracts.state import AgentState
 from src.agents.tools.schemas import (
+    CancelBookingResult,
     CreateBookingResult,
     CreateHandoffResult,
+    EstimateFareResult,
+    GetVehicleOptionsResult,
     LookupTripResult,
     RetrieveKnowledgeResult,
     SearchPlaceResult,
@@ -39,7 +42,10 @@ class ToolFailure(BaseModel):
 
 ResultPayload = (
     SearchPlaceResult
+    | EstimateFareResult
+    | GetVehicleOptionsResult
     | CreateBookingResult
+    | CancelBookingResult
     | LookupTripResult
     | RetrieveKnowledgeResult
     | CreateHandoffResult
@@ -47,7 +53,10 @@ ResultPayload = (
 
 _RESULT_MODELS: dict[ToolName, type[ResultPayload]] = {
     ToolName.SEARCH_PLACE: SearchPlaceResult,
+    ToolName.ESTIMATE_FARE: EstimateFareResult,
+    ToolName.GET_VEHICLE_OPTIONS: GetVehicleOptionsResult,
     ToolName.CREATE_BOOKING: CreateBookingResult,
+    ToolName.CANCEL_BOOKING: CancelBookingResult,
     ToolName.LOOKUP_TRIP: LookupTripResult,
     ToolName.RETRIEVE_KNOWLEDGE: RetrieveKnowledgeResult,
     ToolName.CREATE_HANDOFF: CreateHandoffResult,

@@ -51,16 +51,81 @@ class MockBackendExecutor:
     def _result_data(self, call: ToolCall) -> dict[str, Any]:
         if call.tool_name is ToolName.SEARCH_PLACE:
             return {"candidates": self._place_candidates(str(call.params["query"]))}
+        if call.tool_name is ToolName.ESTIMATE_FARE:
+            rates = {"MOTORBIKE": 45000, "CAR_4": 75000, "CAR_7": 105000}
+            vehicle = str(call.params["vehicle_type"])
+            return {
+                "estimate_id": f"DEMO-FARE-{vehicle}",
+                "fare_amount": rates[vehicle],
+                "currency": "VND",
+                "eta_minutes": 6,
+                "distance_km": 12.5,
+            }
+        if call.tool_name is ToolName.GET_VEHICLE_OPTIONS:
+            passenger_count = int(call.params["passenger_count"])
+            catalog = [
+                ("bike", "MOTORBIKE", "Xe máy", 1, 45000),
+                ("car-4", "CAR_4", "Ô tô 4 chỗ", 4, 75000),
+                ("car-7", "CAR_7", "Ô tô 7 chỗ", 7, 105000),
+            ]
+            return {
+                "options": [
+                    {
+                        "option_id": option_id,
+                        "vehicle_type": vehicle_type,
+                        "display_name": display_name,
+                        "capacity": capacity,
+                        "available": True,
+                        "estimate_id": f"DEMO-FARE-{vehicle_type}",
+                        "fare_amount": fare,
+                        "currency": "VND",
+                        "eta_minutes": 6,
+                    }
+                    for option_id, vehicle_type, display_name, capacity, fare in catalog
+                    if capacity >= passenger_count
+                ]
+            }
         if call.tool_name is ToolName.CREATE_BOOKING:
+            fare_by_estimate = {
+                "DEMO-FARE-MOTORBIKE": 45000,
+                "DEMO-FARE-CAR_4": 75000,
+                "DEMO-FARE-CAR_7": 105000,
+            }
             return {
                 "booking_id": "DEMO-BOOKING-001",
                 "status": "CONFIRMED",
                 "eta_minutes": 5,
-                "fare_amount": 75000,
+                "fare_amount": fare_by_estimate.get(
+                    str(call.params["fare_estimate_id"])
+                ),
                 "currency": "VND",
             }
+        if call.tool_name is ToolName.CANCEL_BOOKING:
+            return {
+                "booking_id": str(call.params["booking_id"]),
+                "status": "CANCELLED",
+            }
         if call.tool_name is ToolName.LOOKUP_TRIP:
-            booking_id = str(call.params.get("booking_id") or "DEMO-BOOKING-001")
+            if call.params.get("phone_number"):
+                return {
+                    "found": True,
+                    "trips": [
+                        {
+                            "booking_id": "DEMO-BOOKING-001",
+                            "status": "Đang đến điểm đón",
+                            "eta_minutes": 4,
+                            "pickup_label": "VinUniversity",
+                            "destination_label": "Times City",
+                        },
+                        {
+                            "booking_id": "DEMO-BOOKING-002",
+                            "status": "Đã hoàn thành",
+                            "pickup_label": "Royal City",
+                            "destination_label": "Nhà hát Lớn",
+                        },
+                    ],
+                }
+            booking_id = str(call.params["booking_id"])
             return {
                 "found": True,
                 "booking_id": booking_id,
