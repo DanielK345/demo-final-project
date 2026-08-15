@@ -8,16 +8,16 @@ lịch sử triển khai.
 
 | Phần | Trạng thái | Bằng chứng chính |
 |---|---|---|
-| F1 Core & Routing | Implemented | routing, graph và orchestration tests |
-| F2 State & Memory | Implemented | typed state/history, optimistic version và isolation tests |
-| F3 Ride Booking | Implemented | confirmation, correction, retry, cancellation và reconciliation tests |
-| F4 Trip Lookup | Implemented | contextual lookup, multi-match và stale/replay tests |
-| F5 Human Handoff | Implemented | reason/context redaction và safety tests |
+| F1 Core & Routing | Implemented | model/tool loop + capability registry |
+| F2 State & Memory | Implemented | AgentState + typed TurnSession/history |
+| F3 Ride Booking | Implemented | booking capability, confirmation, correction, cancellation |
+| F4 Trip Lookup | Implemented | typed lookup state + single/multi-match reducer |
+| F5 Human Handoff | Implemented | structured reason/source/safe history context |
 | F6 Tool Lifecycle | Implemented | typed params/results, correlation, deadline và idempotency contracts |
-| F7 FAQ + grounded RAG | Implemented | freshness, injection, citation và grounding tests |
-| F8 Guardrails & Eval | Implemented | cross-cutting guardrails và readiness-v1 |
+| F7 FAQ + grounded RAG | Implemented | score/freshness filter, citation và grounding tests |
+| F8 Guardrails & Eval | Implemented | cross-cutting guardrails, scripted-model conversation evals |
 | Conversation repair/interruption | Implemented | repeat/correct/cancel/pause/resume/FAQ interruption tests |
-| Structured understanding/rewrite | Implemented, opt-in provider | deterministic fallback và fake-provider tests |
+| Natural-language understanding | Implemented | conversation model chọn structured semantic tools |
 
 ## Core invariants đã chốt
 
@@ -37,13 +37,16 @@ lịch sử triển khai.
 Core Agent được coi là done khi:
 
 1. Full offline pytest, Ruff, compileall và `git diff --check` pass.
-2. `readiness-v1` trả `ready=true` với zero configured safety violations.
+2. Scripted-model conversation suite đạt zero configured safety violations;
+   provider/release eval được chạy riêng trong môi trường release.
 3. Shared contracts trong README và Backend integration contract đồng bộ code.
-4. Real-provider tests vẫn là opt-in; phải chạy trong release environment nếu
-   release bật OpenAI understanding/rewrite.
+4. Real-provider smoke tests vẫn là opt-in; phải chạy trong release environment
+   khi phát hành cấu hình model production.
 
-Current verification: `342 passed, 5 skipped`; 5 skipped là real OpenAI tests
-yêu cầu `RUN_OPENAI_INTEGRATION=1`.
+Current verification: agent/backend/example/API scope `146 passed, 1 skipped`;
+riêng regression
+cho model retry/location/handoff và model-driven baseline đều đã chạy offline.
+Real-provider tests vẫn opt-in và yêu cầu key tương ứng.
 
 ## Ngoài phạm vi Core Agent
 

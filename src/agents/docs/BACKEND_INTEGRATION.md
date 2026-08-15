@@ -26,9 +26,10 @@ Core Agent:
 - không sở hữu credentials;
 - không tự retry network hoặc tạo side effect.
 
-Language understanding có thể dùng OpenAI khi `AGENT_LLM_ENABLED=true`.
-Credential/model được inject qua environment; Backend không gửi API key trong
-turn payload. OpenAI chỉ extract structured intent/slots, không thực thi tools.
+Khi `AGENT_LLM_ENABLED=true`, conversation model hiểu intent trong ngữ cảnh và
+chọn semantic tool. Credential/model được inject qua environment; Backend không
+gửi API key trong turn payload. Model không thực thi tool: Core Agent validate
+lựa chọn rồi chỉ phát `AgentAction`, Backend mới thực thi external work.
 
 ## 2. Entrypoint
 
@@ -38,10 +39,10 @@ Backend có thể gọi domain API trực tiếp:
 action = await LLMAgent().handle(agent_input, state)
 ```
 
-Hoặc adapter LangGraph:
+Hoặc stateless turn adapter để giữ compatibility với API `ainvoke`:
 
 ```python
-result = await AgentGraphAdapter().ainvoke(
+result = await AgentTurnAdapter().ainvoke(
     {
         "session_id": session_id,
         "turn_id": turn_id,
@@ -233,6 +234,13 @@ Mapping tối thiểu:
 
 Backend phải validate params bằng contract tương ứng trước khi gọi provider.
 Không đổi `call_id` khi tạo `ToolResult`.
+
+`search_place` trả `PlaceCandidate[]`, không trả `ResolvedLocation` tuỳ tiện.
+Backend không được biến lời chào, bare intent như "tôi muốn đặt xe", small talk
+hoặc transcript rác thành địa điểm. Nếu provider không tìm thấy kết quả nhưng
+text có bằng chứng địa chỉ rõ ràng (số nhà, đường/phố, quận/huyện, sân bay,
+bến xe, tên địa điểm/brand đã biết), Backend có thể trả một free-form candidate.
+Ngược lại phải trả `candidates=[]` để Core Agent hỏi lại địa chỉ cụ thể hơn.
 
 Core guardrail cũng validate toàn bộ params lần cuối và chỉ cho phép tool thuộc
 active workflow. Field thừa, field thiếu hoặc tool sai workflow bị chặn trước

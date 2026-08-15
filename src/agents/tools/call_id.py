@@ -1,6 +1,6 @@
 import re
 
-from src.agents.schemas import ToolName, WorkflowType
+from src.agents.contracts.schemas import ToolName, WorkflowType
 
 _SAFE_COMPONENT = re.compile(r"^[A-Za-z0-9_-]+$")
 

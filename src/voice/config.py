@@ -29,23 +29,13 @@ class VoiceSettings(BaseSettings):
     voice_asr_model: str = "whisper-large-v3-turbo"
     voice_asr_language: str = "vi"
 
-    # D2 — TTS (Edge-TTS). Uses a separate env key from OpenAI's VOICE_TTS_VOICE (nova,
-    # alloy, ...) used by the HTTP /voice/turn prototype in backend Settings.
+    # D2 — TTS (Edge-TTS). Keep this separate from Backend's VOICE_TTS_VOICE,
+    # which contains OpenAI voice names such as "nova" and "alloy". Those are not
+    # valid Edge-TTS voice IDs and otherwise fail at runtime in edge_tts.Communicate.
     voice_tts_voice: str = Field(
         default="vi-VN-HoaiMyNeural",
         validation_alias="VOICE_EDGE_TTS_VOICE",
     )
-
-    @field_validator("voice_tts_voice", mode="before")
-    @classmethod
-    def normalize_edge_tts_voice(cls, value: object) -> str:
-        voice = str(value or "").strip()
-        if not voice:
-            return "vi-VN-HoaiMyNeural"
-        # OpenAI TTS voices are short names; Edge-TTS IDs look like vi-VN-HoaiMyNeural.
-        if "-" not in voice and "Neural" not in voice:
-            return "vi-VN-HoaiMyNeural"
-        return voice
     # 1.0 = tốc độ gốc của giọng neural — nghe tự nhiên nhất. Bản trước đặt 0.9 (chậm
     # 10%, ý định "persona người lớn tuổi") nhưng làm giọng nghe robot/đơ hơn hẳn —
     # kéo chậm audio qua tham số rate của TTS engine (không phải resample) hay tạo méo

@@ -1,8 +1,7 @@
 import pytest
 from pydantic import ValidationError
 
-from src.agents.booking_types import VehicleType
-from src.agents.schemas import (
+from src.agents.contracts.schemas import (
     ActionType,
     AgentAction,
     AgentInput,
@@ -12,16 +11,19 @@ from src.agents.schemas import (
     ToolStatus,
     WorkflowType,
 )
-from src.agents.state import AgentState
-from src.agents.tools.booking import (
+from src.agents.contracts.state import AgentState
+from src.agents.core.booking_types import VehicleType
+from src.agents.tools.builders import (
     CancelBookingTool,
     CreateBookingTool,
+    CreateHandoffTool,
     EstimateFareTool,
     GetVehicleOptionsTool,
+    LookupTripTool,
+    RetrieveKnowledgeTool,
+    SearchPlaceTool,
 )
 from src.agents.tools.call_id import build_call_id
-from src.agents.tools.handoff import CreateHandoffTool
-from src.agents.tools.knowledge import RetrieveKnowledgeTool
 from src.agents.tools.lifecycle import (
     ToolResultMismatchError,
     ToolResultPayloadError,
@@ -32,9 +34,7 @@ from src.agents.tools.lifecycle import (
     parse_tool_result,
     pending_tool_updates,
 )
-from src.agents.tools.maps import SearchPlaceTool
-from src.agents.tools.schemas import SearchPlaceResult
-from src.agents.tools.trip import LookupTripTool
+from src.agents.tools.schemas import PlaceResolutionStatus, SearchPlaceResult
 
 
 def test_tool_builds_contract_without_executing_side_effect():
@@ -42,6 +42,27 @@ def test_tool_builds_contract_without_executing_side_effect():
 
     assert call.tool_name == ToolName.SEARCH_PLACE
     assert call.params == {"query": "Times City"}
+
+
+def test_place_result_has_a_structured_resolution_status():
+    resolved = SearchPlaceResult.model_validate(
+        {"candidates": [{"place_id": "p1", "display_name": "Times City"}]}
+    )
+    missing = SearchPlaceResult.model_validate(
+        {
+            "status": "NEEDS_CLARIFICATION",
+            "candidates": [],
+            "clarification_hint": "specific_name_or_address",
+        }
+    )
+
+    assert resolved.status is PlaceResolutionStatus.RESOLVED
+    assert missing.status is PlaceResolutionStatus.NEEDS_CLARIFICATION
+
+
+def test_place_result_rejects_status_candidate_mismatch():
+    with pytest.raises(ValidationError, match="exactly one candidate"):
+        SearchPlaceResult.model_validate({"status": "RESOLVED", "candidates": []})
 
 
 def test_trip_lookup_requires_an_identifier():

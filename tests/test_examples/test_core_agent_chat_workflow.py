@@ -30,10 +30,19 @@ async def test_full_conversation_repair_workflow_with_history_and_mock_backend()
         "Ờ, tôi muốn đặt xe từ VinUni đến Times City, bạn làm giúp nhé"
     )
     assert started[-1].action_type is ActionType.ASK_USER
+<<<<<<< HEAD
+=======
+<<<<<<< HEAD
+=======
+>>>>>>> feature/agentic-ai
     assert session.state.current_step == BookingStep.COLLECT_VEHICLE
 
     fare = await session.user_turn("Cho tôi ô tô 4 chỗ")
     assert fare[-1].action_type is ActionType.ASK_USER
+<<<<<<< HEAD
+=======
+>>>>>>> 86cfe2ef3e6996c4053492e822e3a2435384bcc3
+>>>>>>> feature/agentic-ai
     assert session.state.current_step == BookingStep.COLLECT_PHONE
 
     faq = await session.user_turn(
@@ -72,6 +81,11 @@ async def test_full_conversation_repair_workflow_with_history_and_mock_backend()
     booking = BookingData.model_validate(session.state.collected_data["booking"])
     assert booking.booking_id == "DEMO-BOOKING-001"
 
+<<<<<<< HEAD
+=======
+<<<<<<< HEAD
+=======
+>>>>>>> feature/agentic-ai
     tracking = await session.user_turn("Xe của tôi còn bao lâu nữa tới?")
     assert tracking[-1].action_type is ActionType.RESPOND
     assert "4 phút" in (tracking[-1].message or "")
@@ -86,6 +100,10 @@ async def test_full_conversation_repair_workflow_with_history_and_mock_backend()
     booking = BookingData.model_validate(session.state.collected_data["booking"])
     assert booking.booking_status == "CANCELLED"
 
+<<<<<<< HEAD
+=======
+>>>>>>> 86cfe2ef3e6996c4053492e822e3a2435384bcc3
+>>>>>>> feature/agentic-ai
     raw_user_messages = [
         message.content
         for message in session.state.conversation_history
@@ -93,7 +111,14 @@ async def test_full_conversation_repair_workflow_with_history_and_mock_backend()
     ]
     assert "Không, đổi điểm đến sang Royal City" in raw_user_messages
     assert "Ừ đúng rồi, đặt giúp tôi đi" in raw_user_messages
+<<<<<<< HEAD
     assert "Hủy chuyến" in raw_user_messages
+=======
+<<<<<<< HEAD
+=======
+    assert "Hủy chuyến" in raw_user_messages
+>>>>>>> 86cfe2ef3e6996c4053492e822e3a2435384bcc3
+>>>>>>> feature/agentic-ai
 
 
 @pytest.mark.asyncio
@@ -108,6 +133,11 @@ async def test_two_interactive_sessions_do_not_share_memory_or_business_state():
     assert second.state.conversation_history == []
     assert second.state.current_workflow is None
     assert second.state.collected_data == {}
+<<<<<<< HEAD
+=======
+<<<<<<< HEAD
+=======
+>>>>>>> feature/agentic-ai
 
 
 @pytest.mark.asyncio
@@ -157,3 +187,7 @@ async def test_chat_selects_one_of_multiple_trips_without_speaking_booking_ids()
     selected = await session.user_turn("Chuyến số 1")
     assert selected[-1].action_type is ActionType.RESPOND
     assert "4 phút" in (selected[-1].message or "")
+<<<<<<< HEAD
+=======
+>>>>>>> 86cfe2ef3e6996c4053492e822e3a2435384bcc3
+>>>>>>> feature/agentic-ai
