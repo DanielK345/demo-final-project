@@ -1,10 +1,11 @@
 from datetime import datetime
+from enum import StrEnum
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from src.agents.booking_types import VehicleType
-from src.agents.phone_policy import is_valid_mobile_phone
+from src.agents.core.booking_types import VehicleType
+from src.agents.core.phone_policy import is_valid_mobile_phone
 
 
 class ToolPayload(BaseModel):
@@ -121,8 +122,40 @@ class PlaceCandidate(ToolPayload):
     address: str | None = None
 
 
+class PlaceResolutionStatus(StrEnum):
+    UNRESOLVED = "UNRESOLVED"
+    RESOLVED = "RESOLVED"
+    AMBIGUOUS = "AMBIGUOUS"
+    NOT_FOUND = "NOT_FOUND"
+    NEEDS_CLARIFICATION = "NEEDS_CLARIFICATION"
+
+
 class SearchPlaceResult(ToolPayload):
+    status: PlaceResolutionStatus | None = None
     candidates: list[PlaceCandidate] = Field(default_factory=list)
+    clarification_hint: str | None = None
+
+    @model_validator(mode="after")
+    def normalize_resolution(self) -> "SearchPlaceResult":
+        if self.status is None:
+            self.status = (
+                PlaceResolutionStatus.NOT_FOUND
+                if not self.candidates
+                else PlaceResolutionStatus.RESOLVED
+                if len(self.candidates) == 1
+                else PlaceResolutionStatus.AMBIGUOUS
+            )
+        candidate_count = len(self.candidates)
+        if self.status is PlaceResolutionStatus.RESOLVED and candidate_count != 1:
+            raise ValueError("RESOLVED place result requires exactly one candidate")
+        if self.status is PlaceResolutionStatus.AMBIGUOUS and candidate_count < 2:
+            raise ValueError("AMBIGUOUS place result requires multiple candidates")
+        if self.status in {
+            PlaceResolutionStatus.NOT_FOUND,
+            PlaceResolutionStatus.NEEDS_CLARIFICATION,
+        } and candidate_count:
+            raise ValueError("unresolved place result cannot contain candidates")
+        return self
 
 
 class CreateBookingResult(ToolPayload):

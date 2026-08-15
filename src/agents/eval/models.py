@@ -1,6 +1,6 @@
 from pydantic import BaseModel, Field, model_validator
 
-from src.agents.schemas import (
+from src.agents.contracts.schemas import (
     ActionType,
     AgentInput,
     ToolName,
@@ -8,7 +8,7 @@ from src.agents.schemas import (
     ToolStatus,
     WorkflowType,
 )
-from src.agents.state import AgentState
+from src.agents.contracts.state import AgentState
 
 
 class EvaluationCase(BaseModel):

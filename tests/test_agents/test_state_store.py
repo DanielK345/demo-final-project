@@ -1,7 +1,7 @@
 import pytest
 
-from src.agents.schemas import WorkflowType
-from src.agents.state_store import (
+from src.agents.contracts.schemas import WorkflowType
+from src.agents.contracts.store import (
     InMemoryStateStore,
     StateAlreadyExistsError,
     StateNotFoundError,

@@ -26,7 +26,7 @@ HITL/chuyển tổng đài viên khi nhận diện kém hoặc yêu cầu phức
 2. Công nghệ & Phạm vi triển khai (Ảnh 2):
 Stack công nghệ:
 
-STT tiếng Việt (Whisper/PhoWhisper) + TTS (ElevenLabs/Google) + LLM + LangGraph
+STT tiếng Việt (Whisper/PhoWhisper) + TTS (ElevenLabs/Google) + LLM tool calling
 
 tool geocoding (Mapbox/Google Places) xác nhận địa chỉ
 
@@ -76,7 +76,7 @@ Mục tiêu:
 
 ## 2. Architecture bắt buộc phải giữ
 
-Luồng tổng quát:
+Luồng production bắt buộc:
 
 ```text
 Voice/STT
@@ -84,10 +84,10 @@ Voice/STT
 Backend
    ↓ AgentInput + AgentState
 LLMAgent
+   ↓ instructions + typed state + semantic tools
+ModelDrivenAgent
    ↓
-Router
-   ↓
-Business Workflow
+Deterministic policy / guardrails
    ↓
 AgentAction
    ↓
@@ -104,7 +104,7 @@ Agent
 → Backend gọi API/tool thật
 → ToolResult
 → Agent
-→ đúng workflow đang chờ
+→ typed result reducer
 → action tiếp theo
 ```
 
@@ -176,38 +176,37 @@ Nếu cần thêm field mới:
 
 ## 5. Phân chia trách nhiệm
 
-### Router / Orchestrator
+### Model / Orchestrator
 
-Router trả lời:
+Model-driven orchestrator trả lời:
 
-> Request này thuộc workflow nào hoặc cần tiếp tục workflow nào?
+> Người dùng muốn gì, cần trả lời hay chọn semantic tool nào tiếp theo?
 
-Router được phép:
-- classify intent;
-- ưu tiên `current_workflow`;
-- route `ToolResult`;
-- xử lý unknown/fallback ở mức tổng quát.
+Orchestrator được phép:
+- hiểu intent/slot/correction theo toàn bộ typed context;
+- trả lời smalltalk ngắn gọn;
+- chọn semantic tool;
+- route correlated `ToolResult` về reducer tương ứng.
 
-Router **không** được:
-- thu thập pickup/destination;
-- xác nhận booking;
-- diễn giải business result của tool;
-- viết logic chi tiết của Booking/Trip/FAQ.
+Orchestrator **không** được:
+- tự tạo business facts hoặc external tool result;
+- tự truyền place ID/fare/booking ID không có trong state;
+- vượt qua confirmation/policy để tạo side effect;
+- thực thi HTTP, database, Voice hoặc Backend service.
 
-### Business Workflow
+### Typed state / deterministic policy
 
-Workflow trả lời:
+Policy trả lời:
 
-> Trong workflow hiện tại, bước nghiệp vụ tiếp theo là gì?
+> Semantic action model chọn có hợp lệ với state hiện tại không, và ToolCall cụ
+> thể phải được dựng thế nào?
 
-Workflow chịu trách nhiệm:
-- đọc input + state;
-- xác định missing data;
-- quyết định hỏi user;
-- quyết định cần tool;
-- xử lý `ToolResult` của chính workflow;
-- cập nhật step;
-- hoàn thành / retry / handoff theo policy.
+Policy chịu trách nhiệm validation, dependent-field invalidation, explicit
+confirmation, correlation/idempotency, typed result reduction và dựng external
+tool params từ state. Không parse lại câu người dùng bằng regex/FSM.
+
+`legacy/` chứa router/FSM/NLU/repair cũ cho regression migration; không thêm
+feature production mới vào đó.
 
 ### Tool layer
 
@@ -289,11 +288,11 @@ Khi được giao feature:
 Các file sau ảnh hưởng nhiều feature:
 
 ```text
-src/agents/schemas.py
-src/agents/state.py
+src/agents/contracts/schemas.py
+src/agents/contracts/state.py
 src/agents/agent.py
-src/agents/workflows/base.py
-src/agents/tools/base.py
+src/agents/core/agent.py
+src/agents/tools/schemas.py
 ```
 
 Không tự ý:
@@ -445,15 +444,15 @@ Tránh:
 
 ## 14. Trạng thái hiện tại
 
-Core Agent F1–F8 đã implemented, gồm multi-turn workflows, typed tool lifecycle,
-conversation history/context/rewrite, repair/interruption, grounded FAQ,
-production guardrails và offline readiness evaluation.
+Core Agent F1–F8 đã implemented bằng model/tool loop, typed tool lifecycle,
+conversation history, grounded FAQ, deterministic policy/guardrails và offline
+readiness evaluation. Router/FSM/NLU/repair cũ chỉ còn trong `legacy/`.
 
 Current offline baseline:
-- 342 tests passed, 5 real-provider tests skipped theo opt-in policy;
+- 146 test hiện hành cho agent/backend/example/API passed, 1 skipped;
 - Ruff passed;
 - Python compile passed;
-- readiness-v1 đạt các configured gates.
+- scripted-model conversation safety regressions đạt các configured gates.
 
 External executors, production persistence/knowledge ingestion và Voice Runtime
 không nằm trong `src/agents`. Dùng `CORE_AGENT_STATUS.md` làm trạng thái/DoD hiện
