@@ -9,6 +9,10 @@ from src.backend.integrations.voice_client import (
 )
 from src.backend.services.session_service import SessionService
 from src.config import Settings, get_settings
+from src.voice.asr.groq_provider import is_known_hallucination
+
+
+ASR_REPROMPT_MESSAGE = "Tôi không nghe rõ yêu cầu của bạn, vui lòng nói rõ lại."
 
 
 class VoiceService:
@@ -38,6 +42,23 @@ class VoiceService:
             audio_bytes,
             mime_type=mime_type or "audio/webm",
         )
+
+        # The REST /voice/turn path may use OpenAI or Gemini rather than the
+        # Groq provider. Apply the same known-hallucination guard here so this
+        # caption-like ASR output never reaches the Agent.
+        if is_known_hallucination(transcript):
+            return {
+                "transcript": "",
+                "stt_confidence": 0.0,
+                "message_id": "",
+                "action": "ASK_USER",
+                "message": ASR_REPROMPT_MESSAGE,
+                "state": {},
+                "booking": None,
+                "audio_base64": None,
+                "audio_mime_type": "audio/mpeg",
+                "voice_provider": provider_name,
+            }
 
         agent_result = await self.session_service.process_message(
             session_id,

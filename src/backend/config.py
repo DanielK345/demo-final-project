@@ -55,6 +55,12 @@ class Settings(BaseSettings):
     voice_gemini_model: str = "gemini-2.0-flash"
     voice_timeout_seconds: float = Field(default=30.0, gt=0)
 
+    # Post-ASR place-name correction. Only VOICE transcripts are sent to Gemini;
+    # chat text always bypasses this layer.
+    asr_place_rewrite_enabled: bool = True
+    asr_place_rewrite_model: str = "gemini-2.0-flash"
+    asr_place_rewrite_timeout_seconds: float = Field(default=3.0, gt=0)
+
     # Database — DATABASE_URL dùng cho app runtime (Supabase Transaction Pooler,
     # cổng 6543, driver async asyncpg khi deploy thật — xem docs/database_supabase.md).
     # DATABASE_URL_MIGRATIONS (optional) dùng riêng cho Alembic (Direct Connection,

@@ -128,6 +128,7 @@ def test_estimate_confidence_low_when_no_speech_likely():
 def test_is_known_hallucination_matches_case_and_punctuation_insensitively():
     assert is_known_hallucination("Hãy subscribe cho kênh Ghiền Mì Gõ để không bỏ lỡ những video hấp dẫn.")
     assert is_known_hallucination("HÃY SUBSCRIBE CHO KÊNH GHIỀN MÌ GÕ ĐỂ KHÔNG BỎ LỠ NHỮNG VIDEO HẤP DẪN")
+    assert is_known_hallucination("Hẹn gặp lại các bạn trong những video tiếp theo nhé!")
 
 
 def test_is_known_hallucination_false_for_real_text():
@@ -158,3 +159,4 @@ async def test_transcribe_forces_zero_confidence_for_known_hallucination():
         {"segments": [{"avg_logprob": -0.08032052, "no_speech_prob": 0}]}
     ) > 0.9
     assert result.confidence == 0.0
+    assert result.text == ""

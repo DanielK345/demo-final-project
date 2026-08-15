@@ -8,6 +8,7 @@ from src.agents.schemas import ActionType, AgentAction, AgentInput
 from src.agents.state import AgentState
 from src.backend.services.agent_tool_executor import AgentToolExecutor
 from src.backend.services.conversation_logger import ConversationLogger
+from src.backend.services.gemini_place_rewriter import GeminiPlaceRewriter
 
 
 class SessionService:
@@ -15,6 +16,7 @@ class SessionService:
     _agent = LLMAgent()
     _tool_executor = AgentToolExecutor()
     _conversation_logger = ConversationLogger()
+    _transcript_rewriter = GeminiPlaceRewriter()
     _MAX_TOOL_TURNS = 8
 
     def create_session(
@@ -109,12 +111,22 @@ class SessionService:
         if session["status"] != "ACTIVE":
             raise ValueError("Phiên hội thoại đã kết thúc")
 
+        rewrite_result = await self._transcript_rewriter.rewrite(message, source=source)
+        normalized_message = rewrite_result.rewritten
+        if rewrite_result.applied:
+            # Development trace only; do not log full transcripts because they may
+            # contain PII. The ConversationLogger retains the source transcript.
+            print(
+                "[asr_place_rewrite] "
+                f"session={session_id} provider={rewrite_result.provider} changed=true"
+            )
+
         user_id = session.get("user_id")
         agent_state = self._load_agent_state(session_id, session)
         action = await self._run_agent_turn(
             session_id=session_id,
             agent_state=agent_state,
-            transcript=message.strip(),
+            transcript=normalized_message,
             stt_confidence=confidence,
         )
         agent_state = agent_state.apply(action.state_updates)
