@@ -485,7 +485,30 @@ bỏ vì đã hiện sẵn trong bong bóng chat — bong bóng chat không còn
 - Đã qua `tsc -b`/`oxlint`/`npm run build` sạch. Không đổi API/backend — thuần
   frontend, không cần verify lại server.
 
-## 16. Việc còn lại (`mustdo.md` — cần người/credential thật)
+## 16. Cuộc gọi rảnh tay — bỏ hẳn kiểu "bấm mic mới được nói"
+
+Theo yêu cầu trực tiếp ("tôi muốn nghe và xử lí trực tiếp luôn chứ không phải phải
+bấm nút micro"): thay `useVoiceRecorder` (ghi âm thủ công, bấm bắt đầu/bấm kết thúc)
+bằng `useVoiceActivityRecorder` mới — tự phát hiện giọng nói bằng năng lượng âm thanh
+(RMS) đọc liên tục từ `AnalyserNode` (Web Audio API), không cần thư viện ngoài:
+
+- Xin quyền micro **đúng 1 lần** khi vào cuộc gọi, giữ nguyên 1 `MediaStream` xuyên
+  suốt (không xin lại quyền mỗi lượt nói).
+- Tự bắt đầu ghi khi năng lượng vượt ngưỡng (`SPEECH_RMS_THRESHOLD=0.02`), tự dừng và
+  gửi đi khi im lặng liên tục 900ms (`SILENCE_HANGOVER_MS` — khớp
+  `VOICE_VAD_SILENCE_MS=900` đã có sẵn ở backend cho pipeline giọng nói khác, giữ cùng
+  "nhịp" chờ). Bỏ qua đoạn ghi dưới 300ms (tiếng ho/gõ bàn, không phải câu nói thật).
+- Tự tạm dừng lắng nghe khi AI đang xử lý/đang trả lời (tránh ghi đè lượt đang gửi
+  hoặc tự thu lại chính giọng AI phát ra loa), tự lắng nghe lại ngay khi AI trả lời
+  xong — không cần thao tác gì thêm.
+- Nút mic ở giữa đổi từ "bấm để nói" (push-to-talk) thành nút **tắt/bật micro của
+  chính mình** — giống nút mute trên mọi app gọi điện thật, mặc định luôn bật.
+- Xoá `useVoiceRecorder.ts` cũ (không còn ai gọi).
+
+Đã qua `tsc -b`/`oxlint`/`npm run build` sạch. Thuần frontend (Web Audio API chạy
+trong trình duyệt), không đổi API/backend.
+
+## 17. Việc còn lại (`mustdo.md` — cần người/credential thật)
 
 1. Tạo project Supabase thật (database production).
 2. Chọn 1 trong 2 hệ thống Voice AI để giữ lâu dài (không chặn, chỉ nên dọn sau).
@@ -501,7 +524,7 @@ bỏ vì đã hiện sẵn trong bong bóng chat — bong bóng chat không còn
    feature/agentic-ai, sẽ tự cải thiện khi bật `AGENT_LLM_ENABLED`/`AGENT_REWRITE_ENABLED`
    thật, không sửa trong project này để giữ đúng logic gốc.
 
-## 17. Lệnh kiểm tra nhanh
+## 18. Lệnh kiểm tra nhanh
 
 ```bash
 # Backend

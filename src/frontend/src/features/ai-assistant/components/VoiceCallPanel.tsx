@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from "react";
-import { Mic, PhoneOff, RotateCcw, Volume2, VolumeX } from "lucide-react";
+import { Mic, MicOff, PhoneOff, RotateCcw, Volume2, VolumeX } from "lucide-react";
 import { useVoiceAssistant } from "@/features/ai-assistant/context/useVoiceAssistant";
 import type { AssistantStatus } from "@/features/ai-assistant/context/voice-assistant-context";
-import { useVoiceRecorder } from "@/features/voice/useVoiceRecorder";
+import { useVoiceActivityRecorder } from "@/features/voice/useVoiceActivityRecorder";
 import { AIStatusIndicator } from "@/features/ai-assistant/components/AIStatusIndicator";
 import { VoiceTranscript } from "@/features/ai-assistant/components/VoiceTranscript";
 import { BookingProgressStrip } from "@/features/ai-assistant/components/BookingProgressStrip";
@@ -17,7 +17,8 @@ function formatDuration(totalSeconds: number): string {
 
 // Màn hình gọi thoại kiểu Messenger — đây là toàn bộ giao diện popup, không phải 1
 // trong 2 chế độ nữa. State hiển thị đi qua đúng 1 AssistantStatus, không rải rác
-// boolean.
+// boolean. Micro LUÔN lắng nghe (VAD tự động phát hiện lúc nói/lúc dứt câu) — không
+// còn kiểu "bấm mic mới được nói", đúng cảm giác một cuộc gọi thật.
 export const VoiceCallPanel: React.FC = () => {
   const {
     status,
@@ -32,18 +33,20 @@ export const VoiceCallPanel: React.FC = () => {
     close,
     newSession,
   } = useVoiceAssistant();
-  const [recording, setRecording] = useState(false);
+  const [micMuted, setMicMuted] = useState(false);
   const [elapsed, setElapsed] = useState(0);
 
-  const { toggleRecording } = useVoiceRecorder({
-    onRecorded: async (audio) => {
-      setRecording(false);
-      await handleVoiceRecorded(audio);
-    },
-    onError: (error) => {
-      setRecording(false);
-      reportError(error.message);
-    },
+  // Chỉ thật sự lắng nghe khi: đã có phiên, chưa tự tắt mic, phiên chưa kết thúc, và
+  // AI hiện không đang xử lý/đang nói (tránh ghi đè lượt đang gửi hoặc tự ghi lại
+  // chính giọng AI phát ra loa). Cho phép lắng nghe lại ngay cả sau lỗi (status
+  // "error") — không cần bấm gì để "thử lại" như trước.
+  const listeningActive =
+    Boolean(sessionId) && !sessionEnded && !micMuted && status !== "processing" && status !== "speaking" && status !== "connecting";
+
+  const { isSpeechDetected } = useVoiceActivityRecorder({
+    active: listeningActive,
+    onUtterance: handleVoiceRecorded,
+    onError: (error) => reportError(error.message),
   });
 
   // Đếm thời lượng cuộc gọi kể từ lúc vào Voice Call Mode — reset mỗi lần quay lại
@@ -53,20 +56,7 @@ export const VoiceCallPanel: React.FC = () => {
     return () => window.clearInterval(interval);
   }, []);
 
-  const displayStatus: AssistantStatus = !sessionId
-    ? "connecting"
-    : recording
-      ? "listening"
-      : status;
-
-  const canTalk = Boolean(sessionId) && !sessionEnded && displayStatus !== "processing" && displayStatus !== "speaking";
-
-  const handleMicPress = async () => {
-    if (!canTalk) return;
-    if (!recording) setRecording(true);
-    await toggleRecording();
-  };
-
+  const displayStatus: AssistantStatus = !sessionId ? "connecting" : isSpeechDetected ? "listening" : status;
   const isActive = displayStatus === "listening" || displayStatus === "speaking";
 
   return (
@@ -112,7 +102,14 @@ export const VoiceCallPanel: React.FC = () => {
         </div>
       </div>
 
-      <AIStatusIndicator status={displayStatus} />
+      {micMuted ? (
+        <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-400 dark:text-slate-500">
+          <MicOff className="w-3.5 h-3.5" />
+          Micro đang tắt — bấm nút micro để tiếp tục nói
+        </span>
+      ) : (
+        <AIStatusIndicator status={displayStatus} />
+      )}
 
       <div className="flex-1" />
 
@@ -140,18 +137,20 @@ export const VoiceCallPanel: React.FC = () => {
             {isMuted ? <VolumeX className="w-5 h-5" /> : <Volume2 className="w-5 h-5" />}
           </button>
 
+          {/* Không còn "bấm để nói" — nút này giờ là bật/tắt micro của chính mình (như
+              nút mute trên mọi app gọi điện thật), mặc định LUÔN bật để nghe liên tục. */}
           <button
             type="button"
-            onClick={handleMicPress}
-            disabled={!canTalk}
-            aria-label={recording ? "Dừng nói, gửi cho AI" : "Nhấn để nói"}
-            className={`w-16 h-16 rounded-full grid place-items-center shadow-lg transition disabled:opacity-50 ${
-              recording
-                ? "bg-rose-500 hover:bg-rose-600 scale-105"
+            onClick={() => setMicMuted((value) => !value)}
+            aria-label={micMuted ? "Bật micro" : "Tắt micro"}
+            title={micMuted ? "Bật micro" : "Tắt micro"}
+            className={`w-16 h-16 rounded-full grid place-items-center shadow-lg transition ${
+              micMuted
+                ? "bg-slate-200 text-slate-500 dark:bg-white/10 dark:text-slate-400"
                 : "bg-[#00D1C1] hover:bg-[#006a62] text-[#0B0E11] hover:text-white"
             }`}
           >
-            <Mic className="w-6 h-6 text-white" />
+            {micMuted ? <MicOff className="w-6 h-6" /> : <Mic className="w-6 h-6 text-white" />}
           </button>
 
           <button

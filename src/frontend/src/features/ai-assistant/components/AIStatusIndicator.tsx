@@ -12,7 +12,7 @@ type Props = {
 // 5 + 14 của yêu cầu).
 const STATUS_CONFIG: Record<AssistantStatus, { label: string; icon: React.ElementType; className: string }> = {
   connecting: { label: "Đang kết nối…", icon: Loader2, className: "text-slate-500 dark:text-slate-400" },
-  idle: { label: "Nhấn để nói", icon: Mic, className: "text-slate-500 dark:text-slate-400" },
+  idle: { label: "Mời anh/chị nói…", icon: Mic, className: "text-slate-500 dark:text-slate-400" },
   listening: { label: "Đang nghe…", icon: Mic, className: "text-[#00D1C1]" },
   processing: { label: "Đang suy nghĩ…", icon: Loader2, className: "text-amber-500" },
   speaking: { label: "Đang trả lời…", icon: Volume2, className: "text-[#00D1C1]" },
