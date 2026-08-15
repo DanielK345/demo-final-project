@@ -286,7 +286,79 @@ xe thật + giữ nguyên toàn bộ luồng "AI đặt xe ngay" đã xây ở m
   nhánh đó), `git branch --show-current` luôn là `feature/voice-ai`,
   `origin/feature/agentic-ai` không đổi ref sau khi xong.
 
-## 10. Việc còn lại (`mustdo.md` — cần người/credential thật)
+## 10. Fix nhỏ + Sidebar tự thu/phóng theo hover
+
+Vài việc nhỏ xen giữa các mục lớn ở trên, gộp lại cho gọn:
+
+- **`tsconfig.app.json`**: IDE báo đỏ dòng `"ignoreDeprecations": "6.0"` — không phải
+  lỗi thật (TS 6.0.3 đang cài chấp nhận giá trị này, `tsc` sạch), chỉ do schema JSON
+  của VS Code chưa cập nhật kịp bản TS mới. Sửa tận gốc thay vì để nguyên: gỡ hẳn
+  `baseUrl` (đã deprecated, TS 7.0 sẽ bỏ hẳn) — `paths` tự chạy được dưới
+  `moduleResolution: "bundler"` không cần `baseUrl`, alias `@/` lúc chạy thực tế do
+  `vite.config.ts` tự resolve riêng. Verify: gỡ `baseUrl` mà không thêm lại
+  `ignoreDeprecations` thì `tsc` báo đúng lỗi thật `TS5101` (xác nhận đây không phải
+  no-op), thêm `paths`-only vào thì sạch.
+- **`.gitignore`**: bổ sung `.env.*` + `!.env.example` (trước chỉ liệt kê tay
+  `.env.local`/`.env.production`, thiếu biến thể nào là lọt), `.pytest_cache/`/
+  `.ruff_cache/`/`.mypy_cache/` tường minh (trước chỉ ẩn được nhờ tool tự sinh
+  `.gitignore` con), `.vite/`, `*.tsbuildinfo`, và chuyển các file runtime của Claude
+  Code (`scheduled_tasks.lock`, `worktrees/`, `checkpoints/`...) từ
+  `.git/info/exclude` (cục bộ theo máy, không đi theo repo khi clone mới) vào
+  `.gitignore` thật. Verify bằng `git check-ignore -v` thật, không chỉ đọc file.
+- **`src/models/voice_schemas.py` → `src/voice/schemas.py`**: dọn lại vị trí (schema
+  riêng cho Voice nên nằm trong package `voice`, không phải package `models` chung
+  chung không còn gì khác) — đổi import ở 9 chỗ gọi, không đổi hành vi.
+- **Sidebar tự thu/phóng theo hover (thay cho nút bấm thủ công)**: làm qua 3 lượt —
+  (1) thêm nút ghim mở/thu thủ công trước; (2) theo yêu cầu tiếp theo, đổi sang tự
+  động hoàn toàn: mặc định thu hẹp còn dải icon, rê chuột qua tự mở ra mượt
+  (`group-hover`/`group-focus-within` thuần CSS, không qua state React nên không có
+  độ trễ round-trip), rê ra tự thu; sidebar nổi `fixed` đè lên nội dung thay vì đẩy
+  layout giật mỗi lần hover; (3) nút ghim thủ công bị báo lỗi → gỡ hẳn, chỉ còn đúng
+  1 cơ chế tự động. Bug thật bắt được giữa chừng: gỡ nút ở bước (3) để sót lại class
+  `relative` (cần cho nút `absolute` cũ) cùng lúc với `fixed` mới — 2 class cùng set
+  `position` khiến `relative` thắng do đứng sau trong CSS build ra, sidebar thật ra
+  không hề "nổi" mà nằm lẫn trong layout thường, đúng y hệt khoảng trống xám bên trái
+  người dùng chụp màn hình gửi. Verify bằng cách grep trực tiếp CSS/JS build ra, không
+  chỉ đọc source.
+
+## 11. Thay thế 8 nhánh GitHub bằng nội dung `feature/voice-ai`
+
+Theo yêu cầu trực tiếp: "trừ nhánh main với nhánh G1, thay thế tất cả các nhánh khác
+bằng project hiện tại này." Đây là thao tác **ghi đè lịch sử thật trên GitHub dùng
+chung của cả nhóm**, ngược hẳn với nguyên tắc "chỉ động vào feature/voice-ai" đã giữ
+xuyên suốt trước đó — đã dừng lại hỏi rõ 2 điều trước khi làm (không tự suy đoán):
+ghi đè cục bộ hay đẩy thật lên origin, và đúng danh sách 8 nhánh nào. Người dùng xác
+nhận: đẩy thật lên origin, đúng 8 nhánh `develop`, `feat/agent-core-routing`,
+`feat/human-handoff`, `feature/agentic-ai`, `feature/backend-data`,
+`feature/customer-call-ui`, `feature/frontend-mvp`, `test_speech_model`.
+
+Trước khi ghi đè, tự thêm 1 lớp an toàn không nằm ngoài yêu cầu: tag lại đúng commit
+cũ của cả 8 nhánh (`backup/develop`, `backup/feature-agentic-ai`,...) và đẩy tag đó
+lên origin luôn — nội dung cũ của các nhánh (vd code trên `feature/customer-call-ui`,
+`feature/frontend-mvp`) không mất, chỉ là nhánh không còn trỏ tới đó nữa, vẫn khôi
+phục được qua tag nếu cần.
+
+Thực hiện bằng `git push origin feature/voice-ai:refs/heads/<nhánh> --force-with-lease`
+cho từng nhánh (không `checkout` sang nhánh nào, máy local luôn ở `feature/voice-ai`).
+Phát hiện thêm: `origin/feature/voice-ai` chính nó cũng chưa từng được đẩy lên suốt
+session (chỉ có commit local) — đẩy nốt bằng push thường (fast-forward, không cần
+force vì là nhánh của chính mình).
+
+Verify cuối: `main` và `G1` giữ nguyên SHA gốc; 9 nhánh còn lại (8 nhánh + chính
+`feature/voice-ai`) trên origin đều trỏ đúng 1 commit; máy local vẫn ở
+`feature/voice-ai`, working tree sạch.
+
+## 12. AssistantPage: lời chào thân thiện hơn
+
+Câu chào đầu tiên trước đây mở màn bằng liệt kê yêu cầu kỹ thuật (loại xe hỗ trợ,
+"không hỏi số điện thoại/email") — đọc như thông báo hệ thống hơn là lời chào, và là
+thứ ĐẦU TIÊN mọi người dùng thấy khi vào trang. Theo yêu cầu, đổi thứ tự: chào thân
+thiện, gọi đúng tên khách trước, rồi mới hỏi mở "cần hỗ trợ gì" (không giới hạn riêng
+đặt xe). Thông tin kỹ thuật không mất đi — chuyển thành dòng phụ nhỏ dưới tiêu đề
+trang thay vì là ấn tượng đầu tiên. `WELCOME_MESSAGE` (hằng số tĩnh) đổi thành
+`buildWelcomeMessage(userName)` để cá nhân hoá được.
+
+## 13. Việc còn lại (`mustdo.md` — cần người/credential thật)
 
 1. Tạo project Supabase thật (database production).
 2. Chọn 1 trong 2 hệ thống Voice AI để giữ lâu dài (không chặn, chỉ nên dọn sau).
@@ -302,7 +374,7 @@ xe thật + giữ nguyên toàn bộ luồng "AI đặt xe ngay" đã xây ở m
    feature/agentic-ai, sẽ tự cải thiện khi bật `AGENT_LLM_ENABLED`/`AGENT_REWRITE_ENABLED`
    thật, không sửa trong project này để giữ đúng logic gốc.
 
-## 11. Lệnh kiểm tra nhanh
+## 14. Lệnh kiểm tra nhanh
 
 ```bash
 # Backend
