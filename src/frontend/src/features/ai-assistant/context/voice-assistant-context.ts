@@ -7,8 +7,6 @@ import type { CompletedBooking } from "@/features/ai-assistant/components/Bookin
 // react(only-export-components) sẽ cảnh báo nếu gộp chung, đúng cách ThemeProvider đã
 // tách theme-context.ts/useTheme.ts trước đó).
 
-export type AssistantMode = "chat" | "call";
-
 // Gộp mọi trạng thái "AI đang làm gì" vào 1 giá trị duy nhất thay vì rải rác nhiều cờ
 // boolean (isSending/isListening/isCalling/...) dễ lệch nhau — đúng yêu cầu state
 // machine tường minh. "error" chỉ phản ánh lỗi kỹ thuật của LƯỢT VỪA RỒI (mất kết
@@ -19,13 +17,13 @@ export type AssistantStatus = "connecting" | "idle" | "listening" | "processing"
 export type Message = { id: string; role: "user" | "assistant"; text: string };
 
 export interface VoiceAssistantValue {
-  // Popup + chế độ hiển thị
+  // Popup — LUÔN là màn hình gọi thoại (không còn chế độ nhắn tin/chat riêng, đúng
+  // yêu cầu "gọi điện với AI Agentic chứ không phải nhắn tin chatbot").
   isOpen: boolean;
-  mode: AssistantMode;
   open: () => void;
   close: () => void;
-  setMode: (mode: AssistantMode) => void;
-  // Mở popup + gửi luôn 1 câu dựng sẵn (dùng bởi các nút "AI đặt xe ngay" khắp app)
+  // Mở popup + gửi luôn 1 câu dựng sẵn (dùng bởi các nút "AI đặt xe ngay" khắp app) —
+  // như thể khách vừa nói câu đó ngay khi vào cuộc gọi.
   openWithPrefill: (prefill: string) => void;
 
   // Hội thoại

@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from "react";
-import { Keyboard, Mic, PhoneOff, Volume2, VolumeX } from "lucide-react";
+import { Mic, PhoneOff, RotateCcw, Volume2, VolumeX } from "lucide-react";
 import { useVoiceAssistant } from "@/features/ai-assistant/context/useVoiceAssistant";
 import type { AssistantStatus } from "@/features/ai-assistant/context/voice-assistant-context";
 import { useVoiceRecorder } from "@/features/voice/useVoiceRecorder";
 import { AIStatusIndicator } from "@/features/ai-assistant/components/AIStatusIndicator";
 import { VoiceTranscript } from "@/features/ai-assistant/components/VoiceTranscript";
+import { BookingProgressStrip } from "@/features/ai-assistant/components/BookingProgressStrip";
 
 function formatDuration(totalSeconds: number): string {
   const minutes = Math.floor(totalSeconds / 60)
@@ -14,8 +15,8 @@ function formatDuration(totalSeconds: number): string {
   return `${minutes}:${seconds}`;
 }
 
-// Mode B — Voice Call (mục 5+6): màn hình gọi thoại thu nhỏ trong popup, không toàn
-// màn hình. State hiển thị đi qua đúng 1 AssistantStatus (mục 19), không rải rác
+// Màn hình gọi thoại kiểu Messenger — đây là toàn bộ giao diện popup, không phải 1
+// trong 2 chế độ nữa. State hiển thị đi qua đúng 1 AssistantStatus, không rải rác
 // boolean.
 export const VoiceCallPanel: React.FC = () => {
   const {
@@ -24,10 +25,12 @@ export const VoiceCallPanel: React.FC = () => {
     sessionEnded,
     handleVoiceRecorded,
     messages,
+    bookingProgress,
     isMuted,
     toggleMuted,
     reportError,
-    setMode,
+    close,
+    newSession,
   } = useVoiceAssistant();
   const [recording, setRecording] = useState(false);
   const [elapsed, setElapsed] = useState(0);
@@ -113,15 +116,17 @@ export const VoiceCallPanel: React.FC = () => {
 
       <div className="flex-1" />
 
+      <BookingProgressStrip progress={bookingProgress} />
       <VoiceTranscript messages={messages} />
 
       {sessionEnded ? (
         <button
           type="button"
-          onClick={() => setMode("chat")}
+          onClick={() => void newSession()}
           className="mt-6 inline-flex items-center gap-2 rounded-xl bg-[#00D1C1] px-5 py-2.5 text-sm font-semibold text-[#0B0E11] hover:opacity-90"
         >
-          Quay lại trò chuyện
+          <RotateCcw className="w-4 h-4" />
+          Gọi lại
         </button>
       ) : (
         <div className="flex items-center gap-6 mt-6">
@@ -151,25 +156,14 @@ export const VoiceCallPanel: React.FC = () => {
 
           <button
             type="button"
-            onClick={() => setMode("chat")}
-            aria-label="Kết thúc cuộc gọi, quay lại nhắn tin"
+            onClick={close}
+            aria-label="Kết thúc cuộc gọi"
             title="Kết thúc cuộc gọi"
             className="w-11 h-11 rounded-full grid place-items-center bg-rose-50 text-rose-600 hover:bg-rose-100 dark:bg-rose-500/10 dark:text-rose-400 dark:hover:bg-rose-500/20"
           >
             <PhoneOff className="w-5 h-5" />
           </button>
         </div>
-      )}
-
-      {!sessionEnded && (
-        <button
-          type="button"
-          onClick={() => setMode("chat")}
-          className="mt-4 inline-flex items-center gap-1.5 text-xs font-semibold text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300"
-        >
-          <Keyboard className="w-3.5 h-3.5" />
-          Chuyển sang nhắn tin
-        </button>
       )}
     </div>
   );

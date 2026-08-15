@@ -15,7 +15,6 @@ import { playBase64Audio, sendVoiceTurn, speakWithBrowser } from "@/features/voi
 import type { CompletedBooking } from "@/features/ai-assistant/components/BookingSuccessPanel";
 import {
   VoiceAssistantContext,
-  type AssistantMode,
   type AssistantStatus,
   type Message,
   type VoiceAssistantValue,
@@ -29,7 +28,6 @@ export const VoiceAssistantProvider: React.FC<{ children: React.ReactNode }> = (
   const navigate = useNavigate();
 
   const [isOpen, setIsOpen] = useState(false);
-  const [mode, setModeState] = useState<AssistantMode>("chat");
   const [status, setStatus] = useState<AssistantStatus>("connecting");
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [sessionEnded, setSessionEnded] = useState(false);
@@ -116,6 +114,20 @@ export const VoiceAssistantProvider: React.FC<{ children: React.ReactNode }> = (
     [],
   );
 
+  // Toàn bộ popup giờ LUÔN là cuộc gọi thoại (không còn chat im lặng) — mọi câu trả
+  // lời của agent, dù đến từ lượt gõ chữ (openWithPrefill/confirmBooking) hay lượt
+  // nói, đều được đọc to như đang thật sự nghe tổng đài viên trả lời, trừ khi người
+  // dùng tự tắt loa (isMuted).
+  const speakReply = useCallback(async (text: string, audioBase64?: string | null, audioMimeType?: string) => {
+    if (isMutedRef.current) return;
+    setStatus("speaking");
+    if (audioBase64) {
+      await playBase64Audio(audioBase64, audioMimeType ?? "audio/mpeg").catch(() => undefined);
+    } else {
+      await speakWithBrowser(text);
+    }
+  }, []);
+
   const sendText = useCallback(
     async (value: string) => {
       const message = value.trim();
@@ -128,6 +140,10 @@ export const VoiceAssistantProvider: React.FC<{ children: React.ReactNode }> = (
         setMessages((items) => [...items, { id: result.message_id, role: "assistant", text: result.message }]);
         applyTurnResult(result);
         handleEndOfTurnActions(result);
+        // `/messages` (gõ chữ) không trả audio_base64 (chỉ `/voice/turn` mới có, từ
+        // OpenAI TTS thật) — dùng giọng đọc trình duyệt cho lượt gõ chữ, vẫn đọc to
+        // như 1 cuộc gọi thật, không im lặng như chatbot nhắn tin nữa.
+        await speakReply(result.message);
         setStatus("idle");
       } catch (error) {
         setStatus("error");
@@ -135,7 +151,7 @@ export const VoiceAssistantProvider: React.FC<{ children: React.ReactNode }> = (
         setNotice(error instanceof Error ? error.message : "Không thể gửi tin nhắn. Vui lòng thử lại.");
       }
     },
-    [sessionId, sessionEnded, applyTurnResult, handleEndOfTurnActions, navigate],
+    [sessionId, sessionEnded, applyTurnResult, handleEndOfTurnActions, navigate, speakReply],
   );
 
   const handleVoiceRecorded = useCallback(
@@ -152,17 +168,7 @@ export const VoiceAssistantProvider: React.FC<{ children: React.ReactNode }> = (
         ]);
         applyTurnResult(result);
         handleEndOfTurnActions(result);
-        // Chỉ Voice Call Mode mới tự đọc to câu trả lời — Chat/Text im lặng như 1 ứng
-        // dụng nhắn tin bình thường (mục 4 vs mục 5 của yêu cầu tách rõ 2 chế độ).
-        // Tôn trọng nút tắt tiếng (loa) của người dùng trong lúc gọi.
-        if (!isMutedRef.current) {
-          setStatus("speaking");
-          if (result.audio_base64) {
-            await playBase64Audio(result.audio_base64, result.audio_mime_type).catch(() => undefined);
-          } else {
-            await speakWithBrowser(result.message);
-          }
-        }
+        await speakReply(result.message, result.audio_base64, result.audio_mime_type);
         setStatus("idle");
       } catch (error) {
         setStatus("error");
@@ -170,7 +176,7 @@ export const VoiceAssistantProvider: React.FC<{ children: React.ReactNode }> = (
         setNotice(error instanceof Error ? error.message : "Không thể xử lý giọng nói. Vui lòng thử lại.");
       }
     },
-    [sessionId, sessionEnded, applyTurnResult, handleEndOfTurnActions, navigate],
+    [sessionId, sessionEnded, applyTurnResult, handleEndOfTurnActions, navigate, speakReply],
   );
 
   // Khởi tạo phiên hội thoại 1 LẦN khi Provider mount (ở AppLayout — ngay sau đăng
@@ -238,12 +244,10 @@ export const VoiceAssistantProvider: React.FC<{ children: React.ReactNode }> = (
 
   const open = useCallback(() => setIsOpen(true), []);
   const close = useCallback(() => setIsOpen(false), []);
-  const setMode = useCallback((next: AssistantMode) => setModeState(next), []);
 
   const openWithPrefill = useCallback(
     (prefill: string) => {
       setIsOpen(true);
-      setModeState("chat");
       void sendText(prefill);
     },
     [sendText],
@@ -323,10 +327,8 @@ export const VoiceAssistantProvider: React.FC<{ children: React.ReactNode }> = (
   const value = useMemo<VoiceAssistantValue>(
     () => ({
       isOpen,
-      mode,
       open,
       close,
-      setMode,
       openWithPrefill,
       status,
       messages,
@@ -359,10 +361,8 @@ export const VoiceAssistantProvider: React.FC<{ children: React.ReactNode }> = (
     }),
     [
       isOpen,
-      mode,
       open,
       close,
-      setMode,
       openWithPrefill,
       status,
       messages,

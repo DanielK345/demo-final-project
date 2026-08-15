@@ -457,7 +457,35 @@ lượt đều báo "Hệ thống đang phản hồi chậm" rồi rơi vào `HA
 `src/agents/` (công việc đang dở của bạn, ngoài phạm vi 2FA/tracking) — chỉ ghi nhận
 trung thực để bạn biết và tự xác nhận/sửa.
 
-## 15. Việc còn lại (`mustdo.md` — cần người/credential thật)
+## 15. Voice AI: popup chỉ còn gọi thoại, bỏ hẳn chế độ nhắn tin
+
+Theo yêu cầu trực tiếp: nút nổi đổi từ icon mic sang icon ống nghe điện thoại
+(`Phone`/`PhoneOff` tuỳ trạng thái đóng/mở), bấm vào mở THẲNG màn hình cuộc gọi kiểu
+Messenger — không còn popup chat với ô nhập tin nhắn, không còn nút chuyển đổi
+chat/gọi. Chỉ còn đúng 1 giao diện: `VoiceCallPanel` (orb, waveform, đồng hồ đếm giờ,
+nút mic/loa/kết thúc cuộc gọi) + `VoiceTranscript` — "cửa sổ nhỏ" ghi lại lời qua lại
+giữa khách và AI, giờ **mặc định mở sẵn** (trước thu gọn vì chỉ là phụ trợ cho khung
+chat, giờ là nơi DUY NHẤT xem lại hội thoại) và **gồm cả câu chào mở đầu** (trước lọc
+bỏ vì đã hiện sẵn trong bong bóng chat — bong bóng chat không còn nữa).
+
+- `VoiceChatPanel.tsx` xoá hẳn (không còn dùng ở đâu); `AssistantMode`/`mode`/
+  `setMode` xoá khỏi context — popup không còn khái niệm "chế độ" nữa.
+- **"Kết thúc cuộc gọi"** trước đây chỉ chuyển về chat (`setMode("chat")`), giờ đóng
+  hẳn popup (`close()`) — đúng nghĩa dập máy. Khi agent tự kết thúc phiên (khách nói
+  "hủy"), nút hành động đổi thành **"Gọi lại"** (`newSession()`) thay vì "Quay lại trò
+  chuyện" (không còn chỗ nào để "quay lại").
+- **Mọi lượt hội thoại giờ đều được đọc to (TTS)**, kể cả lượt gõ chữ ngầm từ
+  `openWithPrefill()` (các nút "AI đặt xe ngay") và `confirmBooking()` — trước đây chỉ
+  Voice Call Mode mới đọc to, Chat Mode im lặng như app nhắn tin; giờ không còn khái
+  niệm "im lặng" vì toàn bộ trải nghiệm là 1 cuộc gọi. Gộp logic phát âm thanh
+  (audio thật từ `/voice/turn` hoặc giọng đọc trình duyệt) vào 1 hàm dùng chung
+  `speakReply()` thay vì lặp lại ở `sendText`/`handleVoiceRecorded`.
+- `BookingProgressStrip` (tiến trình đặt xe) chuyển từ khung chat cũ sang hiện ngay
+  trong `VoiceCallPanel`, phía trên transcript.
+- Đã qua `tsc -b`/`oxlint`/`npm run build` sạch. Không đổi API/backend — thuần
+  frontend, không cần verify lại server.
+
+## 16. Việc còn lại (`mustdo.md` — cần người/credential thật)
 
 1. Tạo project Supabase thật (database production).
 2. Chọn 1 trong 2 hệ thống Voice AI để giữ lâu dài (không chặn, chỉ nên dọn sau).
@@ -473,7 +501,7 @@ trung thực để bạn biết và tự xác nhận/sửa.
    feature/agentic-ai, sẽ tự cải thiện khi bật `AGENT_LLM_ENABLED`/`AGENT_REWRITE_ENABLED`
    thật, không sửa trong project này để giữ đúng logic gốc.
 
-## 16. Lệnh kiểm tra nhanh
+## 17. Lệnh kiểm tra nhanh
 
 ```bash
 # Backend
