@@ -11,7 +11,7 @@ from __future__ import annotations
 from functools import lru_cache
 from typing import Literal
 
-from pydantic import Field
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -29,8 +29,25 @@ class VoiceSettings(BaseSettings):
     voice_asr_model: str = "whisper-large-v3-turbo"
     voice_asr_language: str = "vi"
 
-    # D2 — TTS (Edge-TTS)
-    voice_tts_voice: str = "vi-VN-HoaiMyNeural"
+    # D2 — TTS (Edge-TTS). This must not read Backend's VOICE_TTS_VOICE,
+    # whose values (for example "nova") are OpenAI voice names and invalid for
+    # Edge-TTS.
+    voice_tts_voice: str = Field(
+        default="vi-VN-HoaiMyNeural",
+        validation_alias="VOICE_EDGE_TTS_VOICE",
+    )
+
+    @field_validator("voice_tts_voice", mode="before")
+    @classmethod
+    def normalize_edge_tts_voice(cls, value: object) -> str:
+        voice = str(value or "").strip()
+        if not voice:
+            return "vi-VN-HoaiMyNeural"
+        # Edge IDs look like "vi-VN-HoaiMyNeural". Short names such as nova,
+        # alloy, and shimmer belong to OpenAI TTS and must not reach edge-tts.
+        if "-" not in voice or not voice.endswith("Neural"):
+            return "vi-VN-HoaiMyNeural"
+        return voice
     # 1.0 = tốc độ gốc của giọng neural — nghe tự nhiên nhất. Bản trước đặt 0.9 (chậm
     # 10%, ý định "persona người lớn tuổi") nhưng làm giọng nghe robot/đơ hơn hẳn —
     # kéo chậm audio qua tham số rate của TTS engine (không phải resample) hay tạo méo
