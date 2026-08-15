@@ -296,27 +296,48 @@ Chạy lại đúng kịch bản đặt xe đã verify thành công trước đ�
 thật SAU khi có merge trên: mọi lượt hội thoại đều trả về
 `"Hệ thống đang phản hồi chậm nên tôi chưa xử lý xong lượt này..."` ngay từ lượt đầu
 tiên, và sau 3 lượt như vậy tự động chuyển sang `HANDOFF` — không bao giờ tới được
-`current_step: CONFIRM`. Lặp lại 2 lần, cùng kết quả (không phải lỗi mạng thoáng qua).
-Việc này ảnh hưởng trực tiếp `BookingConfirmationModal` (mục 7) — modal đó sẽ không
-bao giờ hiện được nếu core agent không còn trả về đúng tín hiệu `RIDE_BOOKING`/
-`CONFIRM` nữa.
+`current_step: CONFIRM`. Việc này ảnh hưởng trực tiếp `BookingConfirmationModal` (mục
+7) — modal đó sẽ không bao giờ hiện được nếu core agent không còn trả về đúng tín hiệu
+`RIDE_BOOKING`/`CONFIRM` nữa.
+
+**Cập nhật — đã tìm ra nguyên nhân gốc (chỉ đọc log, KHÔNG sửa code):** commit
+`611cd32` (bạn tự làm, sau merge) đã sửa xong 4 file test bị lệch import — vấn đề
+CONFIRM này KHÁC, vẫn còn nguyên sau `611cd32`. Log backend khi lỗi xảy ra:
+
+```
+Conversation model request failed: model=gpt-5.6-luna error_type=AuthenticationError
+```
+
+Đây là log từ `src/agents/core/model.py::OpenAIConversationModel.decide()` — file này
+gọi OpenAI qua `self.client.chat.completions.create(...)` (Chat Completions API).
+`AuthenticationError` ở đây rất lạ vì:
+- Cùng `OPENAI_API_KEY`, cùng `base_url=None` (mặc định, không có gateway trung gian —
+  `AGENT_LLM_BASE_URL` không đặt trong `.env`) với đường xử lý LLM CŨ
+  (`OpenAIUnderstandingAdapter`/legacy — dùng `self.client.responses.parse(...)`, tức
+  Responses API) — đường cũ vẫn xác nhận hoạt động bình thường (`GET /api/v1/status`
+  vẫn trả `understanding_mode: "openai"`, xem mục 6).
+- Tức là: **cùng 1 API key, cùng 1 base_url, nhưng gọi qua Responses API thì thành
+  công còn gọi qua Chat Completions API (`chat.completions.create`, dùng bởi
+  `model.py` mới) thì bị từ chối xác thực.** Rất đáng nghi đây không phải do key sai,
+  mà do cách gọi/endpoint Chat Completions không được tài khoản/key hiện tại cấp
+  quyền (hoặc cần tham số khác) — trong khi Responses API thì được.
 
 ### Vì sao tôi không tự sửa
 
-`src/agents/` (kiến trúc agent mới) là công việc đang dở, đang chủ động của chính bạn
-— tôi không đủ ngữ cảnh về thiết kế mới (`contracts/`/`core/`/`capabilities/`) để sửa
-đúng cách mà không có rủi ro đụng vào hướng đi bạn đang xây, và việc này nằm ngoài
-hoàn toàn phạm vi các mục 3/4/6 tôi đang làm (2FA, tracking simulation, xác nhận
-OPENAI key). Cũng có thể đây chỉ là vấn đề cấu hình môi trường cục bộ của tôi (vd
-timeout `AGENT_LLM_TIMEOUT_SECONDS=5` quá ngắn cho kiến trúc mới gọi LLM nhiều lượt
-hơn) chứ không phải lỗi code — cần bạn tự xác nhận trên máy của bạn.
+`src/agents/core/` là công việc đang dở, đang chủ động của chính bạn — tôi không đủ
+ngữ cảnh về lý do chọn Chat Completions API thay vì Responses API cho vòng lặp
+model/tool mới (`model.py` có ghi chú riêng về hành vi đặc biệt của "the configured
+gateway" với tool calling — có thể là quyết định có chủ đích tôi không nên tự đảo
+ngược) để sửa đúng cách mà không có rủi ro đụng vào hướng đi bạn đang xây. Việc này
+cũng nằm ngoài phạm vi mục 3/4/6 tôi đang làm.
 
 ### Cách kiểm tra
 
 Chạy `uvicorn`, đăng ký user mới, gửi qua `/api/v1/sessions/{id}/messages`: "Tôi muốn
 đặt xe từ Vincom Đồng Khởi đến Landmark 81" → nếu vẫn thấy thông báo "phản hồi chậm"
-ngay từ lượt đầu, xem log backend để tìm nguyên nhân thật (timeout/exception nào bị
-nuốt) trong đường xử lý mới ở `src/agents/core/`.
+ngay từ lượt đầu + log `error_type=AuthenticationError`, kiểm tra: tài khoản OpenAI
+đang dùng có quyền gọi Chat Completions API với model `gpt-5.6-luna` hay không (có
+thể model/API key hiện tại chỉ được cấp quyền Responses API).
 
 ---
 
