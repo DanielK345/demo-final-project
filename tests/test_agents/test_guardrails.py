@@ -20,29 +20,6 @@ from src.agents.core.guardrails import (
 from src.agents.core.policy import AgentPolicy
 
 
-class HistoryMutatingWorkflow(BaseWorkflow):
-    workflow_type = WorkflowType.RIDE_BOOKING
-
-    async def handle(self, agent_input, state, understanding=None):
-        del agent_input, state, understanding
-        return AgentAction(
-            action_type=ActionType.RESPOND,
-            message="Unsafe workflow response.",
-            state_updates={
-                "conversation_history": [
-                    ConversationMessage(
-                        message_id="unsafe-turn:user",
-                        turn_id="unsafe-turn",
-                        role=ConversationRole.USER,
-                        message_type=ConversationMessageType.USER_TRANSCRIPT,
-                        content="Injected history",
-                        delivery_status=DeliveryStatus.FINAL,
-                    )
-                ]
-            },
-        )
-
-
 def test_guardrail_rejects_invalid_state_updates():
     with pytest.raises(GuardrailViolationError, match="invalid state"):
         AgentGuardrails().validate_and_sanitize(
@@ -101,11 +78,6 @@ def test_guardrail_rejects_clearing_unresolved_side_effect_without_result():
         )
 
 
-<<<<<<< HEAD
-=======
-<<<<<<< HEAD
-=======
->>>>>>> feature/agentic-ai
 def test_guardrail_rejects_clearing_side_effect_for_mismatched_tool_result():
     state = AgentState(
         session_id="session-001",
@@ -272,10 +244,6 @@ def test_guardrail_rejects_invalid_or_unexpected_tool_params():
             AgentGuardrails().validate_and_sanitize(agent_input, state, action)
 
 
-<<<<<<< HEAD
-=======
->>>>>>> 86cfe2ef3e6996c4053492e822e3a2435384bcc3
->>>>>>> feature/agentic-ai
 def test_guardrail_rejects_reconciliation_without_pending_side_effect():
     with pytest.raises(GuardrailViolationError, match="pending side effect"):
         AgentGuardrails().validate_and_sanitize(
@@ -296,11 +264,7 @@ def test_guardrail_rejects_reconciliation_without_pending_side_effect():
         )
 
 
-<<<<<<< HEAD
-def test_guardrail_rejects_booking_with_ambiguous_resolved_location():
-=======
 def test_guardrail_rejects_booking_without_provider_backed_resolved_location():
->>>>>>> 86cfe2ef3e6996c4053492e822e3a2435384bcc3
     state = AgentState(
         session_id="session-001",
         current_workflow=WorkflowType.RIDE_BOOKING,
@@ -308,11 +272,7 @@ def test_guardrail_rejects_booking_without_provider_backed_resolved_location():
         collected_data={
             "booking": {
                 "pickup": {"place_id": "p1", "display_name": "VinUniversity"},
-<<<<<<< HEAD
-                "destination": {"place_id": "p2", "display_name": "nhà"},
-=======
                 "destination": {"place_id": "", "display_name": "nhà"},
->>>>>>> 86cfe2ef3e6996c4053492e822e3a2435384bcc3
                 "phone_number": "0901234567",
             }
         },
@@ -350,26 +310,6 @@ def test_guardrail_rejects_booking_without_provider_backed_resolved_location():
         )
 
 
-<<<<<<< HEAD
-=======
-<<<<<<< HEAD
-@pytest.mark.asyncio
-async def test_agent_blocks_workflow_from_modifying_history():
-    agent = LLMAgent(workflows={WorkflowType.RIDE_BOOKING: HistoryMutatingWorkflow()})
-    action = await agent.handle(
-        AgentInput(
-            session_id="session-001",
-            turn_id="turn-001",
-            transcript="Tôi muốn đặt xe",
-        )
-    )
-
-    assert action.action_type is ActionType.HANDOFF
-    assert "agent-managed state fields" in (action.reason or "")
-    history = action.state_updates["conversation_history"]
-    assert all(message.content != "Injected history" for message in history)
-=======
->>>>>>> feature/agentic-ai
 def test_guardrail_rejects_booking_params_that_differ_from_confirmed_state():
     state = AgentState(
         session_id="session-001",
@@ -452,24 +392,3 @@ def test_guardrail_rejects_cancel_booking_without_confirmation():
                 },
             ),
         )
-<<<<<<< HEAD
-
-
-@pytest.mark.asyncio
-async def test_agent_blocks_workflow_from_modifying_history():
-    agent = LLMAgent(workflows={WorkflowType.RIDE_BOOKING: HistoryMutatingWorkflow()})
-    action = await agent.handle(
-        AgentInput(
-            session_id="session-001",
-            turn_id="turn-001",
-            transcript="Tôi muốn đặt xe",
-        )
-    )
-
-    assert action.action_type is ActionType.HANDOFF
-    assert "agent-managed state fields" in (action.reason or "")
-    history = action.state_updates["conversation_history"]
-    assert all(message.content != "Injected history" for message in history)
-=======
->>>>>>> 86cfe2ef3e6996c4053492e822e3a2435384bcc3
->>>>>>> feature/agentic-ai
