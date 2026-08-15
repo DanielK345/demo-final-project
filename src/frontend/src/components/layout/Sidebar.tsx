@@ -1,14 +1,16 @@
 import React from "react";
 import { NavLink } from "react-router-dom";
-import { Home, Grid, History, Sparkles, Settings, User } from "lucide-react";
+import { Home, Grid, History, Settings, User } from "lucide-react";
 import { cn } from "@/utils/cn";
 import logoSvg from "@/assets/logo.svg";
 
+// "AI Assistant" đã bỏ khỏi danh sách điều hướng trang — Voice AI không còn là 1
+// trang riêng để chuyển tới, mà là nút nổi + popup khả dụng ngay trên mọi trang (xem
+// VoiceAIButton.tsx, mounted trong AppLayout).
 const navItems = [
   { path: "/", label: "Home", icon: Home },
   { path: "/booking", label: "Services", icon: Grid },
   { path: "/activity", label: "Activity", icon: History },
-  { path: "/assistant", label: "AI Assistant", icon: Sparkles },
   { path: "/payment", label: "Settings", icon: Settings },
   { path: "/profile", label: "Account", icon: User },
 ];

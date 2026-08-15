@@ -13,10 +13,12 @@ import {
 import { getUserName } from "@/features/auth/storage";
 import { listBookings, locationLabel, type BookingSummary } from "@/features/activity/api";
 import { redirectToLoginIfUnauthorized } from "@/features/auth/sessionGuard";
+import { useVoiceAssistant } from "@/features/ai-assistant/context/useVoiceAssistant";
 
 export const HomePage: React.FC = () => {
   const navigate = useNavigate();
   const userName = getUserName();
+  const { openWithPrefill, open } = useVoiceAssistant();
   const [recentBookings, setRecentBookings] = useState<BookingSummary[]>([]);
 
   useEffect(() => {
@@ -38,11 +40,11 @@ export const HomePage: React.FC = () => {
   }, [navigate]);
 
   // Mọi nút đặt xe trên trang chủ giờ nối thẳng vào Agentic AI Assistant (đúng yêu
-  // cầu: không tự bấm chọn dịch vụ/điền form nữa) — điều hướng sang /assistant kèm
-  // `state.prefill`, AssistantPage tự gửi câu này ngay khi vào (xem AssistantPage.tsx)
-  // giống hệt cơ chế quick-chip có sẵn, để agent tiếp quản hỏi xác nhận + đặt xe.
+  // cầu: không tự bấm chọn dịch vụ/điền form nữa) — mở popup nổi + gửi luôn câu mô tả
+  // chuyến đi, agent tiếp quản hỏi xác nhận + đặt xe. Không còn điều hướng sang trang
+  // riêng (xem VoiceAssistantContext.openWithPrefill).
   const goToAssistant = (prefill: string) => {
-    navigate("/assistant", { state: { prefill } });
+    openWithPrefill(prefill);
   };
 
   const heroEvBg =
@@ -70,19 +72,21 @@ export const HomePage: React.FC = () => {
           </p>
         </div>
 
-        {/* AI Assistant Prompt Card (Right side, Desktop) */}
-        <NavLink
-          to="/assistant"
+        {/* AI Assistant Prompt Card (Right side, Desktop) — mở popup nổi thay vì điều
+            hướng sang trang riêng (mục 2-3). */}
+        <button
+          type="button"
+          onClick={open}
           className="hidden lg:flex items-center gap-4 bg-white p-4 rounded-2xl shadow-[0px_4px_20px_rgba(16,18,19,0.05)] border border-slate-200/80 cursor-pointer group hover:shadow-md transition-all dark:bg-[#12161A] dark:border-white/10"
         >
           <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#00D1C1] to-[#006a62] flex items-center justify-center text-white shadow-md shadow-[#00D1C1]/30 group-hover:scale-105 transition-transform">
             <Sparkles className="w-5 h-5" />
           </div>
-          <div>
+          <div className="text-left">
             <p className="text-xs font-bold text-[#191C1E] dark:text-white">Hỏi trợ lý AI</p>
             <p className="text-[11px] text-slate-400 dark:text-slate-500 font-medium font-mono">"Đặt xe ra sân bay"</p>
           </div>
-        </NavLink>
+        </button>
       </section>
 
       {/* Hero Carousel Banner */}

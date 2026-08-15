@@ -358,7 +358,67 @@ thiện, gọi đúng tên khách trước, rồi mới hỏi mở "cần hỗ t
 trang thay vì là ấn tượng đầu tiên. `WELCOME_MESSAGE` (hằng số tĩnh) đổi thành
 `buildWelcomeMessage(userName)` để cá nhân hoá được.
 
-## 13. Việc còn lại (`mustdo.md` — cần người/credential thật)
+## 13. Voice AI: nút nổi + popup thay cho trang riêng
+
+Refactor lớn theo yêu cầu "hoàn thiện lại Frontend cho Voice AI" — tham khảo tinh
+thần bố cục/tương tác của Green SM (không copy asset/logo/thương hiệu), KHÔNG rewrite
+toàn bộ frontend. Trước khi sửa, đã kiểm tra `git branch --show-current` = đúng
+`feature/voice-ai` theo ràng buộc bắt buộc của yêu cầu.
+
+**Đổi kiến trúc:** `/assistant` (trang riêng, chiếm cả `<Outlet/>`) → nút nổi
+`VoiceAIButton` + popup `VoiceAssistantPopup`, mounted 1 lần trong `AppLayout.tsx`
+(khả dụng ở MỌI trang sau đăng nhập, không phải điều hướng sang trang khác). Toàn bộ
+state hội thoại (session/messages/booking progress/…) từng nằm trong
+`AssistantPage.tsx` được hoist lên `VoiceAssistantProvider`
+(`features/ai-assistant/context/`) — đóng/mở popup hay chuyển trang không làm mất
+hội thoại đang dở.
+
+- **State machine 1 chỗ** (`AssistantStatus`): `connecting/idle/listening/processing/
+  speaking/error` — thay cho các cờ `isSending`/`isListening` rời rạc cũ.
+- **Mode A (chat/text)** — `VoiceChatPanel`: bong bóng tin nhắn, tự cuộn, quick chip,
+  KHÔNG tự đọc to câu trả lời (khác Mode B có chủ đích — chat im lặng như app nhắn
+  tin bình thường).
+- **Mode B (gọi thoại)** — `VoiceCallPanel`: orb + waveform CSS thuần theo trạng thái,
+  đồng hồ đếm giờ gọi, nút mic/loa/kết thúc cuộc gọi, `VoiceTranscript` gập gọn. Chỉ
+  Mode B mới phát audio thật (`playBase64Audio`/OpenAI TTS, fallback
+  `speechSynthesis` trình duyệt — đổi `speakWithBrowser()` trả về `Promise` để biết
+  chính xác lúc nào hết "đang nói").
+- **`BookingConfirmationModal`** — bám đúng tín hiệu THẬT `state.current_workflow ===
+  "RIDE_BOOKING" && state.current_step === "CONFIRM"` (thêm 2 field này vào
+  `RideTurn.state`/`VoiceTurnResponse.state`, đọc từ `BookingStep.CONFIRM` thật của
+  Core Agent — đáng tin hơn suy luận gián tiếp từ `missing_field`). Nút "Xác nhận đặt
+  xe" gửi đúng 1 lượt hội thoại thật `"Xác nhận đặt xe"` (khớp `_CONFIRM_TERMS`) —
+  KHÔNG có endpoint tạo booking riêng ở frontend, đặt xe luôn qua agent thật. Chỉ hiển
+  thị field có thật từ `BookingProgress` (pickup/destination/vehicle/giá) — không vẽ
+  passenger_count/service tier/giờ đón/ghi chú vì backend chưa có (ghi vào `mustdo.md`
+  mục 7, không tự bịa).
+- **`BookingSuccessModal`** — tái dùng nguyên `BookingSuccessPanel` có sẵn (chỉ bọc
+  khung modal), không viết lại logic thành công/thất bại.
+- 6 điểm gọi `navigate("/assistant", {state:{prefill}})` cũ (Home ×2, Booking, Activity
+  ×2, Tracking) đổi thành `useVoiceAssistant().openWithPrefill()`/`.open()` — mở popup
+  tại chỗ thay vì điều hướng trang.
+- Route `/assistant` giữ lại dạng redirect (`AssistantRedirect`): mở popup rồi về `/`,
+  tránh 404 cho link cũ.
+- `Sidebar.tsx` bỏ mục điều hướng "AI Assistant" (không còn là trang để trỏ tới).
+
+**Fast Refresh split:** `oxlint` báo `react(only-export-components)` vì
+`VoiceAssistantContext.tsx` từng export cả component lẫn hook/type — tách theo đúng
+pattern đã dùng cho `ThemeProvider` (`theme-context.ts`/`useTheme.ts`): tạo
+`voice-assistant-context.ts` (types + `createContext`) và `useVoiceAssistant.ts` (hook
+riêng), file component chỉ còn export `VoiceAssistantProvider`. Không dùng
+eslint-disable — sửa tận gốc.
+
+**Verify thật** (không chỉ đọc code): build `npx tsc -b && npx oxlint && npm run
+build` sạch; và chạy `uvicorn` thật + script Python đăng ký user mới → tạo phiên →
+"Tôi muốn đặt xe từ Vincom Đồng Khởi đến Landmark 81" → "Xe máy" → xác nhận đúng
+`current_step: CONFIRM`, `fare_amount: 47200` → gửi "Xác nhận đặt xe" → nhận
+`booking_lifecycle_status: SUCCESS` + `booking_id` thật. Xác nhận thêm: lỗi 401 trả về
+message tiếng Việt thân thiện (`"Vui lòng đăng nhập..."`), không phải stack trace.
+
+Chi tiết các field/luồng backend chưa có (passenger_count, nút Hủy ở bước CONFIRM,
+caption thời gian thực khi gọi) — xem `mustdo.md` mục 7.
+
+## 14. Việc còn lại (`mustdo.md` — cần người/credential thật)
 
 1. Tạo project Supabase thật (database production).
 2. Chọn 1 trong 2 hệ thống Voice AI để giữ lâu dài (không chặn, chỉ nên dọn sau).
@@ -374,7 +434,7 @@ trang thay vì là ấn tượng đầu tiên. `WELCOME_MESSAGE` (hằng số t�
    feature/agentic-ai, sẽ tự cải thiện khi bật `AGENT_LLM_ENABLED`/`AGENT_REWRITE_ENABLED`
    thật, không sửa trong project này để giữ đúng logic gốc.
 
-## 14. Lệnh kiểm tra nhanh
+## 15. Lệnh kiểm tra nhanh
 
 ```bash
 # Backend

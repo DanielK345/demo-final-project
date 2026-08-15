@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Clock, ChevronRight, RotateCcw, Car, AlertCircle, Sparkles } from "lucide-react";
 import { listBookings, locationLabel, statusLabel, type BookingSummary } from "@/features/activity/api";
 import { redirectToLoginIfUnauthorized } from "@/features/auth/sessionGuard";
+import { useVoiceAssistant } from "@/features/ai-assistant/context/useVoiceAssistant";
 
 interface ActivityListProps {
   activeFilter?: string;
@@ -29,6 +30,7 @@ function formatFare(fare: number | null, currency: string): string {
 
 export const ActivityList: React.FC<ActivityListProps> = ({ activeFilter = "all" }) => {
   const navigate = useNavigate();
+  const { open, openWithPrefill } = useVoiceAssistant();
   const [bookings, setBookings] = useState<BookingSummary[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -54,9 +56,7 @@ export const ActivityList: React.FC<ActivityListProps> = ({ activeFilter = "all"
   const rebookViaAssistant = (booking: BookingSummary) => {
     const pickup = locationLabel(booking.pickup, "điểm đón cũ");
     const destination = locationLabel(booking.destination, "điểm đến cũ");
-    navigate("/assistant", {
-      state: { prefill: `Tôi muốn đặt lại chuyến từ ${pickup} đến ${destination}.` },
-    });
+    openWithPrefill(`Tôi muốn đặt lại chuyến từ ${pickup} đến ${destination}.`);
   };
 
   if (error) {
@@ -94,7 +94,7 @@ export const ActivityList: React.FC<ActivityListProps> = ({ activeFilter = "all"
         <p className="text-sm text-slate-500 dark:text-slate-400">Chưa có chuyến đi nào ở đây.</p>
         <button
           type="button"
-          onClick={() => navigate("/assistant")}
+          onClick={open}
           className="inline-flex items-center gap-1.5 text-sm font-bold text-[#006a62] dark:text-[#00D1C1] hover:underline"
         >
           <Sparkles className="w-4 h-4" />

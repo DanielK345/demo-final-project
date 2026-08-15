@@ -4,6 +4,7 @@ import { TrackingCard } from "@/features/tracking/components/TrackingCard";
 import type { TrackingTripDetails } from "@/features/tracking/types";
 import { getTripStatus, TRIP_STATUS_TEXT, type TripStatusResponse } from "@/features/tracking/api";
 import { redirectToLoginIfUnauthorized } from "@/features/auth/sessionGuard";
+import { useVoiceAssistant } from "@/features/ai-assistant/context/useVoiceAssistant";
 import { Navigation, AlertCircle, Sparkles } from "lucide-react";
 
 const POLL_INTERVAL_MS = 4000;
@@ -19,6 +20,7 @@ const STATUS_MAP: Record<TripStatusResponse["status"], TrackingTripDetails["stat
 export const TrackingPage: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
+  const { open: openAssistant } = useVoiceAssistant();
   const routeState = location.state as
     | { sessionId?: string; bookingId?: string; pickup?: string; destination?: string }
     | undefined;
@@ -82,7 +84,7 @@ export const TrackingPage: React.FC = () => {
         </p>
         <button
           type="button"
-          onClick={() => navigate("/assistant")}
+          onClick={openAssistant}
           className="mt-2 inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-[#00D1C1] text-white font-bold text-sm hover:bg-[#006a62] transition-colors"
         >
           <Sparkles className="w-4 h-4" />

@@ -40,6 +40,13 @@ export interface RideTurn {
   state: Record<string, unknown> & {
     booking_progress?: BookingProgress | null;
     booking_lifecycle_status?: BookingLifecycleStatus | null;
+    // "RIDE_BOOKING" + "CONFIRM" (xem src/agents/schemas.py::WorkflowType,
+    // src/agents/workflows/booking_models.py::BookingStep) — tín hiệu THẬT, chính
+    // xác nhất để biết agent đang chờ xác nhận đặt xe (dùng để tự mở
+    // BookingConfirmationModal), đáng tin hơn suy luận gián tiếp từ
+    // booking_progress.missing_field.
+    current_workflow?: string | null;
+    current_step?: string | null;
   };
   booking?: RideBooking | null;
 }

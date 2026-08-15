@@ -1,7 +1,7 @@
 import React from "react";
 import { Briefcase, Sparkles } from "lucide-react";
-import { useNavigate } from "react-router-dom";
 import { MOCK_SERVICES_CATALOG } from "@/features/booking/mockData";
+import { useVoiceAssistant } from "@/features/ai-assistant/context/useVoiceAssistant";
 
 // Nhãn loại xe theo đúng ngôn ngữ tự nhiên mà Core Agent hiểu (xem
 // src/agents/booking_types.py::VehicleType.spoken_label) — dùng để soạn câu mở đầu
@@ -13,15 +13,15 @@ const VEHICLE_LABEL: Record<"MOTORBIKE" | "CAR_4" | "CAR_7", string> = {
 };
 
 export const BookingPage: React.FC = () => {
-  const navigate = useNavigate();
+  const { openWithPrefill } = useVoiceAssistant();
 
   // Trước đây bấm "Đặt ngay" mở modal tự điền pickup/dropoff rồi tự xác nhận — một
   // luồng đặt xe RIÊNG, tách khỏi Agentic AI. Theo yêu cầu, mọi nút đặt xe giờ nối
-  // thẳng vào AI Assistant thay vì tự bấm: điều hướng sang /assistant kèm
-  // `state.prefill`, agent tiếp quản từ đó (hỏi xác nhận, tạo booking) — chỉ còn 1
-  // đường đặt xe duy nhất trong toàn app.
+  // thẳng vào AI Assistant thay vì tự bấm: mở popup nổi kèm câu mô tả chuyến đi,
+  // agent tiếp quản từ đó (hỏi xác nhận, tạo booking) — chỉ còn 1 đường đặt xe duy
+  // nhất trong toàn app, không còn điều hướng sang trang riêng.
   const goToAssistant = (prefill: string) => {
-    navigate("/assistant", { state: { prefill } });
+    openWithPrefill(prefill);
   };
 
   return (
