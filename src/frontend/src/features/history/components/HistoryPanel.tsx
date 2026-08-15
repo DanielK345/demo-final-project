@@ -52,7 +52,7 @@ export const HistoryPanel: React.FC<HistoryPanelProps> = ({ isOpen, onClose, onS
       <aside className="relative z-10 w-full max-w-sm h-full bg-white border-l border-slate-200/80 flex flex-col shadow-2xl dark:bg-[#12161A] dark:border-white/10">
         <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 dark:border-white/10">
           <h2 className="text-sm font-bold text-[#191C1E] dark:text-white flex items-center gap-2">
-            <History className="w-4 h-4 text-[#00D1C1]" />
+            <History className="w-4 h-4 text-[#00A651]" />
             Lịch sử trò chuyện
           </h2>
           <button
@@ -85,10 +85,10 @@ export const HistoryPanel: React.FC<HistoryPanelProps> = ({ isOpen, onClose, onS
               key={session.session_id}
               type="button"
               onClick={() => onSelectSession(session.session_id)}
-              className="w-full text-left rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-200/80 hover:border-[#00D1C1]/40 p-3.5 transition-colors dark:bg-white/5 dark:hover:bg-white/10 dark:border-white/10"
+              className="w-full text-left rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-200/80 hover:border-[#00A651]/40 p-3.5 transition-colors dark:bg-white/5 dark:hover:bg-white/10 dark:border-white/10"
             >
               <div className="flex items-center justify-between mb-1.5">
-                <span className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-[#006a62] dark:text-[#00D1C1]">
+                <span className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-[#04763B] dark:text-[#00A651]">
                   {session.channel === "WEB_VOICE" ? <Mic className="w-3 h-3" /> : <MessageSquare className="w-3 h-3" />}
                   {session.channel === "WEB_VOICE" ? "Giọng nói" : "Nhắn tin"}
                 </span>

@@ -180,12 +180,12 @@ export const PaymentPage: React.FC = () => {
 
   const Toggle: React.FC<{ field: keyof UserSettings; checked: boolean }> = ({ field, checked }) => (
     <div className="flex items-center gap-2">
-      {savedField === field && <Check className="w-3.5 h-3.5 text-[#00D1C1]" />}
+      {savedField === field && <Check className="w-3.5 h-3.5 text-[#00A651]" />}
       <button
         type="button"
         onClick={() => applyUpdate(field, !checked)}
         className={`w-12 h-6 rounded-full transition-colors relative cursor-pointer ${
-          checked ? "bg-[#00D1C1]" : "bg-slate-200 dark:bg-white/10"
+          checked ? "bg-[#00A651]" : "bg-slate-200 dark:bg-white/10"
         }`}
       >
         <span
@@ -216,7 +216,7 @@ export const PaymentPage: React.FC = () => {
           {/* Section 1: Notifications */}
           <section className="bg-white/90 backdrop-blur-xl rounded-[16px] p-6 lg:p-8 shadow-[0px_4px_20px_rgba(16,18,19,0.05)] border border-slate-200/80 dark:bg-[#12161A]/90 dark:border-white/10">
             <div className="flex items-center mb-6">
-              <Bell className="w-6 h-6 text-[#00D1C1] mr-3" />
+              <Bell className="w-6 h-6 text-[#00A651] mr-3" />
               <h2 className="text-xl font-bold text-[#191C1E] dark:text-white">Thông báo</h2>
             </div>
 
@@ -250,7 +250,7 @@ export const PaymentPage: React.FC = () => {
           {/* Section 2: Security */}
           <section className="bg-white/90 backdrop-blur-xl rounded-[16px] p-6 lg:p-8 shadow-[0px_4px_20px_rgba(16,18,19,0.05)] border border-slate-200/80 dark:bg-[#12161A]/90 dark:border-white/10">
             <div className="flex items-center mb-6">
-              <Shield className="w-6 h-6 text-[#00D1C1] mr-3" />
+              <Shield className="w-6 h-6 text-[#00A651] mr-3" />
               <h2 className="text-xl font-bold text-[#191C1E] dark:text-white">Bảo mật</h2>
             </div>
 
@@ -279,7 +279,7 @@ export const PaymentPage: React.FC = () => {
                       placeholder="Mật khẩu hiện tại"
                       value={oldPassword}
                       onChange={(event) => setOldPassword(event.target.value)}
-                      className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm outline-none focus:border-[#00D1C1] dark:border-white/10 dark:bg-white/5 dark:text-white"
+                      className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm outline-none focus:border-[#00A651] dark:border-white/10 dark:bg-white/5 dark:text-white"
                     />
                     <input
                       type="password"
@@ -288,7 +288,7 @@ export const PaymentPage: React.FC = () => {
                       placeholder="Mật khẩu mới (tối thiểu 8 ký tự)"
                       value={newPassword}
                       onChange={(event) => setNewPassword(event.target.value)}
-                      className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm outline-none focus:border-[#00D1C1] dark:border-white/10 dark:bg-white/5 dark:text-white"
+                      className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm outline-none focus:border-[#00A651] dark:border-white/10 dark:bg-white/5 dark:text-white"
                     />
                     {passwordError && (
                       <p className="text-xs text-rose-600 bg-rose-50 rounded-lg p-2.5 dark:text-rose-300 dark:bg-rose-500/10">{passwordError}</p>
@@ -296,7 +296,7 @@ export const PaymentPage: React.FC = () => {
                     <button
                       type="submit"
                       disabled={isSubmittingPassword}
-                      className="flex items-center justify-center gap-2 rounded-xl bg-[#00D1C1] text-white font-bold text-xs px-5 py-2.5 hover:bg-[#006a62] transition-colors disabled:opacity-60"
+                      className="flex items-center justify-center gap-2 rounded-xl bg-[#00A651] text-white font-bold text-xs px-5 py-2.5 hover:bg-[#04763B] transition-colors disabled:opacity-60"
                     >
                       {isSubmittingPassword && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
                       {passwordSaved ? (
@@ -358,7 +358,7 @@ export const PaymentPage: React.FC = () => {
                 {twoFactorSetup && (
                   <form onSubmit={handleConfirmTwoFactor} className="mt-4 space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/5">
                     <p className="text-xs font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
-                      <KeyRound className="w-3.5 h-3.5 text-[#00D1C1]" />
+                      <KeyRound className="w-3.5 h-3.5 text-[#00A651]" />
                       Thêm mã bí mật sau vào app authenticator (Google Authenticator, Authy...):
                     </p>
                     <p className="font-mono text-sm font-bold tracking-wider text-[#191C1E] bg-white border border-slate-200 rounded-lg px-3 py-2 select-all break-all dark:bg-[#0B0E11] dark:border-white/10 dark:text-white">
@@ -368,7 +368,7 @@ export const PaymentPage: React.FC = () => {
                       Hoặc dùng liên kết:{" "}
                       <a
                         href={twoFactorSetup.otpauth_url}
-                        className="font-mono text-[#006a62] dark:text-[#00D1C1] underline break-all"
+                        className="font-mono text-[#04763B] dark:text-[#00A651] underline break-all"
                       >
                         {twoFactorSetup.otpauth_url}
                       </a>
@@ -381,7 +381,7 @@ export const PaymentPage: React.FC = () => {
                       placeholder="Nhập mã 6 số"
                       value={twoFactorCode}
                       onChange={(event) => setTwoFactorCode(event.target.value.replace(/\D/g, "").slice(0, 6))}
-                      className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm tracking-[0.3em] text-center font-mono outline-none focus:border-[#00D1C1] dark:border-white/10 dark:bg-[#0B0E11] dark:text-white"
+                      className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm tracking-[0.3em] text-center font-mono outline-none focus:border-[#00A651] dark:border-white/10 dark:bg-[#0B0E11] dark:text-white"
                     />
                     {twoFactorError && (
                       <p className="text-xs text-rose-600 bg-rose-50 rounded-lg p-2.5 dark:text-rose-300 dark:bg-rose-500/10">
@@ -392,7 +392,7 @@ export const PaymentPage: React.FC = () => {
                       <button
                         type="submit"
                         disabled={isTwoFactorBusy || twoFactorCode.length !== 6}
-                        className="flex items-center justify-center gap-2 rounded-xl bg-[#00D1C1] text-white font-bold text-xs px-5 py-2.5 hover:bg-[#006a62] transition-colors disabled:opacity-60"
+                        className="flex items-center justify-center gap-2 rounded-xl bg-[#00A651] text-white font-bold text-xs px-5 py-2.5 hover:bg-[#04763B] transition-colors disabled:opacity-60"
                       >
                         {isTwoFactorBusy && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
                         Xác nhận bật 2FA
@@ -422,7 +422,7 @@ export const PaymentPage: React.FC = () => {
           {/* Section 3: Language */}
           <section className="bg-white/90 backdrop-blur-xl rounded-[16px] p-6 lg:p-8 shadow-[0px_4px_20px_rgba(16,18,19,0.05)] border border-slate-200/80 dark:bg-[#12161A]/90 dark:border-white/10">
             <div className="flex items-center mb-6">
-              <Globe className="w-6 h-6 text-[#00D1C1] mr-3" />
+              <Globe className="w-6 h-6 text-[#00A651] mr-3" />
               <h2 className="text-xl font-bold text-[#191C1E] dark:text-white">Ngôn ngữ</h2>
             </div>
 
@@ -430,7 +430,7 @@ export const PaymentPage: React.FC = () => {
               <select
                 value={settings.language}
                 onChange={(event) => applyUpdate("language", event.target.value)}
-                className="w-full bg-white border border-slate-200 text-[#191C1E] text-sm font-medium rounded-xl px-4 py-3 focus:outline-none focus:border-[#00D1C1] focus:ring-1 focus:ring-[#00D1C1] transition-all cursor-pointer dark:bg-white/5 dark:border-white/10 dark:text-white"
+                className="w-full bg-white border border-slate-200 text-[#191C1E] text-sm font-medium rounded-xl px-4 py-3 focus:outline-none focus:border-[#00A651] focus:ring-1 focus:ring-[#00A651] transition-all cursor-pointer dark:bg-white/5 dark:border-white/10 dark:text-white"
               >
                 <option value="vi">Tiếng Việt</option>
                 <option value="en">English</option>
@@ -441,7 +441,7 @@ export const PaymentPage: React.FC = () => {
           {/* Section 4: Theme / Appearance */}
           <section className="bg-white/90 backdrop-blur-xl rounded-[16px] p-6 lg:p-8 shadow-[0px_4px_20px_rgba(16,18,19,0.05)] border border-slate-200/80 dark:bg-[#12161A]/90 dark:border-white/10">
             <div className="flex items-center mb-6">
-              <Palette className="w-6 h-6 text-[#00D1C1] mr-3" />
+              <Palette className="w-6 h-6 text-[#00A651] mr-3" />
               <h2 className="text-xl font-bold text-[#191C1E] dark:text-white">Giao diện</h2>
             </div>
 
@@ -451,11 +451,11 @@ export const PaymentPage: React.FC = () => {
                 onClick={() => applyUpdate("theme", "light")}
                 className={`p-4 rounded-xl border-2 text-center transition-all cursor-pointer ${
                   settings.theme === "light"
-                    ? "border-[#00D1C1] bg-[#00D1C1]/5 text-[#006a62] font-bold"
+                    ? "border-[#00A651] bg-[#00A651]/5 text-[#04763B] font-bold"
                     : "border-slate-200 bg-white text-slate-600 hover:border-slate-300"
                 }`}
               >
-                <Sun className="w-7 h-7 mx-auto mb-2 text-[#006a62]" />
+                <Sun className="w-7 h-7 mx-auto mb-2 text-[#04763B]" />
                 <p className="text-sm font-semibold">Sáng</p>
               </button>
 
@@ -464,11 +464,11 @@ export const PaymentPage: React.FC = () => {
                 onClick={() => applyUpdate("theme", "dark")}
                 className={`p-4 rounded-xl border-2 text-center transition-all cursor-pointer bg-[#101213] ${
                   settings.theme === "dark"
-                    ? "border-[#00D1C1] text-white font-bold"
+                    ? "border-[#00A651] text-white font-bold"
                     : "border-slate-700 text-slate-300 hover:border-slate-500"
                 }`}
               >
-                <Moon className="w-7 h-7 mx-auto mb-2 text-[#00D1C1]" />
+                <Moon className="w-7 h-7 mx-auto mb-2 text-[#00A651]" />
                 <p className="text-sm font-semibold text-white">Tối</p>
               </button>
             </div>

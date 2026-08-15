@@ -55,12 +55,12 @@ export const Topbar: React.FC = () => {
       {/* Right Search & Icons */}
       <div className="flex items-center gap-4">
         {/* Search Input */}
-        <div className="relative w-48 sm:w-64 focus-within:ring-2 focus-within:ring-[#00D1C1]/20 rounded-xl transition-all">
+        <div className="relative w-48 sm:w-64 focus-within:ring-2 focus-within:ring-[#00A651]/20 rounded-xl transition-all">
           <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500" />
           <input
             type="text"
             placeholder="Tìm kiếm..."
-            className="w-full h-10 pl-10 pr-4 bg-slate-50 rounded-xl border border-slate-200 focus:outline-none focus:border-[#00D1C1] text-xs font-medium text-slate-800 placeholder:text-slate-400 transition-all dark:bg-white/5 dark:border-white/10 dark:text-slate-100 dark:placeholder:text-slate-500"
+            className="w-full h-10 pl-10 pr-4 bg-slate-50 rounded-xl border border-slate-200 focus:outline-none focus:border-[#00A651] text-xs font-medium text-slate-800 placeholder:text-slate-400 transition-all dark:bg-white/5 dark:border-white/10 dark:text-slate-100 dark:placeholder:text-slate-500"
           />
         </div>
 
@@ -69,12 +69,12 @@ export const Topbar: React.FC = () => {
             giả vờ có danh sách thông báo. */}
         <div className="relative" ref={notifRef}>
           <IconButton
-            icon={<Bell className="w-5 h-5 text-slate-600 hover:text-[#006a62] dark:text-slate-300 dark:hover:text-[#00D1C1]" />}
+            icon={<Bell className="w-5 h-5 text-slate-600 hover:text-[#04763B] dark:text-slate-300 dark:hover:text-[#00A651]" />}
             label="Notifications"
             variant="ghost"
             size="md"
             onClick={() => setIsNotifOpen((open) => !open)}
-            className={`rounded-full transition-all ${isNotifOpen ? "bg-[#00D1C1]/20 text-[#006a62]" : "hover:bg-slate-100 dark:hover:bg-white/10"}`}
+            className={`rounded-full transition-all ${isNotifOpen ? "bg-[#00A651]/20 text-[#04763B]" : "hover:bg-slate-100 dark:hover:bg-white/10"}`}
           />
           {isNotifOpen && (
             <div className="absolute right-0 mt-2 w-64 bg-white rounded-2xl shadow-[0_8px_30px_rgba(0,0,0,0.12)] border border-slate-200/80 p-4 z-50 text-center dark:bg-[#12161A] dark:border-white/10">
@@ -86,13 +86,13 @@ export const Topbar: React.FC = () => {
         {/* Account Avatar Button with Dropdown */}
         <div className="relative" ref={dropdownRef}>
           <IconButton
-            icon={<User className="w-5 h-5 text-slate-600 hover:text-[#006a62] dark:text-slate-300 dark:hover:text-[#00D1C1]" />}
+            icon={<User className="w-5 h-5 text-slate-600 hover:text-[#04763B] dark:text-slate-300 dark:hover:text-[#00A651]" />}
             label="Account"
             variant="ghost"
             size="md"
             onClick={() => setIsMenuOpen(!isMenuOpen)}
             className={`rounded-full transition-all ${
-              isMenuOpen ? "bg-[#00D1C1]/20 text-[#006a62]" : "hover:bg-slate-100 dark:hover:bg-white/10"
+              isMenuOpen ? "bg-[#00A651]/20 text-[#04763B]" : "hover:bg-slate-100 dark:hover:bg-white/10"
             }`}
           />
 
@@ -101,7 +101,7 @@ export const Topbar: React.FC = () => {
             <div className="absolute right-0 mt-2 w-64 bg-white rounded-2xl shadow-[0_8px_30px_rgba(0,0,0,0.12)] border border-slate-200/80 py-2 z-50 animate-in fade-in slide-in-from-top-2 duration-150 dark:bg-[#12161A] dark:border-white/10">
               {/* User Header */}
               <div className="px-4 py-3 border-b border-slate-100 flex items-center gap-3 dark:border-white/10">
-                <div className="w-10 h-10 rounded-full bg-[#00D1C1]/20 text-[#006a62] flex items-center justify-center font-bold text-sm shrink-0">
+                <div className="w-10 h-10 rounded-full bg-[#00A651]/20 text-[#04763B] flex items-center justify-center font-bold text-sm shrink-0">
                   {initials}
                 </div>
                 <div className="min-w-0 flex-1">

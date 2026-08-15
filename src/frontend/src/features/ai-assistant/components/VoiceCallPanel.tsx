@@ -69,16 +69,16 @@ export const VoiceCallPanel: React.FC = () => {
         {isActive && (
           <span
             className={`absolute w-32 h-32 rounded-full animate-ping [animation-duration:1.6s] ${
-              displayStatus === "listening" ? "bg-[#00D1C1]/30" : "bg-[#006a62]/30"
+              displayStatus === "listening" ? "bg-[#00A651]/30" : "bg-[#04763B]/30"
             }`}
           />
         )}
         <div
           className={`w-28 h-28 rounded-full flex items-center justify-center border-4 transition-colors duration-300 ${
             displayStatus === "listening"
-              ? "bg-[#00D1C1]/15 border-[#00D1C1]"
+              ? "bg-[#00A651]/15 border-[#00A651]"
               : displayStatus === "speaking"
-                ? "bg-[#006a62]/15 border-[#006a62] dark:border-[#00D1C1]"
+                ? "bg-[#04763B]/15 border-[#04763B] dark:border-[#00A651]"
                 : displayStatus === "error"
                   ? "bg-rose-50 border-rose-300 dark:bg-rose-500/10 dark:border-rose-500/40"
                   : "bg-slate-100 border-slate-200 dark:bg-white/5 dark:border-white/10"
@@ -93,7 +93,7 @@ export const VoiceCallPanel: React.FC = () => {
                   animationDelay: `${bar * 0.12}s`,
                   height: isActive ? `${10 + ((bar % 3) + 1) * 6}px` : "4px",
                 }}
-                className={`w-1.5 rounded-full bg-[#006a62] dark:bg-[#00D1C1] transition-[height] duration-300 ${
+                className={`w-1.5 rounded-full bg-[#04763B] dark:bg-[#00A651] transition-[height] duration-300 ${
                   isActive ? "animate-[pulse_0.9s_ease-in-out_infinite]" : ""
                 }`}
               />
@@ -120,7 +120,7 @@ export const VoiceCallPanel: React.FC = () => {
         <button
           type="button"
           onClick={() => void newSession()}
-          className="mt-6 inline-flex items-center gap-2 rounded-xl bg-[#00D1C1] px-5 py-2.5 text-sm font-semibold text-[#0B0E11] hover:opacity-90"
+          className="mt-6 inline-flex items-center gap-2 rounded-xl bg-[#00A651] px-5 py-2.5 text-sm font-semibold text-[#0B0E11] hover:opacity-90"
         >
           <RotateCcw className="w-4 h-4" />
           Gọi lại
@@ -147,7 +147,7 @@ export const VoiceCallPanel: React.FC = () => {
             className={`w-16 h-16 rounded-full grid place-items-center shadow-lg transition ${
               micMuted
                 ? "bg-slate-200 text-slate-500 dark:bg-white/10 dark:text-slate-400"
-                : "bg-[#00D1C1] hover:bg-[#006a62] text-[#0B0E11] hover:text-white"
+                : "bg-[#00A651] hover:bg-[#04763B] text-[#0B0E11] hover:text-white"
             }`}
           >
             {micMuted ? <MicOff className="w-6 h-6" /> : <Mic className="w-6 h-6 text-white" />}

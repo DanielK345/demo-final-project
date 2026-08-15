@@ -79,7 +79,7 @@ export const HomePage: React.FC = () => {
           onClick={open}
           className="hidden lg:flex items-center gap-4 bg-white p-4 rounded-2xl shadow-[0px_4px_20px_rgba(16,18,19,0.05)] border border-slate-200/80 cursor-pointer group hover:shadow-md transition-all dark:bg-[#12161A] dark:border-white/10"
         >
-          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#00D1C1] to-[#006a62] flex items-center justify-center text-white shadow-md shadow-[#00D1C1]/30 group-hover:scale-105 transition-transform">
+          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#00A651] to-[#04763B] flex items-center justify-center text-white shadow-md shadow-[#00A651]/30 group-hover:scale-105 transition-transform">
             <Sparkles className="w-5 h-5" />
           </div>
           <div className="text-left">
@@ -98,7 +98,7 @@ export const HomePage: React.FC = () => {
         <div className="absolute inset-0 bg-gradient-to-t from-[#101213]/90 via-[#101213]/40 to-transparent" />
 
         <div className="absolute bottom-0 left-0 p-6 md:p-10 w-full md:w-2/3">
-          <span className="inline-block px-3 py-1 mb-4 rounded bg-[#00D1C1]/20 text-[#00D1C1] text-xs font-semibold backdrop-blur-md border border-[#00D1C1]/30">
+          <span className="inline-block px-3 py-1 mb-4 rounded bg-[#00A651]/20 text-[#00A651] text-xs font-semibold backdrop-blur-md border border-[#00A651]/30">
             Ưu đãi độc quyền
           </span>
           <h2 className="text-2xl md:text-4xl font-extrabold text-white mb-2 leading-tight">
@@ -114,7 +114,7 @@ export const HomePage: React.FC = () => {
                 "Tôi muốn đặt xe AloSM Plus loại ô tô 7 chỗ để nhận ưu đãi giảm 20% cho chuyến đầu tiên.",
               )
             }
-            className="inline-flex items-center gap-2 bg-[#00D1C1] hover:bg-[#006a62] text-white font-bold text-xs px-6 py-3 rounded-[12px] transition-colors shadow-lg shadow-[#00D1C1]/20 cursor-pointer"
+            className="inline-flex items-center gap-2 bg-[#00A651] hover:bg-[#04763B] text-white font-bold text-xs px-6 py-3 rounded-[12px] transition-colors shadow-lg shadow-[#00A651]/20 cursor-pointer"
           >
             <Sparkles className="w-4 h-4" />
             AI đặt xe ngay
@@ -144,14 +144,14 @@ export const HomePage: React.FC = () => {
               <div>
                 <div className="flex justify-between items-start mb-2">
                   <h4 className="text-lg font-bold text-[#191C1E] dark:text-white">AloSM Taxi</h4>
-                  <Car className="w-5 h-5 text-[#00D1C1]" />
+                  <Car className="w-5 h-5 text-[#00A651]" />
                 </div>
                 <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
                   Di chuyển hàng ngày nhanh chóng, êm ái và không phát thải.
                 </p>
               </div>
 
-              <div className="mt-6 flex items-center text-[#006a62] dark:text-[#00D1C1] text-xs font-bold group-hover:translate-x-1 transition-transform">
+              <div className="mt-6 flex items-center text-[#04763B] dark:text-[#00A651] text-xs font-bold group-hover:translate-x-1 transition-transform">
                 <Sparkles className="w-3.5 h-3.5 mr-1.5" />
                 <span>AI đặt xe ngay</span>
                 <ArrowRight className="w-4 h-4 ml-1" />
@@ -176,14 +176,14 @@ export const HomePage: React.FC = () => {
               <div>
                 <div className="flex justify-between items-start mb-2">
                   <h4 className="text-lg font-bold text-[#191C1E] dark:text-white">AloSM Bike</h4>
-                  <Bike className="w-5 h-5 text-[#00D1C1]" />
+                  <Bike className="w-5 h-5 text-[#00A651]" />
                 </div>
                 <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
                   Xe máy công nghệ, len lỏi nội thành — tới nơi nhanh nhất giờ cao điểm.
                 </p>
               </div>
 
-              <div className="mt-6 flex items-center text-[#006a62] dark:text-[#00D1C1] text-xs font-bold group-hover:translate-x-1 transition-transform">
+              <div className="mt-6 flex items-center text-[#04763B] dark:text-[#00A651] text-xs font-bold group-hover:translate-x-1 transition-transform">
                 <Sparkles className="w-3.5 h-3.5 mr-1.5" />
                 <span>AI đặt xe ngay</span>
                 <ArrowRight className="w-4 h-4 ml-1" />
@@ -208,14 +208,14 @@ export const HomePage: React.FC = () => {
               <div>
                 <div className="flex justify-between items-start mb-2">
                   <h4 className="text-lg font-bold text-[#191C1E] dark:text-white">AloSM Sân bay</h4>
-                  <PlaneTakeoff className="w-5 h-5 text-[#00D1C1]" />
+                  <PlaneTakeoff className="w-5 h-5 text-[#00A651]" />
                 </div>
                 <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
                   Đưa đón sân bay đúng giờ, xe rộng rãi cho nhiều hành lý.
                 </p>
               </div>
 
-              <div className="mt-6 flex items-center text-[#006a62] dark:text-[#00D1C1] text-xs font-bold group-hover:translate-x-1 transition-transform">
+              <div className="mt-6 flex items-center text-[#04763B] dark:text-[#00A651] text-xs font-bold group-hover:translate-x-1 transition-transform">
                 <Sparkles className="w-3.5 h-3.5 mr-1.5" />
                 <span>AI đặt xe ngay</span>
                 <ArrowRight className="w-4 h-4 ml-1" />
@@ -228,7 +228,7 @@ export const HomePage: React.FC = () => {
       {/* Secondary Promo & Recent Activity Section */}
       <section className="grid grid-cols-1 lg:grid-cols-12 gap-6 pt-4">
         {/* Promo Banner (Spans 8 cols) */}
-        <div className="lg:col-span-8 rounded-2xl overflow-hidden relative bg-gradient-to-br from-[#00D1C1] to-[#006a62] text-white p-8 md:p-12 flex flex-col justify-center items-start shadow-lg shadow-[#00D1C1]/10">
+        <div className="lg:col-span-8 rounded-2xl overflow-hidden relative bg-gradient-to-br from-[#00A651] to-[#04763B] text-white p-8 md:p-12 flex flex-col justify-center items-start shadow-lg shadow-[#00A651]/10">
           {/* Abstract Glow Decor */}
           <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/4 pointer-events-none" />
 
@@ -241,7 +241,7 @@ export const HomePage: React.FC = () => {
             </p>
             <button
               type="button"
-              className="border-2 border-white text-white hover:bg-white hover:text-[#006a62] font-bold text-xs px-6 py-3 rounded-[12px] transition-colors cursor-pointer"
+              className="border-2 border-white text-white hover:bg-white hover:text-[#04763B] font-bold text-xs px-6 py-3 rounded-[12px] transition-colors cursor-pointer"
             >
               Khám phá bảng giá
             </button>
@@ -291,7 +291,7 @@ export const HomePage: React.FC = () => {
                         )
                       }
                       title="AI đặt lại chuyến này"
-                      className="text-[#00D1C1] hover:bg-[#00D1C1]/10 p-2 rounded-full transition-colors cursor-pointer"
+                      className="text-[#00A651] hover:bg-[#00A651]/10 p-2 rounded-full transition-colors cursor-pointer"
                     >
                       <RotateCcw className="w-4 h-4" />
                     </button>
@@ -304,7 +304,7 @@ export const HomePage: React.FC = () => {
           <NavLink to="/activity" className="block mt-6">
             <button
               type="button"
-              className="w-full py-3 text-center text-[#006a62] dark:text-[#00D1C1] font-bold text-xs hover:bg-slate-50 dark:hover:bg-white/5 rounded-xl transition-colors border border-slate-200 dark:border-white/10 cursor-pointer"
+              className="w-full py-3 text-center text-[#04763B] dark:text-[#00A651] font-bold text-xs hover:bg-slate-50 dark:hover:bg-white/5 rounded-xl transition-colors border border-slate-200 dark:border-white/10 cursor-pointer"
             >
               Xem tất cả lịch sử
             </button>
