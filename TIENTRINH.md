@@ -286,7 +286,229 @@ xe thật + giữ nguyên toàn bộ luồng "AI đặt xe ngay" đã xây ở m
   nhánh đó), `git branch --show-current` luôn là `feature/voice-ai`,
   `origin/feature/agentic-ai` không đổi ref sau khi xong.
 
-## 10. Việc còn lại (`mustdo.md` — cần người/credential thật)
+## 10. Fix nhỏ + Sidebar tự thu/phóng theo hover
+
+Vài việc nhỏ xen giữa các mục lớn ở trên, gộp lại cho gọn:
+
+- **`tsconfig.app.json`**: IDE báo đỏ dòng `"ignoreDeprecations": "6.0"` — không phải
+  lỗi thật (TS 6.0.3 đang cài chấp nhận giá trị này, `tsc` sạch), chỉ do schema JSON
+  của VS Code chưa cập nhật kịp bản TS mới. Sửa tận gốc thay vì để nguyên: gỡ hẳn
+  `baseUrl` (đã deprecated, TS 7.0 sẽ bỏ hẳn) — `paths` tự chạy được dưới
+  `moduleResolution: "bundler"` không cần `baseUrl`, alias `@/` lúc chạy thực tế do
+  `vite.config.ts` tự resolve riêng. Verify: gỡ `baseUrl` mà không thêm lại
+  `ignoreDeprecations` thì `tsc` báo đúng lỗi thật `TS5101` (xác nhận đây không phải
+  no-op), thêm `paths`-only vào thì sạch.
+- **`.gitignore`**: bổ sung `.env.*` + `!.env.example` (trước chỉ liệt kê tay
+  `.env.local`/`.env.production`, thiếu biến thể nào là lọt), `.pytest_cache/`/
+  `.ruff_cache/`/`.mypy_cache/` tường minh (trước chỉ ẩn được nhờ tool tự sinh
+  `.gitignore` con), `.vite/`, `*.tsbuildinfo`, và chuyển các file runtime của Claude
+  Code (`scheduled_tasks.lock`, `worktrees/`, `checkpoints/`...) từ
+  `.git/info/exclude` (cục bộ theo máy, không đi theo repo khi clone mới) vào
+  `.gitignore` thật. Verify bằng `git check-ignore -v` thật, không chỉ đọc file.
+- **`src/models/voice_schemas.py` → `src/voice/schemas.py`**: dọn lại vị trí (schema
+  riêng cho Voice nên nằm trong package `voice`, không phải package `models` chung
+  chung không còn gì khác) — đổi import ở 9 chỗ gọi, không đổi hành vi.
+- **Sidebar tự thu/phóng theo hover (thay cho nút bấm thủ công)**: làm qua 3 lượt —
+  (1) thêm nút ghim mở/thu thủ công trước; (2) theo yêu cầu tiếp theo, đổi sang tự
+  động hoàn toàn: mặc định thu hẹp còn dải icon, rê chuột qua tự mở ra mượt
+  (`group-hover`/`group-focus-within` thuần CSS, không qua state React nên không có
+  độ trễ round-trip), rê ra tự thu; sidebar nổi `fixed` đè lên nội dung thay vì đẩy
+  layout giật mỗi lần hover; (3) nút ghim thủ công bị báo lỗi → gỡ hẳn, chỉ còn đúng
+  1 cơ chế tự động. Bug thật bắt được giữa chừng: gỡ nút ở bước (3) để sót lại class
+  `relative` (cần cho nút `absolute` cũ) cùng lúc với `fixed` mới — 2 class cùng set
+  `position` khiến `relative` thắng do đứng sau trong CSS build ra, sidebar thật ra
+  không hề "nổi" mà nằm lẫn trong layout thường, đúng y hệt khoảng trống xám bên trái
+  người dùng chụp màn hình gửi. Verify bằng cách grep trực tiếp CSS/JS build ra, không
+  chỉ đọc source.
+
+## 11. Thay thế 8 nhánh GitHub bằng nội dung `feature/voice-ai`
+
+Theo yêu cầu trực tiếp: "trừ nhánh main với nhánh G1, thay thế tất cả các nhánh khác
+bằng project hiện tại này." Đây là thao tác **ghi đè lịch sử thật trên GitHub dùng
+chung của cả nhóm**, ngược hẳn với nguyên tắc "chỉ động vào feature/voice-ai" đã giữ
+xuyên suốt trước đó — đã dừng lại hỏi rõ 2 điều trước khi làm (không tự suy đoán):
+ghi đè cục bộ hay đẩy thật lên origin, và đúng danh sách 8 nhánh nào. Người dùng xác
+nhận: đẩy thật lên origin, đúng 8 nhánh `develop`, `feat/agent-core-routing`,
+`feat/human-handoff`, `feature/agentic-ai`, `feature/backend-data`,
+`feature/customer-call-ui`, `feature/frontend-mvp`, `test_speech_model`.
+
+Trước khi ghi đè, tự thêm 1 lớp an toàn không nằm ngoài yêu cầu: tag lại đúng commit
+cũ của cả 8 nhánh (`backup/develop`, `backup/feature-agentic-ai`,...) và đẩy tag đó
+lên origin luôn — nội dung cũ của các nhánh (vd code trên `feature/customer-call-ui`,
+`feature/frontend-mvp`) không mất, chỉ là nhánh không còn trỏ tới đó nữa, vẫn khôi
+phục được qua tag nếu cần.
+
+Thực hiện bằng `git push origin feature/voice-ai:refs/heads/<nhánh> --force-with-lease`
+cho từng nhánh (không `checkout` sang nhánh nào, máy local luôn ở `feature/voice-ai`).
+Phát hiện thêm: `origin/feature/voice-ai` chính nó cũng chưa từng được đẩy lên suốt
+session (chỉ có commit local) — đẩy nốt bằng push thường (fast-forward, không cần
+force vì là nhánh của chính mình).
+
+Verify cuối: `main` và `G1` giữ nguyên SHA gốc; 9 nhánh còn lại (8 nhánh + chính
+`feature/voice-ai`) trên origin đều trỏ đúng 1 commit; máy local vẫn ở
+`feature/voice-ai`, working tree sạch.
+
+## 12. AssistantPage: lời chào thân thiện hơn
+
+Câu chào đầu tiên trước đây mở màn bằng liệt kê yêu cầu kỹ thuật (loại xe hỗ trợ,
+"không hỏi số điện thoại/email") — đọc như thông báo hệ thống hơn là lời chào, và là
+thứ ĐẦU TIÊN mọi người dùng thấy khi vào trang. Theo yêu cầu, đổi thứ tự: chào thân
+thiện, gọi đúng tên khách trước, rồi mới hỏi mở "cần hỗ trợ gì" (không giới hạn riêng
+đặt xe). Thông tin kỹ thuật không mất đi — chuyển thành dòng phụ nhỏ dưới tiêu đề
+trang thay vì là ấn tượng đầu tiên. `WELCOME_MESSAGE` (hằng số tĩnh) đổi thành
+`buildWelcomeMessage(userName)` để cá nhân hoá được.
+
+## 13. Voice AI: nút nổi + popup thay cho trang riêng
+
+Refactor lớn theo yêu cầu "hoàn thiện lại Frontend cho Voice AI" — tham khảo tinh
+thần bố cục/tương tác của Green SM (không copy asset/logo/thương hiệu), KHÔNG rewrite
+toàn bộ frontend. Trước khi sửa, đã kiểm tra `git branch --show-current` = đúng
+`feature/voice-ai` theo ràng buộc bắt buộc của yêu cầu.
+
+**Đổi kiến trúc:** `/assistant` (trang riêng, chiếm cả `<Outlet/>`) → nút nổi
+`VoiceAIButton` + popup `VoiceAssistantPopup`, mounted 1 lần trong `AppLayout.tsx`
+(khả dụng ở MỌI trang sau đăng nhập, không phải điều hướng sang trang khác). Toàn bộ
+state hội thoại (session/messages/booking progress/…) từng nằm trong
+`AssistantPage.tsx` được hoist lên `VoiceAssistantProvider`
+(`features/ai-assistant/context/`) — đóng/mở popup hay chuyển trang không làm mất
+hội thoại đang dở.
+
+- **State machine 1 chỗ** (`AssistantStatus`): `connecting/idle/listening/processing/
+  speaking/error` — thay cho các cờ `isSending`/`isListening` rời rạc cũ.
+- **Mode A (chat/text)** — `VoiceChatPanel`: bong bóng tin nhắn, tự cuộn, quick chip,
+  KHÔNG tự đọc to câu trả lời (khác Mode B có chủ đích — chat im lặng như app nhắn
+  tin bình thường).
+- **Mode B (gọi thoại)** — `VoiceCallPanel`: orb + waveform CSS thuần theo trạng thái,
+  đồng hồ đếm giờ gọi, nút mic/loa/kết thúc cuộc gọi, `VoiceTranscript` gập gọn. Chỉ
+  Mode B mới phát audio thật (`playBase64Audio`/OpenAI TTS, fallback
+  `speechSynthesis` trình duyệt — đổi `speakWithBrowser()` trả về `Promise` để biết
+  chính xác lúc nào hết "đang nói").
+- **`BookingConfirmationModal`** — bám đúng tín hiệu THẬT `state.current_workflow ===
+  "RIDE_BOOKING" && state.current_step === "CONFIRM"` (thêm 2 field này vào
+  `RideTurn.state`/`VoiceTurnResponse.state`, đọc từ `BookingStep.CONFIRM` thật của
+  Core Agent — đáng tin hơn suy luận gián tiếp từ `missing_field`). Nút "Xác nhận đặt
+  xe" gửi đúng 1 lượt hội thoại thật `"Xác nhận đặt xe"` (khớp `_CONFIRM_TERMS`) —
+  KHÔNG có endpoint tạo booking riêng ở frontend, đặt xe luôn qua agent thật. Chỉ hiển
+  thị field có thật từ `BookingProgress` (pickup/destination/vehicle/giá) — không vẽ
+  passenger_count/service tier/giờ đón/ghi chú vì backend chưa có (ghi vào `mustdo.md`
+  mục 7, không tự bịa).
+- **`BookingSuccessModal`** — tái dùng nguyên `BookingSuccessPanel` có sẵn (chỉ bọc
+  khung modal), không viết lại logic thành công/thất bại.
+- 6 điểm gọi `navigate("/assistant", {state:{prefill}})` cũ (Home ×2, Booking, Activity
+  ×2, Tracking) đổi thành `useVoiceAssistant().openWithPrefill()`/`.open()` — mở popup
+  tại chỗ thay vì điều hướng trang.
+- Route `/assistant` giữ lại dạng redirect (`AssistantRedirect`): mở popup rồi về `/`,
+  tránh 404 cho link cũ.
+- `Sidebar.tsx` bỏ mục điều hướng "AI Assistant" (không còn là trang để trỏ tới).
+
+**Fast Refresh split:** `oxlint` báo `react(only-export-components)` vì
+`VoiceAssistantContext.tsx` từng export cả component lẫn hook/type — tách theo đúng
+pattern đã dùng cho `ThemeProvider` (`theme-context.ts`/`useTheme.ts`): tạo
+`voice-assistant-context.ts` (types + `createContext`) và `useVoiceAssistant.ts` (hook
+riêng), file component chỉ còn export `VoiceAssistantProvider`. Không dùng
+eslint-disable — sửa tận gốc.
+
+**Verify thật** (không chỉ đọc code): build `npx tsc -b && npx oxlint && npm run
+build` sạch; và chạy `uvicorn` thật + script Python đăng ký user mới → tạo phiên →
+"Tôi muốn đặt xe từ Vincom Đồng Khởi đến Landmark 81" → "Xe máy" → xác nhận đúng
+`current_step: CONFIRM`, `fare_amount: 47200` → gửi "Xác nhận đặt xe" → nhận
+`booking_lifecycle_status: SUCCESS` + `booking_id` thật. Xác nhận thêm: lỗi 401 trả về
+message tiếng Việt thân thiện (`"Vui lòng đăng nhập..."`), không phải stack trace.
+
+Chi tiết các field/luồng backend chưa có (passenger_count, nút Hủy ở bước CONFIRM,
+caption thời gian thực khi gọi) — xem `mustdo.md` mục 7.
+
+## 14. Tự hoàn thiện các mục `mustdo.md` làm được không cần credential ngoài
+
+Theo yêu cầu trực tiếp ("những cái nào trong mustdo mà tự cải thiện tự làm được thì
+bạn cứ hoàn thiện"), rà lại toàn bộ `mustdo.md` và hoàn thiện đúng những phần không
+cần tài khoản/API key bên ngoài, không cần quyết định nghiệp vụ:
+
+- **2FA thật (TOTP)** — trước chỉ là toggle trang trí ("sắp ra mắt"). Giờ enforce thật
+  ở bước đăng nhập: `AuthService` sinh secret TOTP thật (`pyotp`, thuần Python, không
+  cần dịch vụ ngoài), chỉ bật sau khi xác nhận đúng 1 mã thật (tránh tự khoá tài khoản
+  bằng secret chưa verify), `login()` trả `pending_token` tạm thay vì access token
+  ngay nếu tài khoản đã bật 2FA, phải xác thực đúng mã ở
+  `/auth/2fa/verify-login` mới lấy được access token thật. `/auth/login` giữ nguyên
+  hành vi cũ cho tài khoản chưa bật (không phá flow demo). Frontend: `LoginForm.tsx`
+  có bước nhập mã 6 số; `PaymentPage.tsx` có luồng bật/tắt thật (hiện secret + otpauth
+  URL để thêm vào Google Authenticator, xác nhận bằng mã thật). Không làm QR ảnh (cần
+  thêm dependency `qrcode`/`Pillow`) — chỉ text/otpauth URL, nhập tay vẫn hoạt động
+  đầy đủ, giữ đúng tinh thần hạn chế dependency mới đã có sẵn trong `auth_service.py`.
+  Test mới: `tests/test_api/test_two_factor_auth.py` (4 test, dùng `pyotp` sinh mã
+  thật, không mock).
+- **TrackingPage — mô phỏng nâng cao (không cần Maps API key)** — marker tài xế trước
+  đứng yên 1 chỗ cố định suốt chuyến; giờ di chuyển thật theo đúng trạng thái thật
+  (searching/accepted/arriving/in_transit/completed) mỗi lần poll, kèm CSS transition
+  mượt và thêm pin điểm đến (trước chỉ có điểm đón). Vẫn là toạ độ % minh hoạ trên ảnh
+  tĩnh, không phải GPS thật — phần GPS thật vẫn cần Google Maps API key (giữ nguyên
+  trong mustdo.md).
+- **Xác nhận `OPENAI_API_KEY` đã hoạt động** — `mustdo.md` mục 6 trước ghi
+  "AGENT_LLM_ENABLED=false mặc định" (đã lỗi thời — code default là `true`, xem
+  `src/backend/config.py`). Verify qua server thật: `GET /api/v1/status` trả
+  `"understanding_mode": "openai"` — LLM thật đã hoạt động, đánh dấu mục này xong.
+
+**Phát hiện quan trọng không thuộc phạm vi trên (đã ghi rõ vào `mustdo.md` mục 8, KHÔNG
+tự sửa):** trong lúc verify, phát hiện nhánh đã được merge thêm 1 refactor lớn từ
+`feature/agentic-ai` (tái cấu trúc `src/agents/` — không phải do tôi làm, xảy ra song
+song khi tôi đang code, tác giả chính là bạn). Sau merge đó, chạy lại đúng kịch bản đặt
+xe từng verify thành công (mục 13) không còn tới được `current_step: CONFIRM` nữa — mọi
+lượt đều báo "Hệ thống đang phản hồi chậm" rồi rơi vào `HANDOFF`. Không động vào
+`src/agents/` (công việc đang dở của bạn, ngoài phạm vi 2FA/tracking) — chỉ ghi nhận
+trung thực để bạn biết và tự xác nhận/sửa.
+
+## 15. Voice AI: popup chỉ còn gọi thoại, bỏ hẳn chế độ nhắn tin
+
+Theo yêu cầu trực tiếp: nút nổi đổi từ icon mic sang icon ống nghe điện thoại
+(`Phone`/`PhoneOff` tuỳ trạng thái đóng/mở), bấm vào mở THẲNG màn hình cuộc gọi kiểu
+Messenger — không còn popup chat với ô nhập tin nhắn, không còn nút chuyển đổi
+chat/gọi. Chỉ còn đúng 1 giao diện: `VoiceCallPanel` (orb, waveform, đồng hồ đếm giờ,
+nút mic/loa/kết thúc cuộc gọi) + `VoiceTranscript` — "cửa sổ nhỏ" ghi lại lời qua lại
+giữa khách và AI, giờ **mặc định mở sẵn** (trước thu gọn vì chỉ là phụ trợ cho khung
+chat, giờ là nơi DUY NHẤT xem lại hội thoại) và **gồm cả câu chào mở đầu** (trước lọc
+bỏ vì đã hiện sẵn trong bong bóng chat — bong bóng chat không còn nữa).
+
+- `VoiceChatPanel.tsx` xoá hẳn (không còn dùng ở đâu); `AssistantMode`/`mode`/
+  `setMode` xoá khỏi context — popup không còn khái niệm "chế độ" nữa.
+- **"Kết thúc cuộc gọi"** trước đây chỉ chuyển về chat (`setMode("chat")`), giờ đóng
+  hẳn popup (`close()`) — đúng nghĩa dập máy. Khi agent tự kết thúc phiên (khách nói
+  "hủy"), nút hành động đổi thành **"Gọi lại"** (`newSession()`) thay vì "Quay lại trò
+  chuyện" (không còn chỗ nào để "quay lại").
+- **Mọi lượt hội thoại giờ đều được đọc to (TTS)**, kể cả lượt gõ chữ ngầm từ
+  `openWithPrefill()` (các nút "AI đặt xe ngay") và `confirmBooking()` — trước đây chỉ
+  Voice Call Mode mới đọc to, Chat Mode im lặng như app nhắn tin; giờ không còn khái
+  niệm "im lặng" vì toàn bộ trải nghiệm là 1 cuộc gọi. Gộp logic phát âm thanh
+  (audio thật từ `/voice/turn` hoặc giọng đọc trình duyệt) vào 1 hàm dùng chung
+  `speakReply()` thay vì lặp lại ở `sendText`/`handleVoiceRecorded`.
+- `BookingProgressStrip` (tiến trình đặt xe) chuyển từ khung chat cũ sang hiện ngay
+  trong `VoiceCallPanel`, phía trên transcript.
+- Đã qua `tsc -b`/`oxlint`/`npm run build` sạch. Không đổi API/backend — thuần
+  frontend, không cần verify lại server.
+
+## 16. Cuộc gọi rảnh tay — bỏ hẳn kiểu "bấm mic mới được nói"
+
+Theo yêu cầu trực tiếp ("tôi muốn nghe và xử lí trực tiếp luôn chứ không phải phải
+bấm nút micro"): thay `useVoiceRecorder` (ghi âm thủ công, bấm bắt đầu/bấm kết thúc)
+bằng `useVoiceActivityRecorder` mới — tự phát hiện giọng nói bằng năng lượng âm thanh
+(RMS) đọc liên tục từ `AnalyserNode` (Web Audio API), không cần thư viện ngoài:
+
+- Xin quyền micro **đúng 1 lần** khi vào cuộc gọi, giữ nguyên 1 `MediaStream` xuyên
+  suốt (không xin lại quyền mỗi lượt nói).
+- Tự bắt đầu ghi khi năng lượng vượt ngưỡng (`SPEECH_RMS_THRESHOLD=0.02`), tự dừng và
+  gửi đi khi im lặng liên tục 900ms (`SILENCE_HANGOVER_MS` — khớp
+  `VOICE_VAD_SILENCE_MS=900` đã có sẵn ở backend cho pipeline giọng nói khác, giữ cùng
+  "nhịp" chờ). Bỏ qua đoạn ghi dưới 300ms (tiếng ho/gõ bàn, không phải câu nói thật).
+- Tự tạm dừng lắng nghe khi AI đang xử lý/đang trả lời (tránh ghi đè lượt đang gửi
+  hoặc tự thu lại chính giọng AI phát ra loa), tự lắng nghe lại ngay khi AI trả lời
+  xong — không cần thao tác gì thêm.
+- Nút mic ở giữa đổi từ "bấm để nói" (push-to-talk) thành nút **tắt/bật micro của
+  chính mình** — giống nút mute trên mọi app gọi điện thật, mặc định luôn bật.
+- Xoá `useVoiceRecorder.ts` cũ (không còn ai gọi).
+
+Đã qua `tsc -b`/`oxlint`/`npm run build` sạch. Thuần frontend (Web Audio API chạy
+trong trình duyệt), không đổi API/backend.
+
+## 17. Việc còn lại (`mustdo.md` — cần người/credential thật)
 
 1. Tạo project Supabase thật (database production).
 2. Chọn 1 trong 2 hệ thống Voice AI để giữ lâu dài (không chặn, chỉ nên dọn sau).
@@ -302,7 +524,7 @@ xe thật + giữ nguyên toàn bộ luồng "AI đặt xe ngay" đã xây ở m
    feature/agentic-ai, sẽ tự cải thiện khi bật `AGENT_LLM_ENABLED`/`AGENT_REWRITE_ENABLED`
    thật, không sửa trong project này để giữ đúng logic gốc.
 
-## 11. Lệnh kiểm tra nhanh
+## 18. Lệnh kiểm tra nhanh
 
 ```bash
 # Backend

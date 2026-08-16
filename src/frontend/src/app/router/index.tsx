@@ -1,8 +1,8 @@
-import React from "react";
-import { createBrowserRouter, RouterProvider } from "react-router-dom";
+import React, { useEffect } from "react";
+import { createBrowserRouter, Navigate, RouterProvider } from "react-router-dom";
 import { RequireAuth } from "@/features/auth/RequireAuth";
 import { AppLayout } from "@/components/layout/AppLayout";
-import { AssistantPage } from "@/pages/Assistant/AssistantPage";
+import { useVoiceAssistant } from "@/features/ai-assistant/context/useVoiceAssistant";
 import { LoginPage } from "@/pages/Login/LoginPage";
 import { HomePage } from "@/pages/Home/HomePage";
 import { BookingPage } from "@/pages/Booking/BookingPage";
@@ -12,14 +12,21 @@ import { PaymentPage } from "@/pages/Payment/PaymentPage";
 import { ProfilePage } from "@/pages/Profile/ProfilePage";
 import { NotFoundPage } from "@/pages/NotFound/NotFoundPage";
 
+// Voice AI không còn là trang riêng "/assistant" — giờ là nút nổi + popup khả dụng ở
+// mọi trang (xem AppLayout.tsx). Route này chỉ còn để không phá các đường dẫn cũ đã
+// lưu/đánh dấu (bookmark) hay bất kỳ chỗ nào lỡ còn trỏ tới "/assistant": mở popup
+// thay vì hiện trang 404, rồi quay về Trang chủ.
+const AssistantRedirect: React.FC = () => {
+  const { open } = useVoiceAssistant();
+  useEffect(() => {
+    open();
+  }, [open]);
+  return <Navigate to="/" replace />;
+};
+
 // `/login` đứng riêng (chưa đăng nhập, chưa có gì để điều hướng tới). Mọi trang sau
-// đăng nhập — kể cả `/assistant` — giờ lồng trong AppLayout (Sidebar/Topbar/
-// MobileNav) để LUÔN có thanh điều hướng sang màn khác, theo đúng yêu cầu (trước đây
-// AssistantPage đứng riêng, chỉ có 1 link "Trang chủ" tự chế — không phải taskbar
-// thật). AssistantPage tự vẽ nền tối riêng cho khu vực nội dung của nó (xem
-// AssistantPage.tsx), Sidebar/Topbar vẫn giữ giao diện sáng nhất quán với các trang
-// khác — tránh đổi nguyên bộ khung sang tối (ảnh hưởng mọi trang, rủi ro/công sức lớn
-// hơn nhiều so với yêu cầu).
+// đăng nhập giờ lồng trong AppLayout (Sidebar/Topbar/MobileNav + VoiceAssistantProvider)
+// để LUÔN có thanh điều hướng sang màn khác và Voice AI khả dụng xuyên suốt.
 const router = createBrowserRouter([
   {
     path: "/login",
@@ -38,7 +45,7 @@ const router = createBrowserRouter([
       { path: "/activity", element: <ActivityPage /> },
       { path: "/payment", element: <PaymentPage /> },
       { path: "/profile", element: <ProfilePage /> },
-      { path: "/assistant", element: <AssistantPage /> },
+      { path: "/assistant", element: <AssistantRedirect /> },
     ],
   },
   { path: "*", element: <NotFoundPage /> },

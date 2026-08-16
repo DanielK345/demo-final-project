@@ -26,8 +26,9 @@ BE thật (không còn `MOCK_*`/`setTimeout` giả):
 - **PaymentPage (Cài đặt)** — `GET/PUT /api/v1/users/me/settings` thật, đổi mật khẩu
   thật qua `POST /api/v1/auth/change-password`.
 
-`/login` và `/assistant` giữ nguyên đứng riêng (không đổi, tránh rủi ro không cần
-thiết cho trang đang được người khác phát triển tích cực). `feature/customer-call-ui`
+`/login` giữ nguyên đứng riêng. **Cập nhật 14/08/2026:** `/assistant` không còn là
+trang riêng nữa — đã thay bằng nút nổi + popup (`VoiceAIButton`/`VoiceAssistantPopup`)
+khả dụng ở mọi trang, xem mục 7 bên dưới. `feature/customer-call-ui`
 (nhánh remote riêng, `frontend/` — `CustomerUI.tsx`/`OperatorUI.tsx`) **không bị đụng
 tới** — vẫn là hướng đi độc lập của team, không liên quan tới `src/frontend/`.
 
@@ -40,9 +41,7 @@ tới** — vẫn là hướng đi độc lập của team, không liên quan t�
 2. **Ưu đãi/coupon** (`ProfilePage`) — tương tự, chưa có hệ thống coupon/loyalty nào.
    Hiện hiển thị trạng thái rỗng trung thực. Cần quyết định nghiệp vụ (loại ưu đãi,
    điều kiện áp dụng) trước khi code được.
-3. **2FA thật** (`PaymentPage`) — toggle đã persist lựa chọn thật qua API, nhưng
-   **CHƯA enforce** ở bước đăng nhập (cần TOTP hoặc SMS OTP — xem mục 4 bên dưới). UI
-   đã ghi rõ "sắp ra mắt", không giả vờ đã bảo mật hơn.
+3. ~~**2FA thật**~~ — ĐÃ GIẢI QUYẾT (14/08/2026), xem mục 4 bên dưới.
 
 ### Cách kiểm tra
 
@@ -85,12 +84,21 @@ Thực hiện 1 giao dịch sandbox, xác nhận callback cập nhật đúng tr
 
 ## 3. GPS / Maps Provider thật cho Tracking
 
-### Vì sao chưa thể tự làm
+### Cập nhật (14/08/2026) — nửa "mô phỏng nâng cao" đã làm, nửa "tích hợp thật" vẫn cần bạn
 
-`TrackingPage` cần vị trí tài xế theo thời gian thực. Không có tài xế/app tài xế thật
-trong phạm vi capstone này → cần quyết định: **mô phỏng nâng cao** (code được, không
-cần key ngoài — có thể tự làm nếu team yêu cầu) hay **tích hợp Maps provider thật**
-(Google Maps Platform / Mapbox — cần API key + billing).
+Đã tự làm phần không cần key ngoài: marker tài xế trên `TrackingPage` trước đây đứng
+yên 1 chỗ cố định (`top-1/3 left-1/2`) suốt cả chuyến bất kể trạng thái/ETA thật đổi
+thế nào — giờ marker **di chuyển thật** theo đúng trạng thái thật (`searching` →
+`accepted` → `arriving` → `in_transit` → `completed`) trả về từ `TripService` mỗi lần
+poll (4 điểm minh hoạ + chuyển động mượt bằng CSS transition), và đã thêm cả pin điểm
+đến (trước chỉ có điểm đón). Toạ độ vẫn là % minh hoạ trên ảnh nền tĩnh, KHÔNG phải
+GPS thật — chỉ có vậy là trung thực nhất có thể nếu không có Maps provider thật.
+
+### Vì sao phần còn lại chưa thể tự làm
+
+Vị trí tài xế THEO THỜI GIAN THỰC (toạ độ GPS thật, không phải điểm minh hoạ) cần
+Maps provider thật (Google Maps Platform / Mapbox — cần API key + billing) — không
+thể tạo key hộ.
 
 ### Cần làm (nếu chọn tích hợp thật)
 
@@ -101,18 +109,46 @@ cần key ngoài — có thể tự làm nếu team yêu cầu) hay **tích hợ
 
 ### Cách kiểm tra
 
-Mở `TrackingPage`, xác nhận marker tài xế di chuyển theo dữ liệu thật/API thật, không
-còn `top-1/2 left-1/3` cố định như hiện tại.
+Mở `TrackingPage`, đặt 1 chuyến và theo dõi — marker tài xế đã di chuyển thật theo
+trạng thái (xác nhận bằng mắt: marker đổi vị trí mượt mỗi khi trạng thái đổi, không
+còn đứng yên). Muốn có toạ độ GPS thật (không phải điểm minh hoạ) thì cần làm mục
+"Cần làm" ở trên.
 
 ---
 
-## 4. SMS/Email Provider cho 2FA & thông báo thật
+## 4. ~~2FA thật (TOTP)~~ ĐÃ GIẢI QUYẾT (14/08/2026) — SMS/Email Provider cho thông báo thật vẫn cần bạn
 
-### Vì sao chưa thể tự làm
+### Đã tự làm (code + verify thật qua server đang chạy, không chỉ unit test)
 
-`PaymentPage` có toggle "Xác thực 2 yếu tố (2FA)" và "Email/SMS Notifications" — hiện
-chỉ là state React cục bộ. Bật 2FA/thông báo thật qua SMS cần nhà cung cấp (Twilio/
-eSMS/Speed SMS cho VN); qua Email cần SMTP hoặc SendGrid/Mailgun.
+2FA thật bằng TOTP (RFC 6238, thư viện `pyotp` — thuần Python, không cần dịch vụ
+ngoài, đúng gợi ý đã ghi ở bản trước của mục này):
+
+- `src/backend/services/auth_service.py` — sinh secret TOTP thật (`enable_two_factor_setup`),
+  chỉ THẬT SỰ bật sau khi xác nhận đúng 1 mã thật (`confirm_two_factor`, tránh tự khoá
+  tài khoản bằng secret chưa từng verify), `disable_two_factor`, và **enforce thật ở
+  bước đăng nhập**: `login()` không phát access token ngay nếu tài khoản đã bật 2FA —
+  trả `pending_token` tạm (TTL 5 phút), phải xác thực đúng mã ở
+  `verify_login_two_factor()` mới nhận access token thật.
+- Route mới: `POST /auth/2fa/setup`, `/auth/2fa/confirm`, `/auth/2fa/disable`,
+  `/auth/2fa/verify-login`. `/auth/login` giữ nguyên hành vi cũ (trả access token
+  ngay) cho tài khoản chưa bật 2FA — không phá vỡ flow đăng nhập demo hiện tại.
+  `GET /users/me/settings` đọc `two_factor_enabled` THẬT từ `AuthService` (không còn
+  là cờ trang trí tách rời).
+- Frontend: `LoginForm.tsx` có bước nhập mã 6 số khi tài khoản yêu cầu 2FA;
+  `PaymentPage.tsx` có luồng bật/tắt thật (hiện secret + otpauth URL để thêm vào
+  Google Authenticator/Authy, xác nhận bằng mã thật trước khi bật).
+- Test: `tests/test_api/test_two_factor_auth.py` (4 test, dùng `pyotp` sinh mã thật —
+  không mock) + verify thủ công qua server thật đang chạy (đăng ký → bật 2FA → đăng
+  nhập lại yêu cầu đúng mã → sai mã bị từ chối → tắt 2FA → đăng nhập lại như cũ).
+- Không làm QR code ảnh (cần thêm dependency `qrcode`/`Pillow`) — chỉ hiện secret dạng
+  text + otpauth URL, nhập tay vào app authenticator vẫn hoạt động đầy đủ, đúng tinh
+  thần hạn chế dependency mới đã có sẵn trong `auth_service.py` (tránh bcrypt/passlib).
+
+### Vì sao phần còn lại (SMS/Email thông báo thật) chưa thể tự làm
+
+`PaymentPage` vẫn còn toggle "Email/SMS Notifications" — hiện chỉ persist lựa chọn,
+CHƯA thật sự gửi thông báo qua kênh nào. Cần nhà cung cấp thật (SMS: Twilio/eSMS/Speed
+SMS cho VN; Email: SMTP hoặc SendGrid/Mailgun) — không thể tạo tài khoản hộ.
 
 ### Cần làm
 
@@ -125,13 +161,13 @@ eSMS/Speed SMS cho VN); qua Email cần SMTP hoặc SendGrid/Mailgun.
    SMTP_USER=
    SMTP_PASSWORD=
    ```
-3. (2FA dạng TOTP — vd Google Authenticator — **không cần dịch vụ ngoài**, có thể tự
-   code bằng thư viện `pyotp` nếu team muốn ưu tiên việc này trước SMS/Email thật —
-   nói rõ nếu muốn tôi làm tiếp phần này.)
 
 ### Cách kiểm tra
 
-Bật 2FA/thông báo, xác nhận nhận được mã/thông báo thật qua kênh đã cấu hình.
+2FA: đăng ký tài khoản mới → Cài đặt → Bật xác thực 2 lớp → quét/nhập secret vào
+Google Authenticator → nhập mã xác nhận → đăng xuất → đăng nhập lại → xác nhận màn
+hình yêu cầu nhập mã 6 số trước khi vào được app. Thông báo SMS/Email: cần làm mục
+"Cần làm" ở trên trước khi kiểm tra được.
 
 ---
 
@@ -174,24 +210,134 @@ xác nhận user/session/booking vẫn còn sau khi restart (thay vì mất sạ
 
 ---
 
-## 6. OPENAI_API_KEY thật (bật LLM hiểu ngôn ngữ tự nhiên cho Agentic Core)
+## 6. ~~OPENAI_API_KEY thật~~ — ĐÃ GIẢI QUYẾT (14/08/2026)
+
+**Cập nhật:** `.env` đã có `OPENAI_API_KEY` thật, `AGENT_LLM_ENABLED` đang ở giá trị
+mặc định `true` (`src/backend/config.py`). Verify trực tiếp qua server thật đang
+chạy: `GET /api/v1/status` trả về `"understanding_mode": "openai"` (không phải
+`"rules"`) — nghĩa là `OpenAIUnderstandingAdapter` thật sự đang được dùng, không rơi
+vào fallback rule-based. Không còn việc gì cần làm ở mục này.
+
+---
+
+## 7. Voice AI popup (14/08/2026): field/luồng chưa có trong hợp đồng backend thật
+
+### Bối cảnh
+
+Đã refactor Voice AI từ trang riêng `/assistant` thành nút nổi + popup
+(`VoiceAIButton`/`VoiceAssistantPopup`, mounted trong `AppLayout`) khả dụng ở mọi
+trang, gồm Mode A (chat/text), Mode B (gọi thoại thu nhỏ), `BookingConfirmationModal`
+(xác nhận trước khi đặt — đúng `BookingStep.CONFIRM` thật, đã verify qua server thật:
+gửi "Xác nhận đặt xe" tạo booking thật, trả về `booking_lifecycle_status: SUCCESS`),
+`BookingSuccessModal`. Trong lúc làm, phát hiện vài chỗ **spec đề bài yêu cầu nhưng
+backend thật chưa có dữ liệu/luồng tương ứng** — liệt kê ở đây thay vì tự bịa field
+rỗng hay giả lập hành vi không thật.
 
 ### Vì sao chưa thể tự làm
 
-`AGENT_LLM_ENABLED=false` mặc định — khi tắt, hệ thống dùng `RuleBasedUnderstanding`
-(rule-based, không cần key, đã hoạt động). Bật `AGENT_LLM_ENABLED=true` để dùng
-`OpenAIUnderstandingAdapter` (`src/agents/understanding/openai.py`) cần
-`OPENAI_API_KEY` thật của team — không thể tạo hộ.
+1. **`passenger_count`/loại dịch vụ (service tier)/`pickup_time`/ghi chú** — đề bài
+   yêu cầu thẻ xác nhận hiển thị đủ các field này, nhưng `BookingProgress` thật (xem
+   `SessionService._booking_progress()`) chỉ có `pickup`/`destination`/`vehicle_type`/
+   `fare_amount`/`currency`. `BookingConfirmationModal` hiện chỉ hiển thị đúng những
+   field có thật, không vẽ thêm field trống/giả. Core Agent hiện cũng không có khái
+   niệm "service tier" tách khỏi `vehicle_type` (`VehicleType` đã gộp luôn: xe máy/ô
+   tô 4 chỗ/ô tô 7 chỗ), và `AgentState`/`BookingData` chưa có field số hành khách,
+   giờ đón hay ghi chú tự do.
+2. **Nút "Hủy" ở thẻ xác nhận** — cố tình bỏ (đề bài ghi "có thể thêm", không bắt
+   buộc). Đã đọc `src/agents/workflows/booking.py` bước `CONFIRM`: chưa có nhánh từ
+   chối/hủy rõ ràng — bất kỳ câu trả lời nào không khớp mẫu xác nhận đều chỉ nhận lại
+   "Bạn vui lòng xác nhận đồng ý hoặc nói thông tin cần sửa." Thêm nút "Hủy" gửi 1 câu
+   lệnh mà agent không thật sự hiểu như một lệnh hủy sẽ là giả vờ có tính năng không
+   có thật.
+3. **Transcript trong Voice Call Mode cập nhật theo từng lượt, không phải theo từng
+   chữ khi đang nói** — `/api/v1/voice/turn` là REST 1-lần-1-lượt (ghi âm xong mới gửi
+   cả đoạn), không phải WebSocket streaming. Đây là hành vi thật vốn có của
+   `sendVoiceTurn`/`useVoiceRecorder` (không phải lỗi mới), giữ nguyên — không giả lập
+   caption thời gian thực khi backend không thật sự trả về theo thời gian thực.
 
-### Cần làm
+### Cần làm (nếu muốn có đủ field/luồng như đề bài mô tả)
 
-1. Lấy key tại https://platform.openai.com/api-keys.
-2. Điền vào `.env`: `OPENAI_API_KEY=sk-...` và `AGENT_LLM_ENABLED=true`.
+1. Bổ sung `passenger_count`/ghi chú/giờ đón vào `AgentState.collected_data["booking"]`
+   + `BookingProgress` ở backend (`src/agents/workflows/booking.py`,
+   `session_service.py`) trước khi frontend có thể hiển thị thật.
+2. Nếu cần "Hủy" tường minh ở bước CONFIRM: thêm 1 nhánh REJECT rõ ràng trong
+   `booking.py` (hiện `_REJECT_TERMS` có tồn tại ở `understanding/rules.py` nhưng
+   không được dùng riêng ở bước CONFIRM).
+3. Nếu cần caption thời gian thực khi đang nói: cần đổi `/api/v1/voice/turn` sang
+   streaming (WebSocket/SSE) — thay đổi kiến trúc lớn hơn nhiều so với phạm vi UI.
 
 ### Cách kiểm tra
 
-Gửi 1 câu hỏi lệch chuẩn (vd nói ngọng/thiếu chữ) qua `AssistantPage`, xác nhận log
-backend cho thấy `OpenAIUnderstandingAdapter` được gọi (không rơi vào fallback rule).
+Đã verify qua server thật lúc viết mục này (14/08, trước khi có mục 8 bên dưới):
+đăng ký user mới → tạo phiên → gửi "Tôi muốn đặt xe từ Vincom Đồng Khởi đến Landmark
+81" → "Xe máy" → nhận đúng `current_workflow: RIDE_BOOKING`, `current_step: CONFIRM`,
+`fare_amount: 47200` → gửi "Xác nhận đặt xe" → nhận `booking_lifecycle_status:
+SUCCESS` + `booking_id` thật. **Lưu ý:** sau khi nhánh này merge thêm
+`feature/agentic-ai` (refactor kiến trúc agent — xem mục 8), luồng CONFIRM này không
+còn hoạt động như lúc verify — chưa rõ do phía core agent mới hay do cấu hình môi
+trường, xem mục 8.
+
+---
+
+## 8. Phát hiện (15/08/2026, không phải việc của tôi): CONFIRM booking không còn hoạt động sau merge refactor agent
+
+### Bối cảnh
+
+Trong lúc hoàn thiện các mục 3/4/6 ở trên, phát hiện nhánh `feature/voice-ai` vừa được
+merge thêm 1 refactor lớn từ `feature/agentic-ai` (commit `merge: bring model-driven
+Core Agent + RAG refactor from feature/agentic-ai`, tái cấu trúc `src/agents/` thành
+`contracts/`/`core/`/`capabilities/`/`legacy/`) — **không phải do tôi thực hiện**, xảy
+ra song song trong lúc tôi đang làm việc, tác giả là chính bạn (commit tác giả
+NamKhanh2128). Tôi KHÔNG động vào `src/agents/` hay đảo ngược merge này.
+
+### Vấn đề quan sát được
+
+Chạy lại đúng kịch bản đặt xe đã verify thành công trước đó (xem mục 7) qua server
+thật SAU khi có merge trên: mọi lượt hội thoại đều trả về
+`"Hệ thống đang phản hồi chậm nên tôi chưa xử lý xong lượt này..."` ngay từ lượt đầu
+tiên, và sau 3 lượt như vậy tự động chuyển sang `HANDOFF` — không bao giờ tới được
+`current_step: CONFIRM`. Việc này ảnh hưởng trực tiếp `BookingConfirmationModal` (mục
+7) — modal đó sẽ không bao giờ hiện được nếu core agent không còn trả về đúng tín hiệu
+`RIDE_BOOKING`/`CONFIRM` nữa.
+
+**Cập nhật — đã tìm ra nguyên nhân gốc (chỉ đọc log, KHÔNG sửa code):** commit
+`611cd32` (bạn tự làm, sau merge) đã sửa xong 4 file test bị lệch import — vấn đề
+CONFIRM này KHÁC, vẫn còn nguyên sau `611cd32`. Log backend khi lỗi xảy ra:
+
+```
+Conversation model request failed: model=gpt-5.6-luna error_type=AuthenticationError
+```
+
+Đây là log từ `src/agents/core/model.py::OpenAIConversationModel.decide()` — file này
+gọi OpenAI qua `self.client.chat.completions.create(...)` (Chat Completions API).
+`AuthenticationError` ở đây rất lạ vì:
+- Cùng `OPENAI_API_KEY`, cùng `base_url=None` (mặc định, không có gateway trung gian —
+  `AGENT_LLM_BASE_URL` không đặt trong `.env`) với đường xử lý LLM CŨ
+  (`OpenAIUnderstandingAdapter`/legacy — dùng `self.client.responses.parse(...)`, tức
+  Responses API) — đường cũ vẫn xác nhận hoạt động bình thường (`GET /api/v1/status`
+  vẫn trả `understanding_mode: "openai"`, xem mục 6).
+- Tức là: **cùng 1 API key, cùng 1 base_url, nhưng gọi qua Responses API thì thành
+  công còn gọi qua Chat Completions API (`chat.completions.create`, dùng bởi
+  `model.py` mới) thì bị từ chối xác thực.** Rất đáng nghi đây không phải do key sai,
+  mà do cách gọi/endpoint Chat Completions không được tài khoản/key hiện tại cấp
+  quyền (hoặc cần tham số khác) — trong khi Responses API thì được.
+
+### Vì sao tôi không tự sửa
+
+`src/agents/core/` là công việc đang dở, đang chủ động của chính bạn — tôi không đủ
+ngữ cảnh về lý do chọn Chat Completions API thay vì Responses API cho vòng lặp
+model/tool mới (`model.py` có ghi chú riêng về hành vi đặc biệt của "the configured
+gateway" với tool calling — có thể là quyết định có chủ đích tôi không nên tự đảo
+ngược) để sửa đúng cách mà không có rủi ro đụng vào hướng đi bạn đang xây. Việc này
+cũng nằm ngoài phạm vi mục 3/4/6 tôi đang làm.
+
+### Cách kiểm tra
+
+Chạy `uvicorn`, đăng ký user mới, gửi qua `/api/v1/sessions/{id}/messages`: "Tôi muốn
+đặt xe từ Vincom Đồng Khởi đến Landmark 81" → nếu vẫn thấy thông báo "phản hồi chậm"
+ngay từ lượt đầu + log `error_type=AuthenticationError`, kiểm tra: tài khoản OpenAI
+đang dùng có quyền gọi Chat Completions API với model `gpt-5.6-luna` hay không (có
+thể model/API key hiện tại chỉ được cấp quyền Responses API).
 
 ---
 
@@ -201,7 +347,9 @@ backend cho thấy `OpenAIUnderstandingAdapter` được gọi (không rơi vào
 |---|------|------------------------------------------------|
 | 1 | Quyết định số phận trang đa-trang | Không — flow chat/voice hiện tại đã chạy đủ, không phụ thuộc |
 | 2 | Payment Gateway thật | Không — chỉ cần nếu hồi sinh mục 1 |
-| 3 | Maps Provider thật | Không — như trên |
-| 4 | SMS/Email/2FA thật | Không — toggle demo, không chặn luồng chính |
+| 3 | Maps Provider thật (GPS thật, mô phỏng nâng cao đã xong) | Không |
+| 4 | SMS/Email thật (2FA/TOTP đã xong) | Không — chỉ toggle thông báo, không chặn luồng chính |
 | 5 | Database thật | Không cho demo/capstone — **có** trước khi lên production thật |
-| 6 | OPENAI_API_KEY thật | Không — rule-based fallback đã hoạt động tốt |
+| 6 | OPENAI_API_KEY thật | Không — đã có key thật, đang hoạt động |
+| 7 | Field/luồng còn thiếu ở popup Voice AI | Không — popup hiển thị đúng field thật hiện có |
+| 8 | CONFIRM booking không hoạt động sau merge refactor agent | **Có** — chặn hẳn luồng đặt xe qua popup, cần bạn xác nhận/sửa ở `src/agents/core/` |
