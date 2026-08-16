@@ -45,11 +45,11 @@
     },
     {
       "id": "pricing_promotion",
-      "runtime_source": ["src/backend/services/pricing_service.py", "src/frontend/src/features/booking/mockData.ts"],
+      "runtime_source": ["data/pricing/hanoi_demo_2026-08-16.yaml", "src/backend/services/pricing_catalog.py", "src/backend/services/pricing_service.py", "src/frontend/src/features/booking/mockData.ts"],
       "canonical_schema": ["src/agents/tools/schemas.py", "src/agents/DATAFINDING.md"],
       "status": "DEMO",
       "owner": ["Product", "Finance", "Growth", "Backend"],
-      "production_gap": "Approved versioned pricing and backend promotion eligibility/ranking tied to an expiring quote."
+      "production_gap": "Finance/Legal approval for DEMO rates, time/surcharge semantics, durable expiring quote validation and backend promotion eligibility/ranking."
     },
     {
       "id": "booking_trip",

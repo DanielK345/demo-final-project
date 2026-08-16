@@ -49,6 +49,7 @@ data/*
 !data/README.md
 !data/catalog.json
 !data/gazetteer/
+!data/pricing/
 *.db
 *.sqlite3
 

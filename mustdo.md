@@ -52,6 +52,27 @@ duyệt bằng văn bản. Dữ liệu mẫu hiện tại chỉ dùng demo và �
 Tiêu chí nghiệm thu bên ngoài: mỗi dataset có `owner`, `version`, `effective_from`, cơ chế thu hồi
 và một bộ case đối soát do business ký duyệt.
 
+### 2.1 Phê duyệt catalog giá DEMO được nhập ngày 2026-08-16
+
+Catalog `data/pricing/hanoi_demo_2026-08-16.yaml` đã được code hóa, validate và test nhưng chưa được
+phép dùng như giá AloSM production. Finance/Product/Legal phải:
+
+1. Xác nhận hoặc thay thế giá Bike `13.200đ/2 km`, `4.200đ/km` và ý nghĩa `275đ/phút`.
+2. Phê duyệt bảng giá riêng cho `CAR_7`; mức hiện tại là suy diễn Car 4 + khoảng 15%, không phải loại xe
+   GreenSM công bố chính thức.
+3. Xác nhận `per_minute` là thời gian di chuyển hay phí chờ; định nghĩa làm tròn, thời điểm bắt đầu/kết
+   thúc và trường hợp đồng thời với `waiting_per_hour`.
+4. Phê duyệt từng surcharge, múi giờ, ngày lễ, số lần/điểm dừng và thứ tự cộng phí; xác nhận khác biệt
+   phụ phí Bike ban đêm trong nguồn người dùng với trang GreenSM công khai.
+5. Legal/Product ký chính sách hủy, hoàn tiền/no-show; cung cấp trạng thái tài xế và mốc thời gian làm
+   bằng chứng trước khi backend được phép thu phí.
+6. Giao artifact có chữ ký gồm `version`, `effective_from/to`, region, owner, approver, rollback version
+   và các golden cases. Sau phê duyệt mới tạo catalog trạng thái `APPROVED`; không sửa nhãn DEMO tại chỗ.
+
+Verify: Finance đối soát golden cases qua API, kiểm tra quote/booking audit giữ nguyên pricing version,
+kiểm thử timezone/rounding/boundary và ký biên bản release. Risk nếu bỏ qua: báo sai giá, thu sai phí,
+khiếu nại và vi phạm nghĩa vụ công bố giá.
+
 ## 3. Hạ tầng dữ liệu production cần owner/hạ tầng
 
 Kết nối Supabase/Postgres và Alembic đã được kiểm tra thật ngày 2026-08-16: `current` khớp

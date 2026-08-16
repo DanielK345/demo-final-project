@@ -41,7 +41,7 @@ class PlaceAliasCatalog:
 
     @classmethod
     @lru_cache(maxsize=4)
-    def load(cls, path: str | Path = DEFAULT_PLACE_ALIAS_PATH) -> "PlaceAliasCatalog":
+    def load(cls, path: str | Path = DEFAULT_PLACE_ALIAS_PATH) -> PlaceAliasCatalog:
         source = Path(path)
         try:
             raw = json.loads(source.read_text(encoding="utf-8"))

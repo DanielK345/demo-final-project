@@ -3,26 +3,9 @@ from __future__ import annotations
 import hashlib
 from datetime import UTC, datetime, timedelta
 
-# Chưa tích hợp Maps/routing API thật (xem mustdo.md mục Payment/Maps — cần
-# credential thật). Khoảng cách/giá cước suy ra DETERMINISTIC theo đúng 1 cặp
-# pickup/destination place_id (hash ổn định, không random mỗi lần gọi) — cùng
-# nguyên tắc mô phỏng đã dùng ở TripService (driver/ETA theo hash booking_id). Không
-# phải số liệu GPS thật, nhưng nhất quán giữa các lượt gọi và không giả vờ chính xác
-# hơn thực tế đang có.
+from src.backend.services.pricing_catalog import PricingCatalog, VehiclePricing, load_pricing_catalog
 
-_FARE_PER_KM_VND: dict[str, int] = {
-    "MOTORBIKE": 4000,
-    "CAR_4": 11000,
-    "CAR_7": 14000,
-}
-_VEHICLE_CATALOG: list[dict[str, object]] = [
-    {"vehicle_type": "MOTORBIKE", "display_name": "Xe máy", "capacity": 1, "luggage_capacity": 0},
-    {"vehicle_type": "CAR_4", "display_name": "Ô tô 4 chỗ", "capacity": 4, "luggage_capacity": 2},
-    {"vehicle_type": "CAR_7", "display_name": "Ô tô 7 chỗ", "capacity": 7, "luggage_capacity": 4},
-]
-_BASE_OPEN_FARE_VND = 12000
 _AVG_SPEED_KMH = 24.0
-_PRICING_VERSION = "demo-2026-08-16"
 _QUOTE_TTL_SECONDS = 300
 
 
@@ -32,8 +15,8 @@ def _route_seed(pickup_place_id: str, destination_place_id: str) -> int:
 
 
 def estimate_distance_km(pickup_place_id: str, destination_place_id: str) -> float:
+    """Return a deterministic DEMO distance until a routing provider is configured."""
     seed = _route_seed(pickup_place_id, destination_place_id)
-    # Biên 1.2 - 18.0 km — hợp lý cho di chuyển nội thành, ổn định theo đúng cặp điểm.
     return round(1.2 + (seed % 1680) / 100, 1)
 
 
@@ -41,71 +24,89 @@ def _eta_minutes(distance_km: float) -> int:
     return max(1, round(distance_km / _AVG_SPEED_KMH * 60))
 
 
-def _estimate_id(pickup_place_id: str, destination_place_id: str, vehicle_type: str) -> str:
-    digest = hashlib.sha256(f"{_PRICING_VERSION}:{pickup_place_id}:{destination_place_id}:{vehicle_type}".encode()).hexdigest()
-    return f"est_{digest[:12]}"
+def calculate_distance_fare(distance_km: float, pricing: VehiclePricing) -> int:
+    """Apply progressive tiers; the base fare already covers base_km."""
+    total = float(pricing.base_fare)
+    cursor = pricing.base_km
+    route_end = max(distance_km, pricing.base_km)
+    for tier in pricing.tiers:
+        end = route_end if tier.up_to_km is None else min(route_end, tier.up_to_km)
+        if end > cursor:
+            total += (end - cursor) * tier.per_km
+            cursor = end
+        if cursor >= route_end:
+            break
+    return max(pricing.min_fare, round(total))
 
 
 class PricingService:
-    """get_vehicle_options / estimate_fare thật — có danh mục xe cố định (xe máy/4
-    chỗ/7 chỗ, đúng VehicleType của Core Agent) và công thức giá theo km rõ ràng, thay
-    vì bịa 1 con số cố định (85.000đ) cho mọi chuyến như bản cũ."""
+    """Versioned DEMO pricing backed by a validated repository catalog.
 
-    def vehicle_options(
-        self,
-        *,
-        pickup_place_id: str,
-        destination_place_id: str,
-        passenger_count: int,
-        luggage_count: int | None = None,
-    ) -> list[dict[str, object]]:
-        distance_km = estimate_distance_km(pickup_place_id, destination_place_id)
-        eta_minutes = _eta_minutes(distance_km)
-        options: list[dict[str, object]] = []
-        for vehicle in _VEHICLE_CATALOG:
-            vehicle_type = str(vehicle["vehicle_type"])
-            available = passenger_count <= int(vehicle["capacity"]) and (
-                luggage_count is None or luggage_count <= int(vehicle["luggage_capacity"])
-            )
-            fare = round(_BASE_OPEN_FARE_VND + distance_km * _FARE_PER_KM_VND[vehicle_type])
-            options.append(
-                {
-                    "option_id": f"opt_{vehicle_type.lower()}",
-                    "vehicle_type": vehicle_type,
-                    "display_name": vehicle["display_name"],
-                    "capacity": vehicle["capacity"],
-                    "luggage_capacity": vehicle["luggage_capacity"],
-                    "available": available,
-                    "estimate_id": _estimate_id(pickup_place_id, destination_place_id, vehicle_type),
-                    "fare_amount": fare,
-                    "currency": "VND",
-                    "eta_minutes": eta_minutes,
-                }
-            )
-        return options
+    Time charges and surcharges are not auto-applied: the current route stub
+    cannot prove waiting time, tariff windows, stops, or destination changes.
+    """
 
-    def estimate_fare(
-        self,
-        *,
-        pickup_place_id: str,
-        destination_place_id: str,
-        vehicle_type: str,
-    ) -> dict[str, object]:
-        distance_km = estimate_distance_km(pickup_place_id, destination_place_id)
-        if vehicle_type not in _FARE_PER_KM_VND:
+    def __init__(self, catalog: PricingCatalog | None = None) -> None:
+        self.catalog = catalog or load_pricing_catalog()
+
+    def _estimate_id(self, pickup_place_id: str, destination_place_id: str, vehicle_type: str) -> str:
+        source = f"{self.catalog.version}:{self.catalog.region}:{pickup_place_id}:{destination_place_id}:{vehicle_type}"
+        return f"est_{hashlib.sha256(source.encode()).hexdigest()[:12]}"
+
+    def _quote(self, pickup_place_id: str, destination_place_id: str, vehicle_type: str) -> dict[str, object]:
+        pricing = self.catalog.vehicles.get(vehicle_type)
+        if pricing is None:
             raise ValueError(f"Unknown vehicle type: {vehicle_type}")
-        per_km = _FARE_PER_KM_VND[vehicle_type]
-        fare = round(_BASE_OPEN_FARE_VND + distance_km * per_km)
+        distance_km = estimate_distance_km(pickup_place_id, destination_place_id)
+        fare = calculate_distance_fare(distance_km, pricing)
         now = datetime.now(UTC)
         return {
-            "estimate_id": _estimate_id(pickup_place_id, destination_place_id, vehicle_type),
-            "pricing_version": _PRICING_VERSION,
+            "estimate_id": self._estimate_id(pickup_place_id, destination_place_id, vehicle_type),
+            "pricing_version": self.catalog.version,
+            "pricing_region": self.catalog.region,
+            "pricing_status": self.catalog.status,
             "fare_amount": fare,
-            "currency": "VND",
+            "currency": self.catalog.currency,
             "eta_minutes": _eta_minutes(distance_km),
             "distance_km": distance_km,
+            "fare_breakdown": {
+                "base_fare": pricing.base_fare,
+                "base_km": pricing.base_km,
+                "distance_fare": fare - pricing.base_fare,
+                "time_fare": 0,
+                "surcharge_amount": 0,
+                "applied_surcharges": [],
+            },
+            "rate_metadata": {
+                "per_minute": pricing.per_minute,
+                "surcharges": pricing.surcharges,
+                "source_ref": pricing.source_ref,
+            },
             "issued_at": now.isoformat(),
             "expires_at": (now + timedelta(seconds=_QUOTE_TTL_SECONDS)).isoformat(),
             "estimated": True,
-            "data_quality": "DEMO",
+            "data_quality": self.catalog.data_quality,
+            "source_type": self.catalog.source_type,
         }
+
+    def vehicle_options(self, *, pickup_place_id: str, destination_place_id: str, passenger_count: int, luggage_count: int | None = None) -> list[dict[str, object]]:
+        options: list[dict[str, object]] = []
+        for vehicle_type, vehicle in self.catalog.vehicles.items():
+            quote = self._quote(pickup_place_id, destination_place_id, vehicle_type)
+            options.append({
+                "option_id": f"opt_{vehicle_type.lower()}",
+                "vehicle_type": vehicle_type,
+                "display_name": vehicle.display_name,
+                "capacity": vehicle.capacity,
+                "luggage_capacity": vehicle.luggage_capacity,
+                "available": passenger_count <= vehicle.capacity and (luggage_count is None or luggage_count <= vehicle.luggage_capacity),
+                **quote,
+            })
+        return options
+
+    def estimate_fare(self, *, pickup_place_id: str, destination_place_id: str, vehicle_type: str) -> dict[str, object]:
+        return self._quote(pickup_place_id, destination_place_id, vehicle_type)
+
+    def cancellation_policy(self) -> dict[str, object]:
+        """Expose DEMO policy metadata for review; this service charges no fee."""
+        return self.catalog.cancellation_policy.model_dump(mode="json")

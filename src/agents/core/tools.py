@@ -38,7 +38,7 @@ SERVICE_TOOLS = [
         {
             "pickup_query": {"type": "string"},
             "destination_query": {"type": "string"},
-            "vehicle_type": {"type": "string", "enum": ["MOTORBIKE", "CAR_4", "CAR_7"]},
+            "vehicle_type": {"type": "string", "enum": ["MOTORBIKE", "CAR_4", "CAR_7", "LUXURY"]},
             "passenger_count": {"type": "integer", "minimum": 1, "maximum": 50},
             "luggage_count": {"type": "integer", "minimum": 0, "maximum": 50},
             "vehicle_preference": {"type": "string"},

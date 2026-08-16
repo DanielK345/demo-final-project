@@ -4,8 +4,8 @@ from src.agents.capabilities import build_tool_registry
 from src.agents.capabilities.common import handoff
 from src.agents.contracts.schemas import ActionType, AgentAction, AgentInput, ToolName, ToolStatus
 from src.agents.contracts.state import AgentState
-from src.agents.core.instructions import SERVICE_AGENT_INSTRUCTIONS
 from src.agents.core.booking.actions import request_fare_estimate_action
+from src.agents.core.instructions import SERVICE_AGENT_INSTRUCTIONS
 from src.agents.core.model import ConversationModel, ConversationModelError, ToolExchange
 from src.agents.core.policy import AgentPolicy
 from src.agents.core.registry import ContinueToolLoop, ToolRegistry

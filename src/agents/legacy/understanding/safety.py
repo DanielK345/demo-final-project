@@ -128,6 +128,7 @@ def _raw_contains_vehicle(raw_transcript: str, vehicle: VehicleType) -> bool:
         VehicleType.MOTORBIKE: ("xe máy", "xe may"),
         VehicleType.CAR_4: ("4 chỗ", "bốn chỗ"),
         VehicleType.CAR_7: ("7 chỗ", "bảy chỗ"),
+        VehicleType.LUXURY: ("cao cấp", "premium", "luxury"),
     }[vehicle]
     return any(term in raw_transcript for term in evidence)
 

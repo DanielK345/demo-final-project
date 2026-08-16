@@ -5,6 +5,7 @@ class VehicleType(StrEnum):
     MOTORBIKE = "MOTORBIKE"
     CAR_4 = "CAR_4"
     CAR_7 = "CAR_7"
+    LUXURY = "LUXURY"
 
     @property
     def spoken_label(self) -> str:
@@ -12,6 +13,7 @@ class VehicleType(StrEnum):
             type(self).MOTORBIKE: "xe máy",
             type(self).CAR_4: "ô tô 4 chỗ",
             type(self).CAR_7: "ô tô 7 chỗ",
+            type(self).LUXURY: "xe cao cấp",
         }[self]
 
 

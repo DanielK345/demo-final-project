@@ -97,6 +97,7 @@ def extract_vehicle(value: str) -> VehicleType | None:
         VehicleType.MOTORBIKE.value.casefold(): VehicleType.MOTORBIKE,
         VehicleType.CAR_4.value.casefold(): VehicleType.CAR_4,
         VehicleType.CAR_7.value.casefold(): VehicleType.CAR_7,
+        VehicleType.LUXURY.value.casefold(): VehicleType.LUXURY,
     }
     if normalized in serialized:
         return serialized[normalized]
@@ -106,6 +107,8 @@ def extract_vehicle(value: str) -> VehicleType | None:
         return VehicleType.CAR_4
     if re.search(r"\b(?:7|bảy)\s*chỗ\b", normalized):
         return VehicleType.CAR_7
+    if any(term in normalized for term in ("cao cấp", "premium", "luxury")):
+        return VehicleType.LUXURY
     return None
 
 

@@ -10,6 +10,7 @@ const vehicles = [
   { type: "MOTORBIKE", name: "AloSM Bike", seats: 1, eta: 3, factor: .58, icon: Bike, detail: "Nhanh, linh hoạt" },
   { type: "CAR_4", name: "AloSM Car", seats: 4, eta: 4, factor: 1, icon: Car, detail: "Tiện nghi, giá tốt" },
   { type: "CAR_7", name: "AloSM Plus", seats: 7, eta: 7, factor: 1.42, icon: Car, detail: "Rộng rãi cho cả nhóm" },
+  { type: "LUXURY", name: "AloSM Premium", seats: 4, eta: 6, factor: 1.18, icon: Sparkles, detail: "Dòng xe cao cấp" },
 ] as const;
 
 const vouchers = [

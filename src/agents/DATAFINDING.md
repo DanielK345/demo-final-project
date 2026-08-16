@@ -109,6 +109,21 @@ phục vụ và không ghi log tọa độ/địa chỉ đầy đủ ngoài mụ
 `estimate_id`, pricing version và hạn quote phải đi xuyên suốt tới `create_booking`; backend phải
 reject quote hết hạn hoặc không khớp state đã xác nhận.
 
+#### Catalog DEMO hiện hành (2026-08-16)
+
+- Nguồn runtime duy nhất: `data/pricing/hanoi_demo_2026-08-16.yaml`; loader fail-closed tại
+  `src/backend/services/pricing_catalog.py`.
+- Provenance: file người dùng cung cấp có SHA-256
+  `6AFF08BD3DAFD6C8833F423D9CEC6DAE1F74E60932EA3696B3096C6B97315718`; dữ liệu tham khảo
+  GreenSM công khai, khu vực Hà Nội, tuyệt đối không phải bảng giá AloSM đã được Finance duyệt.
+- Loại xe: `MOTORBIKE`, `CAR_4`, `CAR_7`, `LUXURY`. `CAR_7` là mức suy diễn; giá Bike mở cửa
+  và chính sách hủy chưa được xác minh đủ; tất cả vẫn mang `status/data_quality=DEMO`.
+- Công thức runtime: giá mở cửa bao phủ `base_km`, phần vượt ngưỡng tính progressive tiers và áp
+  `min_fare`. Không tự áp `per_minute` hoặc surcharge vì route demo không chứng minh thời gian chờ,
+  khung giờ, ngày lễ, điểm dừng hay đổi điểm đến.
+- `distance_km`/ETA vẫn là deterministic DEMO cho tới khi có routing provider thật. Quote có TTL 300
+  giây nhưng production còn phải dùng quote store dùng chung và kiểm tra hết hạn nguyên tử khi đặt xe.
+
 ### 2.3 Fleet availability
 
 ```json

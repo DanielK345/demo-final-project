@@ -7,9 +7,9 @@ place name. If Gemini is unavailable, the original transcript is preserved.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 import logging
 import os
+from dataclasses import dataclass
 
 import httpx
 

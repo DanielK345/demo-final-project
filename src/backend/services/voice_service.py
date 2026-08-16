@@ -16,8 +16,8 @@ from src.config import Settings, get_settings
 from src.voice.asr.biasing import correct_place_names
 from src.voice.asr.groq_provider import is_known_hallucination
 from src.voice.text.gazetteer import Gazetteer
-from src.voice.text.place_aliases import PlaceAliasCatalog
 from src.voice.text.normalizer import normalize_transcript
+from src.voice.text.place_aliases import PlaceAliasCatalog
 from src.voice.text.rewrite_contract import TranscriptRewriter, TranscriptRewriteResult
 from src.voice.tts.orchestrator import get_tts_orchestrator
 

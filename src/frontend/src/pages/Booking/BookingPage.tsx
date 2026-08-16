@@ -3,7 +3,7 @@ import { Clock3, Search, Sparkles, Users } from "lucide-react";
 import { MOCK_SERVICES_CATALOG } from "@/features/booking/mockData";
 import { useVoiceAssistant } from "@/features/ai-assistant/context/useVoiceAssistant";
 
-const VEHICLE_LABEL: Record<"MOTORBIKE" | "CAR_4" | "CAR_7", string> = { MOTORBIKE: "xe máy", CAR_4: "ô tô 4 chỗ", CAR_7: "ô tô 7 chỗ" };
+const VEHICLE_LABEL: Record<"MOTORBIKE" | "CAR_4" | "CAR_7" | "LUXURY", string> = { MOTORBIKE: "xe máy", CAR_4: "ô tô 4 chỗ", CAR_7: "ô tô 7 chỗ", LUXURY: "xe cao cấp" };
 
 export const BookingPage: React.FC = () => {
   const { openWithPrefill, open } = useVoiceAssistant();
