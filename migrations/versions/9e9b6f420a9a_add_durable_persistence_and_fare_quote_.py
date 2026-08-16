@@ -205,7 +205,11 @@ def upgrade() -> None:
         data_api_roles = {
             row[0]
             for row in bind.execute(
-                sa.text("SELECT rolname FROM pg_roles WHERE rolname IN (''anon'', ''authenticated'')")
+                sa.text(
+                    "SELECT rolname FROM pg_roles "
+                    "WHERE rolname IN (:anon_role, :authenticated_role)"
+                ),
+                {"anon_role": "anon", "authenticated_role": "authenticated"},
             )
         }
         for table in tables:
