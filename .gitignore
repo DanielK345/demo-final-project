@@ -46,6 +46,8 @@ $RECYCLE.BIN/
 # thư mục nên "!data/gazetteer/" bên dưới sẽ KHÔNG có tác dụng (gotcha kinh điển của
 # gitignore) — đã tự verify bằng `git add` thật (không dùng -f) trước khi chốt.
 data/*
+!data/README.md
+!data/catalog.json
 !data/gazetteer/
 *.db
 *.sqlite3

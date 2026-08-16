@@ -1,9 +1,6 @@
 import pytest
 from pydantic import ValidationError
 
-<<<<<<< HEAD
-from src.agents.history import (
-=======
 from src.agents.contracts.schemas import (
     ActionType,
     AgentAction,
@@ -22,7 +19,6 @@ from src.agents.contracts.state import (
     DeliveryStatus,
 )
 from src.agents.core.history import (
->>>>>>> 86cfe2ef3e6996c4053492e822e3a2435384bcc3
     DeliveryEventMismatchError,
     DuplicateHistoryMessageError,
     HistorySessionMismatchError,
@@ -32,26 +28,6 @@ from src.agents.core.history import (
     build_message_id,
     record_turn_history,
 )
-<<<<<<< HEAD
-from src.agents.schemas import (
-    ActionType,
-    AgentAction,
-    AgentInput,
-    ToolName,
-    ToolResult,
-    ToolStatus,
-)
-from src.agents.state import (
-    AgentState,
-    AssistantDeliveryEvent,
-    ConversationMessage,
-    ConversationMessageType,
-    ConversationRole,
-    ConversationSummary,
-    DeliveryStatus,
-)
-=======
->>>>>>> 86cfe2ef3e6996c4053492e822e3a2435384bcc3
 
 
 def user_message(turn_id: str = "turn-001") -> ConversationMessage:
@@ -78,22 +54,14 @@ def assistant_message(turn_id: str = "turn-001") -> ConversationMessage:
 
 
 def test_agent_input_requires_turn_id():
-<<<<<<< HEAD
-    from src.agents.schemas import AgentInput
-=======
     from src.agents.contracts.schemas import AgentInput
->>>>>>> 86cfe2ef3e6996c4053492e822e3a2435384bcc3
 
     with pytest.raises(ValidationError, match="turn_id"):
         AgentInput(session_id="session-001", transcript="Tôi muốn đặt xe")
 
 
 def test_agent_input_normalizes_and_rejects_blank_turn_id():
-<<<<<<< HEAD
-    from src.agents.schemas import AgentInput
-=======
     from src.agents.contracts.schemas import AgentInput
->>>>>>> 86cfe2ef3e6996c4053492e822e3a2435384bcc3
 
     agent_input = AgentInput(
         session_id="session-001",

@@ -3,13 +3,13 @@ from hashlib import sha256
 
 from openai import APITimeoutError, AsyncOpenAI, OpenAIError
 
-from src.agents.context import ConversationContext
-from src.agents.understanding.rewrite_base import (
+from src.agents.legacy.context_models import ConversationContext
+from src.agents.legacy.understanding.rewrite_base import (
     InvalidRewriteOutputError,
     RewriteProviderError,
     RewriteTimeoutError,
 )
-from src.agents.understanding.rewrite_models import RewriteDecision, RewriteResult
+from src.agents.legacy.understanding.rewrite_models import RewriteDecision, RewriteResult
 
 _INSTRUCTIONS = """Rewrite a Vietnamese voice user's message only when sanitized
 conversation evidence resolves its contextual references. Preserve original_text

@@ -141,6 +141,8 @@ class AgentToolExecutor:
             destination_place_id=str(params["destination_place_id"]),
             vehicle_type=vehicle_type,
         )
+        if str(params["fare_estimate_id"]) != str(fare["estimate_id"]):
+            raise ValueError("Fare estimate does not match the confirmed route and vehicle")
         booking = self._booking_service.create_booking(
             {
                 "idempotency_key": params["idempotency_key"],

@@ -71,7 +71,7 @@ export const TranscriptModal: React.FC<TranscriptModalProps> = ({ sessionId, onC
               className={`flex gap-2.5 ${message.role === "user" ? "justify-end" : "justify-start"}`}
             >
               {message.role === "agent" && (
-                <span className="mt-1 w-7 h-7 shrink-0 rounded-full bg-[#00A651]/15 text-[#04763B] dark:text-[#00A651] grid place-items-center">
+                <span className="mt-1 w-7 h-7 shrink-0 rounded-full bg-[#00C9B7]/15 text-[#008F88] dark:text-[#00C9B7] grid place-items-center">
                   <Bot className="w-3.5 h-3.5" />
                 </span>
               )}
@@ -79,7 +79,7 @@ export const TranscriptModal: React.FC<TranscriptModalProps> = ({ sessionId, onC
                 <p
                   className={`rounded-2xl px-4 py-2.5 text-sm leading-6 ${
                     message.role === "user"
-                      ? "bg-[#00A651] text-[#0B0E11] rounded-tr-sm font-medium"
+                      ? "bg-[#00C9B7] text-[#0B0E11] rounded-tr-sm font-medium"
                       : "bg-slate-100 text-slate-700 rounded-tl-sm dark:bg-white/10 dark:text-slate-100"
                   }`}
                 >

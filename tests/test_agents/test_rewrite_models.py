@@ -1,7 +1,7 @@
 import pytest
 from pydantic import ValidationError
 
-from src.agents.understanding.rewrite_models import (
+from src.agents.legacy.understanding.rewrite_models import (
     ResolvedReference,
     RewriteDecision,
     RewriteReason,

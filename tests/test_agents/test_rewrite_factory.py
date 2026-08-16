@@ -1,7 +1,7 @@
 import pytest
 
-from src.agents.understanding.rewrite_factory import build_contextual_rewriter
-from src.agents.understanding.rewrite_service import (
+from src.agents.legacy.understanding.rewrite_factory import build_contextual_rewriter
+from src.agents.legacy.understanding.rewrite_service import (
     PassthroughContextualRewriter,
     ResilientContextualRewriteService,
 )

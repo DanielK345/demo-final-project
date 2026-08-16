@@ -1,10 +1,10 @@
 import pytest
 from pydantic import ValidationError
 
+from src.agents.legacy.understanding.models import CorrectionField
 from src.agents.repair import DialogueActDetector
 from src.agents.repair_models import DialogueAct, DialogueActResult
 from src.agents.schemas import WorkflowType
-from src.agents.understanding.models import CorrectionField
 
 
 @pytest.mark.parametrize(

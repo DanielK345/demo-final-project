@@ -3,3 +3,5 @@ from src.backend.controllers.call_controller import CallController
 from src.backend.controllers.handoff_controller import HandoffController
 from src.backend.controllers.session_controller import SessionController
 from src.backend.controllers.trip_controller import TripController
+
+__all__ = ["BookingController", "CallController", "HandoffController", "SessionController", "TripController"]

@@ -9,6 +9,8 @@ from httpx import ASGITransport, AsyncClient
 # real provider in .env. Provider tests instantiate their adapter explicitly.
 os.environ["AGENT_LLM_ENABLED"] = "false"
 os.environ["AGENT_REWRITE_ENABLED"] = "false"
+os.environ["APP_ENV"] = "test"
+os.environ["DATABASE_URL"] = "sqlite:///./data/test.db"
 
 from src.backend.services.conversation_logger import ConversationLogger
 from src.backend.services.session_service import SessionService

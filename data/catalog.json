@@ -1,0 +1,111 @@
+{
+  "schema_version": "1.0.0",
+  "updated_at": "2026-08-16",
+  "status_vocabulary": [
+    "IMPLEMENTED",
+    "LIVE_VALIDATED",
+    "DEMO",
+    "STAGING_ONLY",
+    "EXTERNAL_BLOCKED",
+    "RELEASE_GATED",
+    "HISTORICAL"
+  ],
+  "domains": [
+    {
+      "id": "identity_settings",
+      "runtime_source": ["src/backend/services/auth_service.py", "src/backend/services/settings_service.py"],
+      "canonical_schema": ["src/backend/schemas/auth.py", "src/backend/schemas/settings.py", "src/backend/db/models.py"],
+      "status": "DEMO",
+      "owner": ["Backend", "Security"],
+      "production_gap": "Replace class-level dictionaries with persistent repositories and production credential lifecycle."
+    },
+    {
+      "id": "conversation_session",
+      "runtime_source": ["src/backend/services/session_service.py", "src/agents/contracts/state.py"],
+      "canonical_schema": ["src/backend/schemas/session.py", "src/agents/contracts/state.py", "src/backend/db/models.py"],
+      "status": "DEMO",
+      "owner": ["Backend", "Agent"],
+      "production_gap": "Persistent transaction, optimistic concurrency, multi-instance state and retention."
+    },
+    {
+      "id": "place_route",
+      "runtime_source": ["data/gazetteer/place_names.json", "src/backend/services/place_search_service.py", "src/backend/services/pricing_service.py"],
+      "canonical_schema": ["src/agents/tools/schemas.py", "src/agents/DATAFINDING.md"],
+      "status": "DEMO",
+      "owner": ["Backend", "Maps vendor", "Product"],
+      "production_gap": "Provider geocoding/routing, service area, provenance, traffic timestamp and license-compliant cache."
+    },
+    {
+      "id": "fleet_vehicle_catalog",
+      "runtime_source": ["src/frontend/src/features/booking/mockData.ts"],
+      "canonical_schema": ["src/agents/DATAFINDING.md"],
+      "status": "DEMO",
+      "owner": ["Fleet Ops", "Dispatch", "Backend"],
+      "production_gap": "Approved vehicle catalog plus privacy-filtered availability stream with TTL."
+    },
+    {
+      "id": "pricing_promotion",
+      "runtime_source": ["src/backend/services/pricing_service.py", "src/frontend/src/features/booking/mockData.ts"],
+      "canonical_schema": ["src/agents/tools/schemas.py", "src/agents/DATAFINDING.md"],
+      "status": "DEMO",
+      "owner": ["Product", "Finance", "Growth", "Backend"],
+      "production_gap": "Approved versioned pricing and backend promotion eligibility/ranking tied to an expiring quote."
+    },
+    {
+      "id": "booking_trip",
+      "runtime_source": ["src/backend/services/booking_service.py", "src/backend/services/trip_service.py"],
+      "canonical_schema": ["src/backend/schemas/booking.py", "src/backend/schemas/trip.py", "src/backend/db/models.py"],
+      "status": "STAGING_ONLY",
+      "owner": ["Backend", "Dispatch"],
+      "production_gap": "Persistent transaction, real provider executor and unknown-outcome reconciliation."
+    },
+    {
+      "id": "knowledge_policy",
+      "runtime_source": ["src/backend/services/knowledge_service.py", "src/agents/rag"],
+      "canonical_schema": ["src/agents/DATAFINDING.md"],
+      "status": "DEMO",
+      "owner": ["Product", "Legal", "Support", "Agent"],
+      "production_gap": "Approved versioned corpus with effective dates, ingestion, citations and rollback."
+    },
+    {
+      "id": "handoff",
+      "runtime_source": ["src/backend/services/handoff_service.py", "src/agents/capabilities/common.py"],
+      "canonical_schema": ["src/backend/schemas/handoff.py", "src/backend/db/models.py"],
+      "status": "STAGING_ONLY",
+      "owner": ["Support Ops", "Backend", "Telephony"],
+      "production_gap": "Real operator directory, queue SLA, telephony transfer, disposition, RBAC and audit."
+    },
+    {
+      "id": "voice_asr",
+      "runtime_source": ["src/voice/asr/zipformer", "src/backend/integrations/voice_client.py"],
+      "canonical_schema": ["src/voice/asr/zipformer/schemas.py", "src/backend/schemas/voice.py"],
+      "status": "RELEASE_GATED",
+      "owner": ["Voice ML", "Legal", "Platform"],
+      "production_gap": "Commercial license approval, consented telephony corpus and production hardware benchmark."
+    },
+    {
+      "id": "transcript_rewrite",
+      "runtime_source": ["src/backend/services/transcript_rewriter.py"],
+      "canonical_schema": ["docs/voice-ai/transcript-rewrite.md"],
+      "status": "STAGING_ONLY",
+      "owner": ["Voice ML", "Privacy", "Platform"],
+      "production_gap": "Rotated production key, data-control approval and release evaluation by critical slices."
+    },
+    {
+      "id": "voice_tts",
+      "runtime_source": ["src/voice/tts/orchestrator.py", "src/voice/tts/output_review.py", "src/voice/tts/audio_validator.py"],
+      "canonical_schema": ["src/backend/schemas/voice.py", "src/voice/schemas.py"],
+      "status": "RELEASE_GATED",
+      "owner": ["Voice", "Product", "QA", "Platform"],
+      "production_gap": "Two-reviewer listening gate, SLA provider and physical device/browser matrix."
+    },
+    {
+      "id": "payment_notification",
+      "runtime_source": [],
+      "canonical_schema": ["mustdo.md"],
+      "status": "EXTERNAL_BLOCKED",
+      "owner": ["Finance", "Backend", "Security"],
+      "production_gap": "Merchant/provider credentials, signed webhooks, reconciliation and messaging consent."
+    }
+  ]
+}

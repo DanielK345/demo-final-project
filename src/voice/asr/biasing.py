@@ -1,4 +1,4 @@
-"""Fuzzy correction địa danh sau ASR — Phần 4 (`docs/voice-ai/voice_ai_overview.md` §6).
+"""Fuzzy correction địa danh sau ASR — Phần 4 (`docs/voice-ai/voice-runtime-architecture.md` §6).
 
 Kết hợp với prompt-conditioning (`asr/groq_provider.py` nhận `prompt_hint`
 từ cùng `Gazetteer`) — hai cách không loại trừ nhau, dùng cả hai để tăng độ
@@ -9,7 +9,7 @@ gazetteer (vd. lỗi thiếu dấu "vincom dong khoi" -> "Vincom Đồng Khởi"
 hai đều 3 từ). Cách này cố tình đánh đổi: **không** tự sửa lỗi ASR tách một
 từ thành nhiều từ (vd. "Vin Côm" — 2 từ — thay vì "Vincom" — 1 từ). Muốn xử
 lý case tách từ, cần thêm bước ghép thử các cặp token liền kề trước khi so
-khớp — chưa làm, ghi trong `docs/voice-ai/mustdo_voice.md`.
+khớp — chưa làm, ghi trong `mustdo.md`.
 
 **Cách chấm điểm:** so khớp *theo từng từ một, đúng vị trí* (span từ thứ i
 so với candidate từ thứ i), lấy điểm THẤP NHẤT trong các cặp từ làm điều

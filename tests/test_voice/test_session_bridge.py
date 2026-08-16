@@ -1,6 +1,6 @@
 """Test `SessionBridge` — verify nó gọi đúng `SessionService` thật (không mock), vì
 đây chính là điểm tích hợp quan trọng nhất với Backend (xem
-docs/voice-ai/prompt_voice_integration_real_be_fe.md). Dùng instance `SessionService()` riêng
+docs/voice-ai/voice-runtime-architecture.md). Dùng instance `SessionService()` riêng
 cho mỗi test để không rò rỉ state qua `sessions` (class attribute dùng chung)."""
 
 import pytest

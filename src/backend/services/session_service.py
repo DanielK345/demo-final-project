@@ -8,7 +8,7 @@ from src.agents.schemas import ActionType, AgentAction, AgentInput
 from src.agents.state import AgentState
 from src.backend.services.agent_tool_executor import AgentToolExecutor
 from src.backend.services.conversation_logger import ConversationLogger
-from src.backend.services.gemini_place_rewriter import GeminiPlaceRewriter
+from src.backend.services.handoff_service import HandoffService
 
 
 class SessionService:
@@ -16,7 +16,7 @@ class SessionService:
     _agent = LLMAgent()
     _tool_executor = AgentToolExecutor()
     _conversation_logger = ConversationLogger()
-    _transcript_rewriter = GeminiPlaceRewriter()
+    _handoff_service = HandoffService()
     _MAX_TOOL_TURNS = 8
 
     def create_session(
@@ -59,6 +59,7 @@ class SessionService:
             "failed_count": 0,
             "booking_id": None,
             "handoff_triggered": False,
+            "handoff_id": None,
             "booking_lifecycle_status": None,
             "feedback": None,
             "current_workflow": None,
@@ -112,15 +113,11 @@ class SessionService:
         if session["status"] != "ACTIVE":
             raise ValueError("Phiên hội thoại đã kết thúc")
 
-        rewrite_result = await self._transcript_rewriter.rewrite(message, source=source)
-        normalized_message = rewrite_result.rewritten
-        # Development trace only; do not log full transcripts because they may
-        # contain PII. The ConversationLogger retains the source transcript.
-        print(
-            "[asr_place_rewrite] "
-            f"session={session_id} provider={rewrite_result.provider} "
-            f"called={str(rewrite_result.called).lower()} status={rewrite_result.status}"
-        )
+        # ASR rewriting is owned by VoiceService (REST) and VoiceGateway (WS),
+        # where the STT provider, gazetteer and rewrite trace are available.
+        # Rewriting here used a second, stale Gemini implementation after the
+        # merge, which both duplicated LLM calls and referenced removed config.
+        normalized_message = message.strip()
 
         user_id = session.get("user_id")
         agent_state = self._load_agent_state(session_id, session)
@@ -154,11 +151,17 @@ class SessionService:
 
         session["agent_state"] = agent_state.model_dump(mode="json")
         self._sync_legacy_session_fields(session, agent_state, action)
+        self._persist_handoff(session, agent_state, action)
         response = self._format_action_response(session, agent_state, action)
-        # Return the actual text sent to the Agent, so the voice transcript is not
-        # misleading when Gemini corrected an ASR place name.
+        # Return the actual text sent to the Agent. Voice transports have already
+        # applied their canonical post-ASR rewrite before reaching this service.
         response["transcript"] = normalized_message
-        response["transcript_rewrite"] = rewrite_result.trace()
+        response["transcript_rewrite"] = {
+            "provider": "voice_layer" if source == "VOICE" else "none",
+            "called": False,
+            "applied": False,
+            "status": "handled_upstream" if source == "VOICE" else "not_applicable",
+        }
         self._log_conversation_turn(
             session,
             user_message=message.strip(),
@@ -238,6 +241,36 @@ class SessionService:
         session["handoff_triggered"] = action.action_type is ActionType.HANDOFF
         if action.action_type is ActionType.END_SESSION:
             session["status"] = "ENDED"
+
+    @classmethod
+    def _persist_handoff(
+        cls,
+        session: dict[str, object],
+        agent_state: AgentState,
+        action: AgentAction,
+    ) -> None:
+        if action.action_type is not ActionType.HANDOFF or session.get("handoff_id"):
+            return
+        context = agent_state.collected_data.get("handoff")
+        if not isinstance(context, dict):
+            context = {
+                "reason_code": "UNABLE_TO_CONTINUE",
+                "reason": action.reason or "Agent requested handoff",
+                "summary": "No structured handoff context was available.",
+            }
+        payload = {
+            "session_id": agent_state.session_id,
+            "reason": context.get("reason") or action.reason or "Agent requested handoff",
+            "reason_code": context.get("reason_code", "UNABLE_TO_CONTINUE"),
+            "summary": context.get("summary", "No prior conversation summary."),
+            "pending_action": context.get("pending_tool"),
+            "priority": context.get("priority", 50),
+            "severity": context.get("severity", "NORMAL"),
+            "queue": context.get("queue", "GENERAL_OPERATOR"),
+            "requires_immediate_transfer": context.get("requires_immediate_transfer", False),
+        }
+        handoff = cls._handoff_service.create_handoff(payload)
+        session["handoff_id"] = handoff["handoff_id"]
 
     @staticmethod
     def _booking_lifecycle_status(booking: dict[str, object], action: AgentAction) -> str | None:
@@ -339,6 +372,7 @@ class SessionService:
                 "vehicle_type",
                 "confirmation_status",
                 "booking_id",
+                "handoff_id",
             )
         }
         state["booking_progress"] = booking_progress

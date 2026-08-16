@@ -121,7 +121,9 @@ Runtime model-driven:
 ```env
 AGENT_LLM_ENABLED=true
 OPENAI_API_KEY=...
-AGENT_LLM_MODEL=gpt-5.6-luna
+OPENROUTER_API_KEY=...
+AGENT_LLM_MODEL=openai/gpt-5.6-luna-pro
+AGENT_LLM_BASE_URL=https://openrouter.ai/api/v1
 ```
 
 `AGENT_LLM_ENABLED=false` hiện kích hoạt `legacy/agent.py` cho regression tests. Đây là

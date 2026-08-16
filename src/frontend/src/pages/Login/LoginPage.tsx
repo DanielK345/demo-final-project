@@ -21,8 +21,8 @@ export const LoginPage: React.FC = () => {
       />
 
       {/* Decorative Blur Spots */}
-      <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] rounded-full bg-[#00A651]/10 blur-[100px] pointer-events-none" />
-      <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] rounded-full bg-[#04763B]/10 blur-[100px] pointer-events-none" />
+      <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] rounded-full bg-[#00C9B7]/10 blur-[100px] pointer-events-none" />
+      <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] rounded-full bg-[#008F88]/10 blur-[100px] pointer-events-none" />
 
       {/* Centered Login Form Card */}
       <div className="relative z-10 w-full max-w-md space-y-4">

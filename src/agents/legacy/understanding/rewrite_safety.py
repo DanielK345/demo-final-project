@@ -1,8 +1,8 @@
 import re
 
-from src.agents.context import ConversationContext
-from src.agents.understanding.rewrite_base import UnsafeRewriteOutputError
-from src.agents.understanding.rewrite_models import RewriteDecision, RewriteResult
+from src.agents.legacy.context_models import ConversationContext
+from src.agents.legacy.understanding.rewrite_base import UnsafeRewriteOutputError
+from src.agents.legacy.understanding.rewrite_models import RewriteDecision, RewriteResult
 
 _PHONE_PATTERN = re.compile(r"(?<!\d)(?:\+?84|0)(?:[ .-]?\d){9}(?!\d)")
 _BOOKING_ID_PATTERN = re.compile(

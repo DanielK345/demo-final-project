@@ -4,9 +4,9 @@ from src.agents.context import (
     ContextMessage,
     ConversationContext,
 )
+from src.agents.legacy.understanding.rewrite_gate import ContextualRewriteGate
+from src.agents.legacy.understanding.rewrite_models import RewriteReason
 from src.agents.state import ConversationRole, DeliveryStatus
-from src.agents.understanding.rewrite_gate import ContextualRewriteGate
-from src.agents.understanding.rewrite_models import RewriteReason
 
 
 def context(

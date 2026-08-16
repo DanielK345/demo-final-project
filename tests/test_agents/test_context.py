@@ -5,6 +5,7 @@ from src.agents.context import (
     ContextSessionMismatchError,
     ConversationContextBuilder,
 )
+from src.agents.core.booking import BookingData
 from src.agents.history import build_message_id
 from src.agents.schemas import AgentInput, WorkflowType
 from src.agents.state import (
@@ -16,7 +17,6 @@ from src.agents.state import (
     DeliveryStatus,
 )
 from src.agents.tools.schemas import PlaceCandidate
-from src.agents.workflows.booking_models import BookingData
 
 
 def context_input(

@@ -48,7 +48,7 @@ export const BookingSuccessPanel: React.FC<Props> = ({
               <button
                 type="button"
                 onClick={onNewSession}
-                className="inline-flex items-center gap-2 rounded-xl bg-[#00A651] px-4 py-2 text-sm font-semibold text-white hover:opacity-90"
+                className="inline-flex items-center gap-2 rounded-xl bg-[#00C9B7] px-4 py-2 text-sm font-semibold text-white hover:opacity-90"
               >
                 <RotateCcw className="w-4 h-4" />
                 Phiên mới
@@ -113,7 +113,7 @@ export const BookingSuccessPanel: React.FC<Props> = ({
             <button
               type="button"
               onClick={onNewSession}
-              className="inline-flex items-center gap-2 rounded-xl bg-[#00A651] px-4 py-2 text-sm font-semibold text-white hover:opacity-90"
+              className="inline-flex items-center gap-2 rounded-xl bg-[#00C9B7] px-4 py-2 text-sm font-semibold text-white hover:opacity-90"
             >
               <RotateCcw className="w-4 h-4" />
               Đặt xe mới

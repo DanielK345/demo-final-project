@@ -1,8 +1,8 @@
 from pydantic import BaseModel
 
-from src.agents.context_models import ConversationContext
-from src.agents.understanding.models import UnderstandingResult
-from src.agents.understanding.rewrite_models import RewriteDecision, RewriteResult
+from src.agents.legacy.context_models import ConversationContext
+from src.agents.legacy.understanding.models import UnderstandingResult
+from src.agents.legacy.understanding.rewrite_models import RewriteDecision, RewriteResult
 
 
 class TurnInterpretation(BaseModel):

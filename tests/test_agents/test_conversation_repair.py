@@ -2,6 +2,7 @@ import pytest
 
 from src.agents.agent import LLMAgent
 from src.agents.history import build_message_id
+from src.agents.legacy.workflows.base import BaseWorkflow
 from src.agents.repair import ConversationRepairHandler
 from src.agents.repair_models import DialogueAct, DialogueActResult
 from src.agents.schemas import (
@@ -21,7 +22,6 @@ from src.agents.state import (
     ConversationRole,
     DeliveryStatus,
 )
-from src.agents.workflows.base import BaseWorkflow
 
 
 def command(act: DialogueAct) -> DialogueActResult:
@@ -379,11 +379,8 @@ async def test_agent_routes_active_booking_correction_to_booking_workflow():
     corrected = action.state_updates["collected_data"]["booking"]
 
     assert action.action_type is ActionType.ASK_USER
-    assert action.state_updates["current_step"] == "CONFIRM"
-    assert (
-        action.state_updates["confirmation"]
-        is ConfirmationStatus.AWAITING_CONFIRMATION
-    )
+    assert action.state_updates["current_step"] == "COLLECT_VEHICLE"
+    assert action.state_updates["confirmation"] is ConfirmationStatus.NOT_REQUESTED
     assert corrected["phone_number"] == "0987654321"
     assert action.tool_call is None
 

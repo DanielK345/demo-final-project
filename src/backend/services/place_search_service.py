@@ -42,11 +42,18 @@ class PlaceSearchService:
             return []
         matches = [name for name in _load_place_names() if normalized_query in name.casefold()]
         if not matches:
-            # Không khớp 23 địa điểm mốc trong gazetteer — vẫn trả về đúng câu người
-            # dùng nhập làm 1 candidate (địa chỉ tự do, vd số nhà cụ thể) thay vì báo
-            # "không tìm thấy", để hội thoại không bị chặn cứng bởi gazetteer giới hạn.
-            matches = [query.strip()]
+            # Gazetteer không phải geocoder. Không echo free-form text thành place đã
+            # resolve; caller phải hỏi lại hoặc dùng MapsProvider thật.
+            return []
         return [
-            {"place_id": place_id_for(name), "display_name": name, "address": name}
+            {
+                "place_id": place_id_for(name),
+                "display_name": name,
+                "address": name,
+                "provider": "local_gazetteer",
+                "provider_payload_version": "2026-08-16",
+                "data_quality": "DEMO",
+                "serviceable": None,
+            }
             for name in matches[:limit]
         ]

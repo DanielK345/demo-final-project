@@ -2,6 +2,9 @@ import pytest
 from pydantic import ValidationError
 
 from src.agents.agent import LLMAgent
+from src.agents.core.booking import BookingData, BookingStep
+from src.agents.legacy.workflows.faq_models import FAQStep
+from src.agents.legacy.workflows.trip_lookup_models import TripLookupStep
 from src.agents.schemas import (
     ActionType,
     AgentInput,
@@ -12,9 +15,6 @@ from src.agents.schemas import (
 )
 from src.agents.state import AgentState, ConfirmationStatus
 from src.agents.state_types import InterruptedWorkflow, InterruptionReason
-from src.agents.workflows.booking_models import BookingData, BookingStep
-from src.agents.workflows.faq_models import FAQStep
-from src.agents.workflows.trip_lookup_models import TripLookupStep
 
 
 def apply_action(state: AgentState, action) -> AgentState:
@@ -335,7 +335,8 @@ async def test_booking_faq_interruption_answer_and_resume_full_workflow():
     )
 
     assert confirmation.action_type is ActionType.ASK_USER
-    assert confirmation.state_updates["current_step"] == BookingStep.CONFIRM
+    assert confirmation.state_updates["current_step"] == BookingStep.COLLECT_VEHICLE
+    assert "bao nhiêu người" in (confirmation.message or "").casefold()
 
 
 @pytest.mark.asyncio

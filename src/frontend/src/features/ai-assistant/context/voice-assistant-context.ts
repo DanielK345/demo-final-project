@@ -28,9 +28,10 @@ export interface VoiceAssistantValue {
   isOpen: boolean;
   open: () => void;
   close: () => void;
-  // Mở popup + gửi luôn 1 câu dựng sẵn (dùng bởi các nút "AI đặt xe ngay" khắp app) —
-  // như thể khách vừa nói câu đó ngay khi vào cuộc gọi.
+  // Mở popup và điền bản nháp có thể sửa; không tự gửi CTA thành lời của khách.
   openWithPrefill: (prefill: string) => void;
+  draft: string;
+  setDraft: (value: string) => void;
 
   // Hội thoại
   status: AssistantStatus;

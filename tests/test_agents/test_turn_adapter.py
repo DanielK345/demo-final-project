@@ -33,27 +33,7 @@ class RecordingAgent:
 
 
 @pytest.mark.asyncio
-<<<<<<< HEAD:tests/test_agents/test_graph.py
-async def test_agent_basic_flow():
-    result = await agent.ainvoke({"query": "Hello", "turn_id": "turn-001"})
-    assert "response" in result
-    history = result["action"]["state_updates"]["conversation_history"]
-    assert history[0]["message_id"] == "turn-001:user"
-    assert history[1]["message_id"] == "turn-001:assistant"
-
-
-@pytest.mark.asyncio
-async def test_agent_state_structure():
-    result = await agent.ainvoke({"query": "Test query", "turn_id": "turn-001"})
-    assert isinstance(result, dict)
-    assert "query" in result
-
-
-@pytest.mark.asyncio
-async def test_graph_passes_conversation_state_to_agent():
-=======
 async def test_adapter_passes_conversation_state_to_agent():
->>>>>>> 86cfe2ef3e6996c4053492e822e3a2435384bcc3:tests/test_agents/test_turn_adapter.py
     recording_agent = RecordingAgent()
     adapter = AgentTurnAdapter(llm_agent=recording_agent)
     state = AgentState(
@@ -145,13 +125,7 @@ async def test_adapter_preserves_input_fields():
 
 
 @pytest.mark.asyncio
-<<<<<<< HEAD:tests/test_agents/test_graph.py
-async def test_graph_requires_backend_turn_id():
-    with pytest.raises(ValueError, match="turn_id is required"):
-        await agent.ainvoke({"query": "Hello"})
-=======
 async def test_adapter_requires_backend_turn_id():
     adapter = AgentTurnAdapter(llm_agent=RecordingAgent())
     with pytest.raises(ValueError, match="turn_id is required"):
         await adapter.ainvoke({"query": "Hello"})
->>>>>>> 86cfe2ef3e6996c4053492e822e3a2435384bcc3:tests/test_agents/test_turn_adapter.py

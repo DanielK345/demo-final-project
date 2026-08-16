@@ -11,20 +11,20 @@ from src.agents.context import (
     ContextMessage,
     ConversationContext,
 )
-from src.agents.state import ConversationRole, DeliveryStatus
-from src.agents.understanding.rewrite_base import (
+from src.agents.legacy.understanding.rewrite_base import (
     InvalidRewriteOutputError,
     RewriteProviderError,
     RewriteTimeoutError,
 )
-from src.agents.understanding.rewrite_models import (
+from src.agents.legacy.understanding.rewrite_models import (
     ResolvedReference,
     RewriteDecision,
     RewriteReason,
     RewriteResult,
 )
-from src.agents.understanding.rewrite_openai import OpenAIContextualRewriteAdapter
-from src.agents.understanding.rewrite_service import ResilientContextualRewriteService
+from src.agents.legacy.understanding.rewrite_openai import OpenAIContextualRewriteAdapter
+from src.agents.legacy.understanding.rewrite_service import ResilientContextualRewriteService
+from src.agents.state import ConversationRole, DeliveryStatus
 
 
 def rewrite_context() -> ConversationContext:

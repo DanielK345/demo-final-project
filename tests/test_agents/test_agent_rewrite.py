@@ -1,8 +1,20 @@
 import pytest
 
 from src.agents.agent import LLMAgent
+from src.agents.core.booking import BookingData, BookingStep
 from src.agents.graph import AgentGraphAdapter
 from src.agents.history import build_message_id
+from src.agents.legacy.understanding.models import (
+    ConfirmationIntent,
+    Correction,
+    CorrectionField,
+    UnderstandingIntent,
+    UnderstandingResult,
+)
+from src.agents.legacy.understanding.rewrite_models import (
+    ResolvedReference,
+    RewriteResult,
+)
 from src.agents.schemas import ActionType, AgentInput, ToolName, ToolResult, ToolStatus
 from src.agents.state import (
     AgentState,
@@ -12,18 +24,6 @@ from src.agents.state import (
     ConversationRole,
     DeliveryStatus,
 )
-from src.agents.understanding.models import (
-    ConfirmationIntent,
-    Correction,
-    CorrectionField,
-    UnderstandingIntent,
-    UnderstandingResult,
-)
-from src.agents.understanding.rewrite_models import (
-    ResolvedReference,
-    RewriteResult,
-)
-from src.agents.workflows.booking_models import BookingData, BookingStep
 
 
 class RecordingRewriter:
@@ -337,7 +337,7 @@ async def test_understanding_confirmation_without_raw_evidence_is_downgraded():
 
 
 def test_raw_evidence_safety_removes_hallucinated_identity_fields():
-    from src.agents.understanding.safety import enforce_raw_understanding_evidence
+    from src.agents.legacy.understanding.safety import enforce_raw_understanding_evidence
 
     result = enforce_raw_understanding_evidence(
         UnderstandingResult(
@@ -352,7 +352,7 @@ def test_raw_evidence_safety_removes_hallucinated_identity_fields():
 
 
 def test_raw_evidence_safety_keeps_matching_identity_and_rejects_negated_confirmation():
-    from src.agents.understanding.safety import enforce_raw_understanding_evidence
+    from src.agents.legacy.understanding.safety import enforce_raw_understanding_evidence
 
     result = enforce_raw_understanding_evidence(
         UnderstandingResult(
@@ -369,7 +369,7 @@ def test_raw_evidence_safety_keeps_matching_identity_and_rejects_negated_confirm
 
 
 def test_raw_evidence_safety_removes_ungrounded_corrections():
-    from src.agents.understanding.safety import enforce_raw_understanding_evidence
+    from src.agents.legacy.understanding.safety import enforce_raw_understanding_evidence
 
     result = enforce_raw_understanding_evidence(
         UnderstandingResult(

@@ -2,8 +2,8 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from src.backend.integrations.voice_client import resolve_voice_provider
 from src.backend.config import Settings
+from src.backend.integrations.voice_client import resolve_voice_provider
 
 
 def test_resolve_voice_provider_prefers_openai_in_auto_mode():

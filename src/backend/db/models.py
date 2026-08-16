@@ -14,7 +14,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, Index, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 
@@ -122,14 +122,22 @@ class Trip(Base):
 
 class Handoff(Base):
     __tablename__ = "handoffs"
+    __table_args__ = (Index("ix_handoffs_status_priority", "status", "priority"),)
 
     id: Mapped[str] = mapped_column(String(32), primary_key=True)
     session_id: Mapped[str] = mapped_column(String(32), ForeignKey("ride_sessions.id"), index=True)
     reason: Mapped[str] = mapped_column(String(100), nullable=False)
+    reason_code: Mapped[str] = mapped_column(String(50), nullable=False, default="UNABLE_TO_CONTINUE")
     summary: Mapped[str] = mapped_column(Text, nullable=False)
     pending_action: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    priority: Mapped[int] = mapped_column(Integer, nullable=False, default=50)
+    severity: Mapped[str] = mapped_column(String(20), nullable=False, default="NORMAL")
+    queue: Mapped[str] = mapped_column(String(50), nullable=False, default="GENERAL_OPERATOR")
+    requires_immediate_transfer: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="pending")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    accepted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    operator_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
 
 
 class Call(Base):

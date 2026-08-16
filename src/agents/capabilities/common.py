@@ -1,6 +1,7 @@
-from src.agents.contracts.schemas import ActionType, AgentAction, WorkflowType
+from src.agents.contracts.schemas import ActionType, AgentAction
+from src.agents.core.handoff import HandoffReason, classify_handoff, deterministic_handoff_action
 from src.agents.core.registry import ContinueToolLoop, RegisteredTool, ToolRegistry
-from src.agents.core.session import HandoffState, TurnSession
+from src.agents.core.session import TurnSession
 from src.agents.core.tools import definition
 
 
@@ -26,26 +27,18 @@ def respond(session: TurnSession, arguments: dict) -> AgentAction:
 
 def handoff(session: TurnSession, arguments: dict) -> AgentAction:
     reason = str(arguments.get("reason") or "Model requested handoff").strip()
-    history = session.state.conversation_history[-6:]
-    summary = " | ".join(f"{item.role.value}: {item.content}" for item in history)
-    context = HandoffState(
+    requested_code = arguments.get("reason_code")
+    try:
+        reason_code = HandoffReason(str(requested_code)) if requested_code else None
+    except ValueError:
+        reason_code = None
+    transcript = str(session.event.get("user_transcript") or "")
+    reason_code = reason_code or classify_handoff(transcript) or classify_handoff(reason)
+    return deterministic_handoff_action(
+        session.state,
+        reason_code=reason_code or HandoffReason.UNABLE_TO_CONTINUE,
         reason=reason,
-        source_workflow=(session.state.current_workflow.value if session.state.current_workflow else None),
-        summary=summary or "No prior conversation summary.",
-        pending_tool=(session.state.pending_tool_name.value if session.state.pending_tool_name else None),
-    )
-    collected = dict(session.updates.get("collected_data", session.state.collected_data))
-    collected["handoff"] = context.model_dump(mode="json")
-    return AgentAction(
-        action_type=ActionType.HANDOFF,
-        message="Tôi sẽ chuyển bạn tới tổng đài viên và gửi kèm nội dung đã trao đổi.",
-        state_updates={
-            **session.updates,
-            "collected_data": collected,
-            "current_workflow": WorkflowType.HUMAN_HANDOFF,
-            "current_step": "HANDOFF_REQUIRED",
-        },
-        reason=reason,
+        state_updates=session.updates,
     )
 
 

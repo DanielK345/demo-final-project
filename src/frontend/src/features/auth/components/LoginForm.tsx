@@ -78,8 +78,8 @@ export const LoginForm: React.FC = () => {
   if (pendingToken) {
     return (
       <div className="bg-white w-full max-w-md rounded-3xl p-8 relative z-10 shadow-xl border border-slate-200 flex flex-col items-center dark:bg-[#12161A] dark:border-white/10">
-        <div className="w-14 h-14 rounded-full bg-[#00A651]/10 flex items-center justify-center mb-5">
-          <ShieldCheck className="w-7 h-7 text-[#04763B] dark:text-[#00A651]" />
+        <div className="w-14 h-14 rounded-full bg-[#00C9B7]/10 flex items-center justify-center mb-5">
+          <ShieldCheck className="w-7 h-7 text-[#008F88] dark:text-[#00C9B7]" />
         </div>
         <h1 className="text-2xl font-extrabold text-[#191C1E] dark:text-white">Xác thực 2 lớp</h1>
         <p className="text-sm text-slate-500 dark:text-slate-400 text-center mt-2">
@@ -98,7 +98,7 @@ export const LoginForm: React.FC = () => {
             className="w-full p-3 rounded-xl border border-slate-200 bg-slate-50 text-center font-mono text-lg tracking-[0.4em] dark:border-white/10 dark:bg-white/5 dark:text-white"
           />
           {error && <p role="alert" className="text-sm text-rose-600 bg-rose-50 p-3 rounded-xl dark:text-rose-300 dark:bg-rose-500/10">{error}</p>}
-          <button disabled={isLoading || twoFactorCode.length !== 6} className="w-full bg-[#00A651] hover:bg-[#04763B] disabled:opacity-60 text-white font-bold rounded-xl py-3 flex justify-center gap-2">
+          <button disabled={isLoading || twoFactorCode.length !== 6} className="w-full bg-[#00C9B7] hover:bg-[#008F88] disabled:opacity-60 text-white font-bold rounded-xl py-3 flex justify-center gap-2">
             {isLoading ? "Đang xác thực..." : "Xác nhận"}<ArrowRight className="w-5 h-5" />
           </button>
         </form>
@@ -134,11 +134,11 @@ export const LoginForm: React.FC = () => {
           <span className="relative block mt-2"><Lock className="w-5 h-5 absolute left-3 top-3 text-slate-400 dark:text-slate-500" /><input required type="password" value={password} onChange={(e) => setPassword(e.target.value)} className="w-full pl-10 p-3 rounded-xl border border-slate-200 bg-slate-50 dark:border-white/10 dark:bg-white/5 dark:text-white" /></span>
         </label>
         {error && <p role="alert" className="text-sm text-rose-600 bg-rose-50 p-3 rounded-xl dark:text-rose-300 dark:bg-rose-500/10">{error}</p>}
-        <button disabled={isLoading} className="w-full bg-[#00A651] hover:bg-[#04763B] disabled:opacity-60 text-white font-bold rounded-xl py-3 flex justify-center gap-2">
+        <button disabled={isLoading} className="w-full bg-[#00C9B7] hover:bg-[#008F88] disabled:opacity-60 text-white font-bold rounded-xl py-3 flex justify-center gap-2">
           {isLoading ? "Đang xử lý..." : isRegistering ? "Tạo tài khoản" : "Đăng nhập"}<ArrowRight className="w-5 h-5" />
         </button>
       </form>
-      <button type="button" onClick={() => { setIsRegistering(!isRegistering); setError(null); }} className="mt-6 text-sm font-semibold text-[#04763B] dark:text-[#00A651]">
+      <button type="button" onClick={() => { setIsRegistering(!isRegistering); setError(null); }} className="mt-6 text-sm font-semibold text-[#008F88] dark:text-[#00C9B7]">
         {isRegistering ? "Đã có tài khoản? Đăng nhập" : "Chưa có tài khoản? Đăng ký"}
       </button>
       {!isRegistering && <p className="mt-5 text-xs text-slate-400 dark:text-slate-500">Tài khoản demo: 0901234567 / Password123!</p>}

@@ -10,6 +10,18 @@ async def test_health(client):
 
 
 @pytest.mark.asyncio
+async def test_readiness_checks_database_without_leaking_configuration(client):
+    response = await client.get("/health/ready")
+    assert response.status_code == 503
+    payload = response.json()
+    assert payload["status"] == "not_ready"
+    assert payload["checks"]["configuration"] == "ok"
+    assert payload["checks"]["database"] == "ok"
+    assert payload["checks"]["asr"] == "failed"
+    assert payload["error_codes"] == ["ASR_NOT_READY"]
+    assert "DATABASE_URL" not in response.text
+
+@pytest.mark.asyncio
 async def test_chat_empty_message(client):
     response = await client.post(
         "/api/v1/chat",

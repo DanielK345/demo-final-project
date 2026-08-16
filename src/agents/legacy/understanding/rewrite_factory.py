@@ -1,6 +1,6 @@
-from src.agents.understanding.rewrite_base import ContextualMessageRewriter
-from src.agents.understanding.rewrite_openai import OpenAIContextualRewriteAdapter
-from src.agents.understanding.rewrite_service import (
+from src.agents.legacy.understanding.rewrite_base import ContextualMessageRewriter
+from src.agents.legacy.understanding.rewrite_openai import OpenAIContextualRewriteAdapter
+from src.agents.legacy.understanding.rewrite_service import (
     PassthroughContextualRewriter,
     ResilientContextualRewriteService,
 )

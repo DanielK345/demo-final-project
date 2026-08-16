@@ -1,8 +1,8 @@
 import re
 
-from src.agents.context import CandidateField, ConversationContext
+from src.agents.legacy.context_models import CandidateField, ConversationContext
+from src.agents.legacy.understanding.rewrite_models import RewriteDecision, RewriteReason
 from src.agents.state import ConversationRole, DeliveryStatus
-from src.agents.understanding.rewrite_models import RewriteDecision, RewriteReason
 
 _DEICTIC_PATTERN = re.compile(
     r"\b(?:ở\s+đó|chỗ\s+(?:đó|kia|này)|cái\s+(?:đó|kia|này)|nơi\s+đó)\b",

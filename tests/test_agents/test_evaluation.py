@@ -20,46 +20,9 @@ class RespondingAgent:
 async def test_behavior_evaluator_reports_offline_action_metrics():
     cases = [
         EvaluationCase(
-<<<<<<< HEAD
-            name="booking starts slot collection",
-            agent_input=AgentInput(
-                session_id="eval-booking",
-                turn_id="turn-001",
-                transcript="Tôi muốn đặt xe",
-            ),
-            expected_action_type=ActionType.ASK_USER,
-            expected_workflow=WorkflowType.RIDE_BOOKING,
-        ),
-        EvaluationCase(
-            name="booking resolves pickup",
-            agent_input=AgentInput(
-                session_id="eval-pickup",
-                turn_id="turn-001",
-                transcript="Hồ Gươm",
-            ),
-            state=AgentState(
-                session_id="eval-pickup",
-                current_workflow=WorkflowType.RIDE_BOOKING,
-                current_step="COLLECT_PICKUP",
-            ),
-            expected_action_type=ActionType.CALL_TOOL,
-            expected_workflow=WorkflowType.RIDE_BOOKING,
-            expected_tool_name=ToolName.SEARCH_PLACE,
-        ),
-        EvaluationCase(
-            name="human request handoff",
-            agent_input=AgentInput(
-                session_id="eval-handoff",
-                turn_id="turn-001",
-                transcript="Cho tôi gặp tổng đài viên",
-            ),
-            expected_action_type=ActionType.HANDOFF,
-            expected_workflow=WorkflowType.HUMAN_HANDOFF,
-=======
             name="valid response",
             agent_input=AgentInput(session_id="eval", turn_id="turn-001", transcript="Xin chào"),
             expected_action_type=ActionType.RESPOND,
->>>>>>> 86cfe2ef3e6996c4053492e822e3a2435384bcc3
         ),
     ]
 

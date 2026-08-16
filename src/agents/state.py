@@ -9,13 +9,21 @@ from src.agents.contracts.state import (
     ConversationSummary,
     DeliveryStatus,
 )
+from src.agents.contracts.state_types import (
+    ConfirmationStatus,
+    InterruptedWorkflow,
+    InterruptionReason,
+)
 
 __all__ = [
     "AgentState",
+    "ConfirmationStatus",
     "AssistantDeliveryEvent",
     "ConversationMessage",
     "ConversationMessageType",
     "ConversationRole",
     "ConversationSummary",
     "DeliveryStatus",
+    "InterruptedWorkflow",
+    "InterruptionReason",
 ]
