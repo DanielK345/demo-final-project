@@ -82,8 +82,14 @@ def _load_landmark_pickup_points() -> dict[str, tuple[dict[str, str], ...]]:
             name = point.get("name")
             address = point.get("address")
             maps_url = point.get("google_maps_url")
+            aliases = point.get("asr_aliases")
             if not isinstance(name, str) or not isinstance(address, str):
                 continue
+            cleaned_aliases = [
+                alias.strip()
+                for alias in aliases
+                if isinstance(alias, str) and alias.strip()
+            ] if isinstance(aliases, list) else []
             candidates.append(
                 {
                     "place_id": place_id_for(f"{canonical_name}:{name}:{address}"),
@@ -96,6 +102,7 @@ def _load_landmark_pickup_points() -> dict[str, tuple[dict[str, str], ...]]:
                     "city": "Hà Nội",
                     "parent_landmark": canonical_name,
                     "google_maps_url": maps_url if isinstance(maps_url, str) else "",
+                    "asr_aliases": cleaned_aliases,
                 }
             )
         if len(candidates) >= 2:

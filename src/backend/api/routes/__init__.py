@@ -67,7 +67,13 @@ async def agent_status():
         "conversation_backend": "core_agent",
         "voice_provider": voice_provider,
         "voice_stt_model": settings.voice_stt_model if voice_provider == "openai" else settings.voice_gemini_model,
-        "voice_tts_enabled": voice_provider == "openai",
+        "voice_tts_enabled": (
+            settings.voice_tts_provider == "edge"
+            or bool(settings.openai_api_key)
+        ),
+        "voice_tts_provider": settings.voice_tts_provider,
+        "voice_tts_model": settings.voice_tts_model if settings.voice_tts_provider == "openai" else "edge-tts",
+        "voice_tts_voice": settings.openai_tts_voice if settings.voice_tts_provider == "openai" else None,
     }
 
 __all__ = ["health_router", "router"]

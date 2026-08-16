@@ -6,6 +6,7 @@ import pytest
 from src.backend.services.transcript_rewriter import (
     OpenAITranscriptRewriter,
     _confirmation_surface,
+    _contextual_candidate_alias_rewrite,
     _is_context_grounded_selection,
     _mask_sensitive_values,
     _minimal_context,
@@ -29,6 +30,7 @@ def _selection_context() -> dict[str, object]:
                         {
                             "display_name": "Cổng chính VinUni",
                             "address": "Đường San Hô, Gia Lâm, Hà Nội",
+                            "asr_aliases": ["cổng thành cũng", "cổng chính Vi Ni"],
                         },
                         {
                             "display_name": "Cổng phụ VinUni",
@@ -105,6 +107,7 @@ def test_selection_context_includes_candidates_but_excludes_personal_data():
             {
                 "display_name": "Cổng chính VinUni",
                 "address": "Đường San Hô, Gia Lâm, Hà Nội",
+                "asr_aliases": ["cổng thành cũng", "cổng chính Vi Ni"],
             },
             {
                 "display_name": "Cổng phụ VinUni",
@@ -126,6 +129,44 @@ def test_large_phonetic_repair_is_allowed_only_when_grounded_in_current_candidat
 
     assert _is_context_grounded_selection(raw, candidate, _selection_context()) is True
     assert _is_context_grounded_selection(raw, candidate, None) is False
+
+
+def test_contextual_candidate_alias_only_applies_in_active_selection_state():
+    compact = _minimal_context(_selection_context())
+
+    assert _contextual_candidate_alias_rewrite("CỔNG THÀNH CŨNG", compact) == "Cổng chính VinUni"
+    assert _contextual_candidate_alias_rewrite("CỔNG THÀNH CŨNG", {}) is None
+    assert _contextual_candidate_alias_rewrite("không chọn cổng thành cũng", compact) is None
+
+
+@pytest.mark.asyncio
+async def test_contextual_alias_overrides_wrong_llm_candidate_selection():
+    client = _FakeClient(
+        _RewriteOutput(
+            normalized_text="Cổng phụ VinUni",
+            meaning_preserved=True,
+            requires_clarification=False,
+            confidence=0.97,
+            change_types=["spelling", "domain_term"],
+        )
+    )
+    rewriter = OpenAITranscriptRewriter(
+        api_key="",
+        model="rewrite-test",
+        timeout_seconds=1,
+        client=client,
+    )
+
+    result = await rewriter.rewrite(
+        "CỔNG THÀNH CŨNG",
+        session_context=_selection_context(),
+        session_id="sess-test",
+    )
+
+    assert result.applied is True
+    assert result.normalized_text == "Cổng chính VinUni"
+    assert result.reason == "contextual_candidate_alias"
+    assert result.confidence == 1.0
 
 
 @pytest.mark.asyncio

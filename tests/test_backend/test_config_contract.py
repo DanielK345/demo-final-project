@@ -7,6 +7,7 @@ def test_openai_and_edge_tts_voice_environment_names_are_unambiguous() -> None:
     voice = VoiceSettings(_env_file=None, VOICE_TTS_PRIMARY_VOICE="vi-VN-NamMinhNeural")
 
     assert backend.voice_tts_voice == "echo"
+    assert backend.voice_tts_provider == "openai"
     assert voice.voice_tts_primary_voice == "vi-VN-NamMinhNeural"
 
 

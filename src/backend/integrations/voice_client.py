@@ -10,6 +10,10 @@ from openai import AsyncOpenAI, OpenAIError
 
 from src.backend.config import Settings, get_settings
 from src.voice.schemas import TTSResult
+from src.voice.tts.errors import TTSError, TTSErrorCode
+from src.voice.tts.formatter import format_for_speech, sanitize_for_speech
+from src.voice.tts.output_review import DeterministicTTSOutputReviewer, OutputDecision
+from src.voice.tts.pronunciation import apply_pronunciation_overrides
 
 logger = logging.getLogger("uvicorn.error")
 
@@ -100,35 +104,53 @@ class OpenAIVoiceClient:
 async def synthesize_with_openai_tts(
     text: str,
     settings: Settings | None = None,
+    *,
+    fallback_used: bool = False,
+    review_context: dict[str, object] | None = None,
 ) -> TTSResult:
-    """Last server-side TTS fallback after Edge voices are unavailable.
+    """Synthesize speech with OpenAI as either the primary or fallback provider.
 
     This deliberately uses the OpenAI speech endpoint, not Whisper: Whisper is
     speech-to-text and cannot generate the agent's spoken response.
     """
     config = settings or get_settings()
     if not config.openai_api_key:
-        raise VoiceProviderError("OPENAI_API_KEY is required for OpenAI TTS fallback")
+        raise VoiceProviderError("OPENAI_API_KEY is required for OpenAI TTS")
+
+    review = DeterministicTTSOutputReviewer(max_chars=2000).review(
+        text,
+        context=review_context,
+    )
+    if review.decision is OutputDecision.BLOCK:
+        raise TTSError(
+            TTSErrorCode.OUTPUT_BLOCKED,
+            "TTS output was blocked",
+            status_code=422,
+        )
+    spoken_text = sanitize_for_speech(
+        format_for_speech(apply_pronunciation_overrides(review.approved_text))
+    )
 
     client = AsyncOpenAI(api_key=config.openai_api_key, max_retries=0)
     try:
         response = await client.audio.speech.create(
             model=config.voice_tts_model,
             voice=config.openai_tts_voice,
-            input=text,
+            input=spoken_text,
             response_format="mp3",
             timeout=config.voice_timeout_seconds,
         )
         audio = await response.aread()
     except OpenAIError as exc:
-        raise VoiceProviderError("OpenAI TTS fallback failed") from exc
+        raise VoiceProviderError("OpenAI TTS failed") from exc
     if not audio:
-        raise VoiceProviderError("OpenAI TTS fallback returned empty audio")
+        raise VoiceProviderError("OpenAI TTS returned empty audio")
 
     logger.info(
-        "OpenAI TTS fallback succeeded model=%s voice=%s",
+        "OpenAI TTS succeeded model=%s voice=%s fallback=%s",
         config.voice_tts_model,
         config.openai_tts_voice,
+        fallback_used,
     )
     return TTSResult(
         audio=audio,
@@ -136,7 +158,10 @@ async def synthesize_with_openai_tts(
         text=text,
         provider="openai",
         voice=config.openai_tts_voice,
-        fallback_used=True,
+        fallback_used=fallback_used,
+        review_decision=review.decision.value,
+        review_reason_codes=review.reason_codes,
+        spoken_text=spoken_text,
     )
 
 

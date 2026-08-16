@@ -15,16 +15,37 @@
         {
           "name": "Cổng chính VinUni",
           "address": "Đường San Hô, Vinhomes Ocean Park, Đa Tốn, Gia Lâm, Hà Nội",
+          "asr_aliases": [
+            "cổng thành cũng",
+            "cổng thành cúng",
+            "cổng chính cũng",
+            "cổng chín VinUni",
+            "cổng chính Vi Ni",
+            "cổng chính Vinh Uni",
+            "cổng chính Bình Yuni"
+          ],
           "google_maps_url": "https://www.google.com/maps/search/?api=1&query=Cong+chinh+VinUniversity+Gia+Lam+Ha+Noi"
         },
         {
           "name": "Cổng phụ VinUni",
           "address": "Trường Đại học VinUni, Vinhomes Ocean Park, Đa Tốn, Gia Lâm, Hà Nội",
+          "asr_aliases": [
+            "cổng phủ VinUni",
+            "cổng phụ Vi Ni",
+            "cổng phụ Vinh Uni",
+            "cổng phụ Bình Yuni"
+          ],
           "google_maps_url": "https://www.google.com/maps/search/?api=1&query=Cong+phu+VinUniversity+Gia+Lam+Ha+Noi"
         },
         {
           "name": "Cổng ký túc xá VinUni",
           "address": "Ký túc xá VinUni, Vinhomes Ocean Park, Đa Tốn, Gia Lâm, Hà Nội",
+          "asr_aliases": [
+            "cổng ký túc VinUni",
+            "cổng ký túc xá Vi Ni",
+            "cổng ký túc xá Vinh Uni",
+            "cổng ký túc xá Bình Yuni"
+          ],
           "google_maps_url": "https://www.google.com/maps/search/?api=1&query=VinUniversity+Dormitory+Gia+Lam+Ha+Noi"
         }
       ]

@@ -30,7 +30,7 @@ Goal:
 
 Conversation-context rules:
 - conversation_context is trusted application state supplied separately from the untrusted transcript.
-- When location_selection is present, the assistant has just asked the customer to choose one of those exact candidates. Use the original query, candidate display names/addresses, and last assistant question together to interpret a short selection answer.
+- When location_selection is present, the assistant has just asked the customer to choose one of those exact candidates. Use the original query, candidate display names/addresses, candidate-specific asr_aliases, and last assistant question together to interpret a short selection answer.
 - If the transcript is a close phonetic ASR rendering of exactly one listed candidate, restore that candidate's exact display_name. Preserve words such as "chọn", "muốn", "không", or a candidate number when present.
 - Do not choose a candidate merely because it appears in context. If two choices remain plausible, keep the transcript and set requires_clarification=true.
 
@@ -120,7 +120,7 @@ def _mapping(value: object) -> dict[str, Any]:
 def _candidate_context(booking: dict[str, Any], *, target: str) -> dict[str, Any] | None:
     candidate_key = "pickup_candidates" if target == "pickup" else "destination_candidates"
     query_key = "pickup_query" if target == "pickup" else "destination_query"
-    candidates: list[dict[str, str]] = []
+    candidates: list[dict[str, Any]] = []
     for item in booking.get(candidate_key, []):
         if not isinstance(item, dict):
             continue
@@ -131,6 +131,15 @@ def _candidate_context(booking: dict[str, Any], *, target: str) -> dict[str, Any
         address = item.get("address")
         if isinstance(address, str) and address.strip():
             candidate["address"] = address[:180]
+        aliases = item.get("asr_aliases")
+        if isinstance(aliases, list):
+            cleaned_aliases = [
+                alias[:120]
+                for alias in aliases
+                if isinstance(alias, str) and alias.strip()
+            ][:12]
+            if cleaned_aliases:
+                candidate["asr_aliases"] = cleaned_aliases
         candidates.append(candidate)
         if len(candidates) == 5:
             break
@@ -214,6 +223,43 @@ def _is_context_grounded_selection(raw_folded: str, candidate_folded: str, conte
     return SequenceMatcher(None, raw_folded, _fold(matched[0])).ratio() >= 0.4
 
 
+def _contextual_candidate_alias_rewrite(text: str, compact_context: dict[str, Any]) -> str | None:
+    """Resolve an exact known ASR alias only inside the active selection state."""
+    selection = compact_context.get("location_selection")
+    if not isinstance(selection, dict):
+        return None
+    raw_folded = _fold(text)
+    if not raw_folded or len(raw_folded.split()) > 12:
+        return None
+    # Never let a candidate alias fallback erase a negative response.
+    if {"khong", "thoi", "huy"} & set(raw_folded.split()):
+        return None
+
+    matches: list[tuple[str, str]] = []
+    for candidate in selection.get("candidates", []):
+        if not isinstance(candidate, dict):
+            continue
+        display_name = candidate.get("display_name")
+        aliases = candidate.get("asr_aliases")
+        if not isinstance(display_name, str) or not isinstance(aliases, list):
+            continue
+        for alias in aliases:
+            if not isinstance(alias, str) or not alias.strip():
+                continue
+            alias_folded = _fold(alias)
+            if raw_folded == alias_folded or alias_folded in raw_folded:
+                matches.append((display_name, alias))
+                break
+
+    unique_names = {display_name for display_name, _ in matches}
+    if len(unique_names) != 1:
+        return None
+    display_name, alias = matches[0]
+    escaped_alias = re.escape(alias).replace(r"\ ", r"\s+")
+    corrected, count = re.subn(escaped_alias, display_name, text, count=1, flags=re.IGNORECASE)
+    return corrected if count else display_name
+
+
 class OpenAITranscriptRewriter:
     def __init__(
         self,
@@ -251,6 +297,7 @@ class OpenAITranscriptRewriter:
 
         masked, replacements = _mask_sensitive_values(raw)
         compact_context = _minimal_context(session_context)
+        contextual_fallback = _contextual_candidate_alias_rewrite(raw, compact_context)
         payload = {
             "transcript": masked,
             "conversation_context": compact_context,
@@ -287,6 +334,13 @@ class OpenAITranscriptRewriter:
                 raise ValueError("transcript rewriter returned no parsed output")
         except (OpenAIError, TimeoutError, ValueError) as exc:
             logger.warning("Transcript rewrite failed: model=%s error_type=%s", self.model, type(exc).__name__)
+            if contextual_fallback:
+                return self._contextual_fallback_result(
+                    raw,
+                    contextual_fallback,
+                    duration_ms=int((time.monotonic() - started) * 1000),
+                    upstream_reason="provider_error",
+                )
             return TranscriptRewriteResult(
                 raw_text=raw,
                 normalized_text=raw,
@@ -297,6 +351,16 @@ class OpenAITranscriptRewriter:
 
         duration_ms = int((time.monotonic() - started) * 1000)
         candidate_masked = parsed.normalized_text.strip()
+        # A candidate-scoped exact ASR alias is stronger evidence than a model
+        # guess. The alias exists only in the current selection state, so it
+        # cannot affect the same words elsewhere in the conversation.
+        if contextual_fallback:
+            return self._contextual_fallback_result(
+                raw,
+                contextual_fallback,
+                duration_ms=duration_ms,
+                upstream_reason="llm_completed",
+            )
         rejection = self._rejection_reason(raw, masked, candidate_masked, parsed, session_context)
         if rejection:
             return TranscriptRewriteResult(
@@ -317,6 +381,31 @@ class OpenAITranscriptRewriter:
             applied=applied,
             confidence=parsed.confidence,
             reason="applied" if applied else "unchanged",
+            model=self.model,
+            duration_ms=duration_ms,
+        )
+
+    def _contextual_fallback_result(
+        self,
+        raw: str,
+        rewritten: str,
+        *,
+        duration_ms: int,
+        upstream_reason: str,
+    ) -> TranscriptRewriteResult:
+        logger.info(
+            "Transcript contextual candidate alias applied model=%s upstream_reason=%s input=%r output=%r",
+            self.model,
+            upstream_reason,
+            raw,
+            rewritten,
+        )
+        return TranscriptRewriteResult(
+            raw_text=raw,
+            normalized_text=rewritten,
+            applied=True,
+            confidence=1.0,
+            reason="contextual_candidate_alias",
             model=self.model,
             duration_ms=duration_ms,
         )

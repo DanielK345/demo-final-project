@@ -172,31 +172,11 @@ class VoiceService:
         reply_text = str(agent_result["message"])
 
         booking_confirmed = (agent_result.get("state") or {}).get("booking_lifecycle_status") == "SUCCESS"
-        try:
-            tts_result = await get_tts_orchestrator().synthesize(
-                reply_text,
-                review_context={"booking_confirmed": booking_confirmed, "action": agent_result.get("action")},
-            )
-        except TTSError as edge_error:
-            if edge_error.status_code != 503:
-                raise
-            logger.warning(
-                "Edge TTS unavailable session=%s code=%s; trying OpenAI TTS fallback",
-                session_id,
-                edge_error.code,
-            )
-            try:
-                tts_result = await synthesize_with_openai_tts(reply_text, self.settings)
-            except VoiceProviderError as fallback_error:
-                # The agent turn already succeeded. Do not turn it into a 503 or
-                # lose the conversation state merely because every TTS backend
-                # is unavailable; the UI can use browser speech synthesis.
-                logger.warning(
-                    "All server TTS providers unavailable session=%s fallback_error_type=%s; returning text-only",
-                    session_id,
-                    type(fallback_error).__name__,
-                )
-                tts_result = None
+        tts_result = await self._synthesize_reply(
+            session_id,
+            reply_text,
+            review_context={"booking_confirmed": booking_confirmed, "action": agent_result.get("action")},
+        )
 
         audio_base64 = base64.b64encode(tts_result.audio).decode("ascii") if tts_result else None
         if tts_result:
@@ -231,6 +211,80 @@ class VoiceService:
             "tts_review_decision": tts_result.review_decision if tts_result else None,
             "tts_review_reason_codes": tts_result.review_reason_codes if tts_result else [],
         }
+
+    async def _synthesize_reply(
+        self,
+        session_id: str,
+        reply_text: str,
+        *,
+        review_context: dict[str, object],
+    ):
+        """Use configured primary TTS and keep the successful agent turn on failure."""
+        orchestrator = get_tts_orchestrator()
+        if self.settings.voice_tts_provider == "openai" and self.settings.openai_api_key:
+            try:
+                return await synthesize_with_openai_tts(
+                    reply_text,
+                    self.settings,
+                    fallback_used=False,
+                    review_context=review_context,
+                )
+            except VoiceProviderError as openai_error:
+                logger.warning(
+                    "OpenAI TTS primary failed session=%s error_type=%s; trying Edge fallback",
+                    session_id,
+                    type(openai_error).__name__,
+                )
+                try:
+                    result = await orchestrator.synthesize(
+                        reply_text,
+                        review_context=review_context,
+                    )
+                    result.fallback_used = True
+                    return result
+                except TTSError as edge_error:
+                    return self._text_only_after_tts_failure(session_id, edge_error)
+
+        if self.settings.voice_tts_provider == "openai":
+            logger.warning(
+                "OPENAI_API_KEY is missing; using Edge TTS fallback session=%s",
+                session_id,
+            )
+        try:
+            return await orchestrator.synthesize(
+                reply_text,
+                review_context=review_context,
+            )
+        except TTSError as edge_error:
+            if edge_error.status_code != 503 or not self.settings.openai_api_key:
+                if edge_error.status_code != 503:
+                    raise
+                return self._text_only_after_tts_failure(session_id, edge_error)
+            logger.warning(
+                "Edge TTS unavailable session=%s code=%s; trying OpenAI TTS fallback",
+                session_id,
+                edge_error.code,
+            )
+            try:
+                return await synthesize_with_openai_tts(
+                    reply_text,
+                    self.settings,
+                    fallback_used=True,
+                    review_context=review_context,
+                )
+            except VoiceProviderError as openai_error:
+                return self._text_only_after_tts_failure(session_id, openai_error)
+
+    @staticmethod
+    def _text_only_after_tts_failure(session_id: str, error: Exception):
+        # The agent turn already succeeded. Do not lose conversation state merely
+        # because every server TTS backend is unavailable; the UI can speak locally.
+        logger.warning(
+            "All server TTS providers unavailable session=%s error_type=%s; returning text-only",
+            session_id,
+            type(error).__name__,
+        )
+        return None
 
     async def _rewrite(
         self,

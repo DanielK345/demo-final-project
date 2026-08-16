@@ -35,6 +35,7 @@ def test_hanoi_gazetteer_requires_specific_vinuni_and_ho_guom_points():
     assert all(item["provider"] == "local_landmark_mock" for item in pickup + destination)
     assert all(item["parent_landmark"] in {"VinUni", "Hồ Gươm"} for item in pickup + destination)
     assert all(item["address"] and item["google_maps_url"] for item in pickup + destination)
+    assert "cổng thành cũng" in pickup[0]["asr_aliases"]
 
 
 def test_hanoi_gazetteer_resolves_known_aliases_to_canonical_places():

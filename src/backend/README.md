@@ -69,7 +69,9 @@ rollback và integration test.
 `src/backend/config.py` đọc `.env`; contract mẫu duy nhất là `.env.example`.
 Credential LLM và Speech phải tách riêng. Đặc biệt:
 
-- `VOICE_OPENAI_TTS_VOICE`: giọng OpenAI Speech của `/voice/turn`.
+- `VOICE_TTS_PROVIDER`: provider chính của `/voice/turn` (`openai` mặc định, `edge` để quay lại Edge-TTS).
+- `VOICE_TTS_MODEL`: model OpenAI Speech (`tts-1` mặc định, tối ưu độ trễ).
+- `VOICE_OPENAI_TTS_VOICE`: giọng OpenAI Speech của `/voice/turn` (`nova` mặc định).
 - `VOICE_TTS_PRIMARY_VOICE`: giọng Voice TTS orchestrator.
 - `OPENROUTER_API_KEY` không thay `OPENAI_API_KEY` cho Speech.
 
