@@ -16,6 +16,7 @@ import {
   playAudioBlob,
   playBase64Audio,
   sendVoiceTurn,
+  speakWithBrowserTts,
   stopVoicePlayback,
   synthesizeSpeech,
 } from "@/features/voice/api";
@@ -133,6 +134,7 @@ export const VoiceAssistantProvider: React.FC<{ children: React.ReactNode }> = (
     audioBase64?: string | null,
     audioMimeType?: string,
     reviewContext?: { bookingConfirmed?: boolean; action?: string },
+    serverTtsUnavailable = false,
   ) => {
     if (isMutedRef.current) return;
     setStatus("speaking");
@@ -144,11 +146,21 @@ export const VoiceAssistantProvider: React.FC<{ children: React.ReactNode }> = (
         setNotice("Audio phản hồi lỗi, hệ thống đang tổng hợp lại bằng giọng dự phòng.");
       }
     }
-    const synthesized = await synthesizeSpeech(text, reviewContext);
-    if (synthesized.fallbackUsed) {
-      setNotice(`Đang sử dụng giọng dự phòng ${synthesized.voice}.`);
+    if (serverTtsUnavailable) {
+      setNotice("Máy chủ giọng nói đang bận, đang dùng giọng đọc dự phòng của trình duyệt.");
+      await speakWithBrowserTts(text);
+      return;
     }
-    await playAudioBlob(synthesized.blob);
+    try {
+      const synthesized = await synthesizeSpeech(text, reviewContext);
+      if (synthesized.fallbackUsed) {
+        setNotice(`Đang sử dụng giọng dự phòng ${synthesized.voice}.`);
+      }
+      await playAudioBlob(synthesized.blob);
+    } catch {
+      setNotice("Máy chủ giọng nói đang bận, đang dùng giọng đọc dự phòng của trình duyệt.");
+      await speakWithBrowserTts(text);
+    }
   }, []);
 
   const sendText = useCallback(
@@ -202,7 +214,7 @@ export const VoiceAssistantProvider: React.FC<{ children: React.ReactNode }> = (
         await speakReply(result.message, result.audio_base64, result.audio_mime_type, {
           bookingConfirmed: result.state?.booking_lifecycle_status === "SUCCESS",
           action: result.action,
-        });
+        }, result.tts_provider === "unavailable");
         setStatus("idle");
       } catch (error) {
         setStatus("error");

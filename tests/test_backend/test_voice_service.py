@@ -3,9 +3,10 @@ from __future__ import annotations
 import pytest
 
 from src.backend.config import Settings
-from src.backend.integrations.voice_client import NoSpeechDetectedError
+from src.backend.integrations.voice_client import NoSpeechDetectedError, VoiceProviderError
 from src.backend.services.voice_service import VoiceService
 from src.voice.text.rewrite_contract import TranscriptRewriteResult
+from src.voice.tts.errors import TTSError, TTSErrorCode
 
 
 class _SessionService:
@@ -36,6 +37,20 @@ class _AliasClient:
         return "Đón tôi ở Bình Yuni rồi đi Hồ Cương"
 
 
+class _FailingSttClient:
+    async def transcribe(self, *args: object, **kwargs: object) -> str:
+        raise VoiceProviderError("primary STT unavailable")
+
+
+class _WhisperClient:
+    def __init__(self) -> None:
+        self.calls = 0
+
+    async def transcribe(self, *args: object, **kwargs: object) -> str:
+        self.calls += 1
+        return "Cho tôi đi từ VinUni tới Hồ Gươm"
+
+
 class _CapturingSessionService:
     def __init__(self) -> None:
         self.messages: list[str] = []
@@ -62,6 +77,17 @@ class _TtsResult:
 class _Tts:
     async def synthesize(self, *args: object, **kwargs: object) -> _TtsResult:
         return _TtsResult()
+
+
+class _FailingTts:
+    async def synthesize(self, *args: object, **kwargs: object) -> _TtsResult:
+        raise TTSError(TTSErrorCode.UNAVAILABLE, "Edge unavailable")
+
+
+class _OpenAITtsResult(_TtsResult):
+    provider = "openai"
+    voice = "nova"
+    fallback_used = True
 
 
 def _service() -> VoiceService:
@@ -118,3 +144,77 @@ async def test_known_place_alias_is_corrected_before_agent(monkeypatch: pytest.M
     assert result["transcript_rewritten"] is True
     assert result["transcript_rewrite_reason"] == "alias_catalog_applied"
     assert result["transcript_rewrite"]["provider"] == "alias_catalog"
+
+
+@pytest.mark.asyncio
+async def test_failed_primary_stt_falls_back_to_openai_whisper(monkeypatch: pytest.MonkeyPatch) -> None:
+    session_service = _CapturingSessionService()
+    service = VoiceService(
+        session_service=session_service,
+        settings=Settings(_env_file=None, OPENAI_API_KEY="test-key"),
+        transcript_rewriter=_IdentityRewriter(),
+    )
+    whisper = _WhisperClient()
+    monkeypatch.setattr("src.backend.services.voice_service.resolve_voice_provider", lambda _: "zipformer")
+    monkeypatch.setattr("src.backend.services.voice_service.build_voice_client", lambda _: _FailingSttClient())
+    monkeypatch.setattr(
+        "src.backend.services.voice_service.OpenAIVoiceClient",
+        lambda *args, **kwargs: whisper,
+    )
+    monkeypatch.setattr("src.backend.services.voice_service.get_tts_orchestrator", lambda: _Tts())
+
+    result = await service.process_turn("sess_test", b"audio")
+
+    assert whisper.calls == 1
+    assert result["voice_provider"] == "openai:whisper-1"
+    assert session_service.messages == ["Cho tôi đi từ VinUni tới Hồ Gươm"]
+
+
+@pytest.mark.asyncio
+async def test_edge_tts_503_falls_back_to_openai_tts(monkeypatch: pytest.MonkeyPatch) -> None:
+    session_service = _CapturingSessionService()
+    service = VoiceService(
+        session_service=session_service,
+        settings=Settings(_env_file=None, OPENAI_API_KEY="test-key"),
+        transcript_rewriter=_IdentityRewriter(),
+    )
+    monkeypatch.setattr("src.backend.services.voice_service.resolve_voice_provider", lambda _: "openai")
+    monkeypatch.setattr("src.backend.services.voice_service.build_voice_client", lambda _: _AliasClient())
+    monkeypatch.setattr("src.backend.services.voice_service.get_tts_orchestrator", lambda: _FailingTts())
+
+    async def openai_fallback(*args: object, **kwargs: object) -> _OpenAITtsResult:
+        return _OpenAITtsResult()
+
+    monkeypatch.setattr("src.backend.services.voice_service.synthesize_with_openai_tts", openai_fallback)
+
+    result = await service.process_turn("sess_test", b"audio")
+
+    assert result["audio_base64"] == "YXVkaW8="
+    assert result["tts_provider"] == "openai"
+    assert result["tts_voice"] == "nova"
+    assert result["tts_fallback_used"] is True
+
+
+@pytest.mark.asyncio
+async def test_all_tts_failures_return_successful_text_turn(monkeypatch: pytest.MonkeyPatch) -> None:
+    session_service = _CapturingSessionService()
+    service = VoiceService(
+        session_service=session_service,
+        settings=Settings(_env_file=None, OPENAI_API_KEY="test-key"),
+        transcript_rewriter=_IdentityRewriter(),
+    )
+    monkeypatch.setattr("src.backend.services.voice_service.resolve_voice_provider", lambda _: "openai")
+    monkeypatch.setattr("src.backend.services.voice_service.build_voice_client", lambda _: _AliasClient())
+    monkeypatch.setattr("src.backend.services.voice_service.get_tts_orchestrator", lambda: _FailingTts())
+
+    async def failed_openai_fallback(*args: object, **kwargs: object) -> _OpenAITtsResult:
+        raise VoiceProviderError("OpenAI TTS unavailable")
+
+    monkeypatch.setattr("src.backend.services.voice_service.synthesize_with_openai_tts", failed_openai_fallback)
+
+    result = await service.process_turn("sess_test", b"audio")
+
+    assert result["message"] == "Bạn muốn đi xe gì?"
+    assert result["audio_base64"] is None
+    assert result["tts_provider"] == "unavailable"
+    assert result["tts_fallback_used"] is True

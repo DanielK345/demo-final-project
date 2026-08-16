@@ -165,6 +165,29 @@ export function playBase64Audio(base64: string, mimeType: string): Promise<void>
   }
 }
 
+export function speakWithBrowserTts(text: string): Promise<void> {
+  if (!("speechSynthesis" in window) || !("SpeechSynthesisUtterance" in window)) {
+    return Promise.reject(new Error("Trình duyệt không hỗ trợ giọng đọc dự phòng"));
+  }
+
+  stopActiveAudio();
+  window.speechSynthesis.cancel();
+  const utterance = new SpeechSynthesisUtterance(text);
+  utterance.lang = "vi-VN";
+  utterance.rate = 1;
+  const vietnameseVoice = window.speechSynthesis
+    .getVoices()
+    .find((voice) => voice.lang.toLowerCase().startsWith("vi"));
+  if (vietnameseVoice) utterance.voice = vietnameseVoice;
+
+  return new Promise((resolve, reject) => {
+    utterance.onend = () => resolve();
+    utterance.onerror = () => reject(new Error("Giọng đọc dự phòng của trình duyệt bị lỗi"));
+    window.speechSynthesis.speak(utterance);
+  });
+}
+
 export function stopVoicePlayback(): void {
   stopActiveAudio();
+  if ("speechSynthesis" in window) window.speechSynthesis.cancel();
 }

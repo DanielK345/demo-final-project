@@ -52,6 +52,9 @@ class Settings(BaseSettings):
     )
     voice_provider: Literal["auto", "openai", "gemini", "zipformer"] = "auto"
     voice_stt_model: str = "gpt-4o-transcribe"
+    # Used only after the configured/local STT provider is unavailable. Whisper
+    # is an STT model, so it must never be used as a fallback for Edge TTS.
+    voice_stt_fallback_model: str = "whisper-1"
     voice_tts_model: str = "tts-1"
     # Tên riêng cho giọng OpenAI của pipeline `/voice/turn`. Không nhận alias
     # `VOICE_TTS_VOICE`: tên legacy đó thuộc Voice runtime Edge-TTS và từng làm

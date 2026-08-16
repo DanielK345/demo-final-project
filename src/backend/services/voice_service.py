@@ -6,9 +6,11 @@ from uuid import uuid4
 
 from src.backend.integrations.voice_client import (
     NoSpeechDetectedError,
+    OpenAIVoiceClient,
     VoiceProviderError,
     build_voice_client,
     resolve_voice_provider,
+    synthesize_with_openai_tts,
 )
 from src.backend.services.session_service import SessionService
 from src.backend.services.transcript_rewriter import build_transcript_rewriter
@@ -19,6 +21,7 @@ from src.voice.text.gazetteer import Gazetteer
 from src.voice.text.normalizer import normalize_transcript
 from src.voice.text.place_aliases import PlaceAliasCatalog
 from src.voice.text.rewrite_contract import TranscriptRewriter, TranscriptRewriteResult
+from src.voice.tts.errors import TTSError
 from src.voice.tts.orchestrator import get_tts_orchestrator
 
 logger = logging.getLogger("uvicorn.error")
@@ -49,8 +52,18 @@ class VoiceService:
         if not audio_bytes:
             raise VoiceProviderError("Audio recording is empty")
 
-        provider_name = resolve_voice_provider(self.settings)
-        voice_client = build_voice_client(self.settings)
+        try:
+            provider_name = resolve_voice_provider(self.settings)
+            voice_client = build_voice_client(self.settings)
+        except VoiceProviderError:
+            if not self.settings.openai_api_key:
+                raise
+            provider_name = f"openai:{self.settings.voice_stt_fallback_model}"
+            voice_client = OpenAIVoiceClient(
+                self.settings,
+                transcription_model=self.settings.voice_stt_fallback_model,
+            )
+            logger.warning("Primary STT unavailable; using fallback provider=%s", provider_name)
         try:
             raw_transcript = await voice_client.transcribe(
                 audio_bytes,
@@ -60,6 +73,35 @@ class VoiceService:
         except NoSpeechDetectedError:
             logger.info("Voice STT returned no speech session=%s provider=%s", session_id, provider_name)
             return self._reprompt_response(provider_name, reason="no_speech_detected")
+        except VoiceProviderError as primary_error:
+            if provider_name.startswith("openai") or not self.settings.openai_api_key:
+                raise
+            fallback_model = self.settings.voice_stt_fallback_model
+            logger.warning(
+                "Voice STT failed session=%s provider=%s error_type=%s; falling back to OpenAI model=%s",
+                session_id,
+                provider_name,
+                type(primary_error).__name__,
+                fallback_model,
+            )
+            fallback_client = OpenAIVoiceClient(self.settings, transcription_model=fallback_model)
+            try:
+                raw_transcript = await fallback_client.transcribe(
+                    audio_bytes,
+                    mime_type=mime_type or "audio/webm",
+                    prompt_hint=self.gazetteer.as_prompt_hint(),
+                )
+            except NoSpeechDetectedError:
+                logger.info(
+                    "Voice fallback STT returned no speech session=%s provider=openai model=%s",
+                    session_id,
+                    fallback_model,
+                )
+                return self._reprompt_response(
+                    f"openai:{fallback_model}",
+                    reason="no_speech_detected",
+                )
+            provider_name = f"openai:{fallback_model}"
 
         logger.info(
             "Voice transcript input session=%s provider=%s transcript=%r",
@@ -124,19 +166,42 @@ class VoiceService:
         reply_text = str(agent_result["message"])
 
         booking_confirmed = (agent_result.get("state") or {}).get("booking_lifecycle_status") == "SUCCESS"
-        tts_result = await get_tts_orchestrator().synthesize(
-            reply_text,
-            review_context={"booking_confirmed": booking_confirmed, "action": agent_result.get("action")},
-        )
-        audio_base64 = base64.b64encode(tts_result.audio).decode("ascii")
-        logger.info(
-            "Voice TTS used session=%s provider=%s voice=%s fallback=%s duration_ms=%s",
-            session_id,
-            tts_result.provider,
-            tts_result.voice,
-            tts_result.fallback_used,
-            tts_result.duration_ms,
-        )
+        try:
+            tts_result = await get_tts_orchestrator().synthesize(
+                reply_text,
+                review_context={"booking_confirmed": booking_confirmed, "action": agent_result.get("action")},
+            )
+        except TTSError as edge_error:
+            if edge_error.status_code != 503:
+                raise
+            logger.warning(
+                "Edge TTS unavailable session=%s code=%s; trying OpenAI TTS fallback",
+                session_id,
+                edge_error.code,
+            )
+            try:
+                tts_result = await synthesize_with_openai_tts(reply_text, self.settings)
+            except VoiceProviderError as fallback_error:
+                # The agent turn already succeeded. Do not turn it into a 503 or
+                # lose the conversation state merely because every TTS backend
+                # is unavailable; the UI can use browser speech synthesis.
+                logger.warning(
+                    "All server TTS providers unavailable session=%s fallback_error_type=%s; returning text-only",
+                    session_id,
+                    type(fallback_error).__name__,
+                )
+                tts_result = None
+
+        audio_base64 = base64.b64encode(tts_result.audio).decode("ascii") if tts_result else None
+        if tts_result:
+            logger.info(
+                "Voice TTS used session=%s provider=%s voice=%s fallback=%s duration_ms=%s",
+                session_id,
+                tts_result.provider,
+                tts_result.voice,
+                tts_result.fallback_used,
+                tts_result.duration_ms,
+            )
 
         return {
             "transcript": transcript,
@@ -151,14 +216,14 @@ class VoiceService:
             "state": agent_result.get("state", {}),
             "booking": agent_result.get("booking"),
             "audio_base64": audio_base64,
-            "audio_mime_type": tts_result.mime_type,
+            "audio_mime_type": tts_result.mime_type if tts_result else "audio/mpeg",
             "voice_provider": provider_name,
-            "tts_provider": tts_result.provider,
-            "tts_voice": tts_result.voice,
-            "tts_fallback_used": tts_result.fallback_used,
-            "tts_duration_ms": tts_result.duration_ms,
-            "tts_review_decision": tts_result.review_decision,
-            "tts_review_reason_codes": tts_result.review_reason_codes,
+            "tts_provider": tts_result.provider if tts_result else "unavailable",
+            "tts_voice": tts_result.voice if tts_result else None,
+            "tts_fallback_used": tts_result.fallback_used if tts_result else True,
+            "tts_duration_ms": tts_result.duration_ms if tts_result else None,
+            "tts_review_decision": tts_result.review_decision if tts_result else None,
+            "tts_review_reason_codes": tts_result.review_reason_codes if tts_result else [],
         }
 
     async def _rewrite(
