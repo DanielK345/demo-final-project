@@ -230,6 +230,7 @@ Khi thay đổi contract/runtime:
 - ZipFormer ASR: `RELEASE_GATED`.
 - Transcript rewrite: `STAGING_ONLY`, đã live validate nhưng cần key rotation/data approval.
 - TTS: `RELEASE_GATED`, đã có orchestrator/live technical validation.
-- Telephony, maps business truth, production DB, payment: `EXTERNAL_BLOCKED`.
+- Supabase connectivity/migration: `LIVE_VALIDATED`; service repository wiring vẫn là internal `STAGING_ONLY`.
+- Telephony, maps business truth, backup/PITR/retention, Redis decision và payment: `EXTERNAL_BLOCKED`.
 
 Các blocker chi tiết và cách verify nằm duy nhất trong `mustdo.md`.

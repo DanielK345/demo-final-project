@@ -20,12 +20,12 @@ def _error(request_id: str, exc: ZipformerASRError) -> JSONResponse:
     return JSONResponse(status_code=exc.status_code, content=payload.model_dump(mode="json"))
 
 
-@router.get("/health/live")
+@router.get("/asr/health/live")
 async def asr_liveness() -> dict[str, str]:
     return {"status": "alive"}
 
 
-@router.get("/health/ready")
+@router.get("/asr/health/ready")
 async def asr_readiness() -> Response:
     service = get_zipformer_service()
     payload = {

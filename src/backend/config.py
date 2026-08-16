@@ -84,6 +84,24 @@ class Settings(BaseSettings):
     # cổng 5432, driver sync psycopg2) — để trống thì Alembic dùng lại DATABASE_URL.
     database_url: str = "sqlite:///./data/app.db"
     database_url_migrations: str = ""
+    database_readiness_timeout_seconds: float = Field(default=2.0, gt=0, le=30)
+
+    def production_readiness_errors(self) -> list[str]:
+        """Return safe configuration error codes; never include secret values."""
+        if self.app_env != "production":
+            return []
+        # Auth/session/settings/booking/trip/handoff services still use process-memory.
+        # Keep production fail-closed until typed repositories and restart/multi-instance
+        # integration tests are wired; no environment flag may bypass this code gate.
+        errors: list[str] = ["DURABLE_SERVICE_PERSISTENCE_REQUIRED"]
+        if not self.database_url.startswith(("postgres://", "postgresql://", "postgresql+asyncpg://")):
+            errors.append("DATABASE_URL_MUST_BE_POSTGRES")
+        if not self.database_url_migrations.startswith(("postgres://", "postgresql://", "postgresql+psycopg2://")):
+            errors.append("DATABASE_URL_MIGRATIONS_REQUIRED")
+        origins = {origin.strip() for origin in self.cors_origins.split(",") if origin.strip()}
+        if not origins or "*" in origins:
+            errors.append("CORS_ORIGINS_MUST_BE_EXPLICIT")
+        return errors
 
     # Vector Store
     chroma_persist_dir: str = "./data/chroma"

@@ -1,8 +1,7 @@
 # Core Agent Status
 
 Tài liệu này là nguồn trạng thái hiện hành cho phạm vi `src/agents`. README mô tả
-contracts và cách phát triển; các implementation/completion plan lưu thiết kế và
-lịch sử triển khai.
+contract và cách phát triển; quyết định hoặc kế hoạch đã thay thế chỉ được truy vết qua Git history.
 
 ## Scope đã hoàn tất
 
@@ -43,7 +42,7 @@ Core Agent được coi là done khi:
 4. Real-provider smoke tests vẫn là opt-in; phải chạy trong release environment
    khi phát hành cấu hình model production.
 
-Current verification ngày 2026-08-16: toàn bộ Agent/Backend/API/Voice scope `317 passed, 5 skipped`; frontend lint và production build đều pass. Live Transcript Rewriter qua OpenRouter với `openai/gpt-5.6-luna-pro` đã pass 5/5 case thật. Các skip phụ thuộc fixture/audio hoặc credential external được theo dõi trong `mustdo.md`.
+Current verification ngày 2026-08-16: toàn bộ Agent/Backend/API/Voice scope `325 passed, 5 skipped`; frontend lint và production build đều pass. Live Transcript Rewriter qua OpenRouter với `openai/gpt-5.6-luna-pro` đã pass 5/5 case thật. Các skip phụ thuộc fixture/audio hoặc credential external được theo dõi trong `mustdo.md`.
 Real-provider tests vẫn opt-in và yêu cầu key tương ứng.
 
 ## Ngoài phạm vi Core Agent

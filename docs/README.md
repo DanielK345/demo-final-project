@@ -25,6 +25,8 @@ Cập nhật: **2026-08-16** · Trạng thái: `CURRENT`.
 | Frontend | `src/frontend/README.md`, `src/frontend/docs/*` |
 | Data | `data/README.md`, `data/catalog.json` |
 | AI Logs | [AI_LOGS.md](AI_LOGS.md) |
+| Performance | [performance/latency-remediation-plan.md](performance/latency-remediation-plan.md) |
+| Verification/readiness | [verification/README.md](verification/README.md) |
 | Documentation maintenance | [DOCUMENTATION_REMEDIATION_PROMPT.md](DOCUMENTATION_REMEDIATION_PROMPT.md) |
 
 ## Reference tách biệt

@@ -52,15 +52,20 @@ duyệt bằng văn bản. Dữ liệu mẫu hiện tại chỉ dùng demo và �
 Tiêu chí nghiệm thu bên ngoài: mỗi dataset có `owner`, `version`, `effective_from`, cơ chế thu hồi
 và một bộ case đối soát do business ký duyệt.
 
-## 3. Hạ tầng dữ liệu production
+## 3. Hạ tầng dữ liệu production cần owner/hạ tầng
 
-Repository đã có SQLAlchemy/Alembic và migration cho handoff có cấu trúc. Để chạy production cần:
+Kết nối Supabase/Postgres và Alembic đã được kiểm tra thật ngày 2026-08-16: `current` khớp
+`0002_handoff_operations (head)` và SQLAlchemy thực hiện được query. Không cần tạo lại project chỉ để
+chứng minh database hoạt động.
 
-- tạo project Supabase/Postgres cho dev/staging/prod;
-- cấp `DATABASE_URL` runtime và `DATABASE_URL_MIGRATIONS` qua secret manager;
-- chạy migration tới revision mới nhất, cấu hình backup/PITR và kiểm tra restore;
-- quyết định retention cho transcript, audio, vị trí, số điện thoại và audit events;
-- cấp Redis/queue nếu triển khai nhiều instance hoặc worker bất đồng bộ.
+Phần còn cần con người/hạ tầng:
+
+- tạo/tách project hoặc schema dev, staging và prod theo chính sách tổ chức;
+- đưa `DATABASE_URL` và `DATABASE_URL_MIGRATIONS` vào secret manager, xoay password theo lịch;
+- chọn/cấp Redis nếu cần distributed lock, rate limit hoặc worker coordination;
+- chọn Supabase plan, cấu hình backup/PITR và thực hiện restore drill thật;
+- phê duyệt retention/xóa/export cho transcript, audio, vị trí, phone hash và audit event;
+- chỉ bật Supabase Data API cho bảng cần thiết; cấp explicit grant và ownership RLS đã review.
 
 ```env
 DATABASE_URL=
@@ -68,9 +73,10 @@ DATABASE_URL_MIGRATIONS=
 REDIS_URL=
 ```
 
-Tiêu chí nghiệm thu bên ngoài: restart/deploy nhiều instance không mất user/session/booking/
-handoff; restore drill thành công; secrets không xuất hiện trong Git hoặc log.
-
+Expected artifact: inventory môi trường, secret references, backup/PITR policy, restore report, retention
+approval và Redis decision. Verify bằng restore vào môi trường cô lập, Alembic revision, FK integrity,
+row counts và multi-instance test. Việc wire repository trong code không thuộc `mustdo.md` và không
+được chuyển sang đây.
 ## 4. Telephony, streaming voice và kênh chuyển người thật
 
 Để “gọi điện” và transfer thật cần nhà cung cấp telephony/SIP và đích vận hành:
