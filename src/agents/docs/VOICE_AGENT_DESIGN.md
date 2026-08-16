@@ -7,7 +7,7 @@ chép nguyên mẫu của bất kỳ framework nào.
 
 Đọc kèm:
 
-- [`README.md`](README.md): shared contracts, cấu trúc source và feature F1–F8.
+- [`../README.md`](../README.md): shared contracts, cấu trúc source và feature F1–F8.
 - [`AGENTS.md`](AGENTS.md): nguyên tắc bắt buộc khi sửa code Agentic AI.
 
 ---

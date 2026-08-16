@@ -2,7 +2,9 @@
 
 Trợ lý đặt xe bằng giọng nói/tin nhắn cho AloSM: khách nói/nhắn nhu cầu → Agent AI
 hiểu, thu thập điểm đón/đến, xác nhận → đặt xe hoặc chuyển tổng đài viên nếu cần.
-Xem PRD đầy đủ tại [`docs/PRD_AloSM_Voice.md`](docs/PRD_AloSM_Voice.md).
+Bắt đầu tại [`docs/PROJECT_SOURCE_OF_TRUTH.md`](docs/PROJECT_SOURCE_OF_TRUTH.md) để
+biết nguồn dữ liệu nào có thẩm quyền, trạng thái thật của từng miền và trình tự hoàn
+thiện. Tóm tắt sản phẩm nằm tại [`docs/PRODUCT_BRIEF.md`](docs/PRODUCT_BRIEF.md); yêu cầu chuẩn nằm tại [`docs/PRD_AloSM_Voice.md`](docs/PRD_AloSM_Voice.md).
 
 ## Kiến trúc tổng quan
 
@@ -20,16 +22,19 @@ Frontend (React/Vite)  --HTTP/WS-->  Backend (FastAPI)
 
 - **Backend**: FastAPI, entrypoint `src/main.py` → `src/backend/main.py`. Domain
   services (auth, session, booking, trip, handoff, call) hiện lưu **in-memory**
-  (dict cấp class) — xem [`mustdo.md`](mustdo.md) mục 5 cho lộ trình chuyển sang
-  Postgres (Supabase) đã có sẵn hạ tầng tại `src/backend/db/`.
+  (dict cấp class) — xem [`mustdo.md`](mustdo.md) mục 3 cho yêu cầu chuyển sang
+  Postgres/Supabase; model và Alembic migration đã có tại `src/backend/db/` và
+  `migrations/`, nhưng repository production chưa được nối.
 - **Agentic AI** (`src/agents/`): LangGraph agent thật điều khiển hội thoại đặt xe
   (thay cho rule-engine đơn giản ban đầu) — xem `src/agents/README.md`.
-- **Voice AI**: hiện có **2 hệ thống song song**, xem
-  [`docs/voice-ai/architecture-note-2-voice-systems.md`](docs/voice-ai/architecture-note-2-voice-systems.md)
-  để biết cái nào frontend đang dùng thật và vì sao.
-- **Frontend** (`src/frontend/`): React + Vite + Tailwind. Trang thật đang chạy:
-  `/login` và `/` (chat/voice assistant) — các trang khác (`Booking`, `Tracking`,
-  `Payment`, `Profile`, `Activity`, `Home`) hiện **không có route nào trỏ tới**.
+- **Voice AI**: một pipeline kiểm duyệt dùng chung với ba transport: `/voice/turn`
+  cho một lượt audio hoàn chỉnh, `/voice/speak` cho text→speech và `/voice/stream`
+  cho WebSocket. Xem
+  [`docs/voice-ai/voice-runtime-architecture.md`](docs/voice-ai/voice-runtime-architecture.md).
+- **Frontend** (`src/frontend/`): React + Vite + Tailwind. Các route `/`, `/booking`,
+  `/tracking`, `/activity`, `/payment`, `/profile` đã được đăng ký; `/assistant`
+  mở popup Voice rồi redirect về `/`. Một số màn vẫn dùng catalog/UI demo và được
+  phân loại rõ trong `docs/PROJECT_SOURCE_OF_TRUTH.md`.
 
 ## Chạy dự án
 
@@ -63,8 +68,8 @@ cd src/frontend && npm run lint && npx tsc -b && npm run build
 |---|---|
 | `src/backend/` | FastAPI app: routes, controllers, services, schemas, DB layer |
 | `src/agents/` | Agentic AI (LangGraph agent, RAG, tools, guardrails, workflows) |
-| `src/voice/` | Voice AI engine (ASR/TTS provider, VAD, gazetteer, formatter) — 1 trong 2 hệ thống voice, xem ghi chú kiến trúc ở trên |
-| `src/models/` | Schema dùng chung giữa Backend và Voice (WS protocol) |
+| `src/voice/` | Voice runtime: audio/VAD, ASR, normalization, TTS và WebSocket gateway |
+| `src/backend/schemas/`, `src/voice/schemas.py` | DTO HTTP và protocol Voice/WebSocket hiện hành |
 | `src/frontend/` | React app (Vite) |
 | `docs/` | Tài liệu dự án — xem bảng dưới |
 | `mustdo.md` | Việc cần người thật làm (credential, tài khoản, quyết định sản phẩm) — không phải việc code được |
@@ -77,11 +82,13 @@ cd src/frontend && npm run lint && npx tsc -b && npm run build
 
 | Thư mục | Nội dung |
 |---|---|
-| `docs/PRD_AloSM_Voice.md`, `docs/MVP.md`, `docs/BACKEND_TODOS_v3.md` | Yêu cầu sản phẩm, kế hoạch MVP |
-| `docs/architecture_diagram.md`, `docs/interface_design.md` | Kiến trúc & thiết kế giao diện |
-| `docs/voice-ai/` | Tài liệu Voice AI (thiết kế, TODO, dev local, ghi chú 2-hệ-thống) |
+| `docs/README.md`, `docs/PROJECT_SOURCE_OF_TRUTH.md` | Chỉ mục, trạng thái và trình tự hoàn thiện chuẩn |
+| `docs/AI_LOGS.md` | Trạng thái kết nối, privacy redaction và runbook AI Logs |
+| `docs/PRODUCT_BRIEF.md`, `docs/PRD_AloSM_Voice.md`, `docs/MVP.md` | Tóm tắt, yêu cầu chuẩn v1.2 và phạm vi MVP |
+| `docs/architecture_diagram.md`, `docs/interface_design.md` | Kiến trúc runtime và HTTP/WS contract hiện hành |
+| `docs/voice-ai/` | Voice runtime, local runbook, ASR/rewrite/TTS và evidence |
 | `docs/database_supabase.md` | Thiết kế + hướng dẫn setup database Supabase |
-| `docs/reports/` | Báo cáo tiến độ theo mốc thời gian (lịch sử, không phải tài liệu tham chiếu hiện hành) |
+| `docs/DOCUMENTATION_REMEDIATION_PROMPT.md` | Quy trình audit/làm sạch tài liệu có thể tái sử dụng |
 | `docs/guide/`, `specification_documents/` | Tài liệu/template gốc của khoá học AI20K — không phải tài liệu riêng của project này, giữ nguyên để tham khảo |
 
 ## Ghi chú quan trọng

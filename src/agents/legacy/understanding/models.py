@@ -10,6 +10,7 @@ from src.agents.legacy.context_models import (
     ContextMessage,
     ContextSummary,
 )
+from src.agents.legacy.understanding.rewrite_models import ResolvedReference
 
 
 class UnderstandingIntent(StrEnum):
@@ -52,6 +53,9 @@ class UnderstandingContext(BaseModel):
     available_candidates: list[ContextCandidate] = Field(default_factory=list)
     recent_messages: list[ContextMessage] = Field(default_factory=list)
     conversation_summary: ContextSummary | None = None
+    rewrite_applied: bool = False
+    rewrite_evidence: list[ResolvedReference] = Field(default_factory=list)
+    rewrite_ambiguities: list[str] = Field(default_factory=list)
 
 
 class UnderstandingResult(BaseModel):

@@ -54,7 +54,7 @@ export const VoiceTranscript: React.FC<Props> = ({ messages }) => {
       <div className="px-4 pb-3 pr-2 space-y-2 flex-1 min-h-0 overflow-y-scroll overscroll-contain">
         {visible.map((message) => (
           <p key={message.id} className="text-xs leading-5">
-            <span className={message.role === "user" ? "font-bold text-[#191C1E] dark:text-white" : "font-bold text-[#04763B] dark:text-[#00A651]"}>
+            <span className={message.role === "user" ? "font-bold text-[#191C1E] dark:text-white" : "font-bold text-[#008F88] dark:text-[#00C9B7]"}>
               {message.role === "user" ? "Bạn: " : "AI: "}
             </span>
             <span className="text-slate-600 dark:text-slate-300">{message.text}</span>

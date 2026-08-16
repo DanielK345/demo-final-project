@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+from datetime import UTC, datetime, timedelta
 
 # Chưa tích hợp Maps/routing API thật (xem mustdo.md mục Payment/Maps — cần
 # credential thật). Khoảng cách/giá cước suy ra DETERMINISTIC theo đúng 1 cặp
@@ -21,6 +22,8 @@ _VEHICLE_CATALOG: list[dict[str, object]] = [
 ]
 _BASE_OPEN_FARE_VND = 12000
 _AVG_SPEED_KMH = 24.0
+_PRICING_VERSION = "demo-2026-08-16"
+_QUOTE_TTL_SECONDS = 300
 
 
 def _route_seed(pickup_place_id: str, destination_place_id: str) -> int:
@@ -39,7 +42,7 @@ def _eta_minutes(distance_km: float) -> int:
 
 
 def _estimate_id(pickup_place_id: str, destination_place_id: str, vehicle_type: str) -> str:
-    digest = hashlib.sha256(f"{pickup_place_id}:{destination_place_id}:{vehicle_type}".encode()).hexdigest()
+    digest = hashlib.sha256(f"{_PRICING_VERSION}:{pickup_place_id}:{destination_place_id}:{vehicle_type}".encode()).hexdigest()
     return f"est_{digest[:12]}"
 
 
@@ -89,12 +92,20 @@ class PricingService:
         vehicle_type: str,
     ) -> dict[str, object]:
         distance_km = estimate_distance_km(pickup_place_id, destination_place_id)
-        per_km = _FARE_PER_KM_VND.get(vehicle_type, _FARE_PER_KM_VND["CAR_4"])
+        if vehicle_type not in _FARE_PER_KM_VND:
+            raise ValueError(f"Unknown vehicle type: {vehicle_type}")
+        per_km = _FARE_PER_KM_VND[vehicle_type]
         fare = round(_BASE_OPEN_FARE_VND + distance_km * per_km)
+        now = datetime.now(UTC)
         return {
             "estimate_id": _estimate_id(pickup_place_id, destination_place_id, vehicle_type),
+            "pricing_version": _PRICING_VERSION,
             "fare_amount": fare,
             "currency": "VND",
             "eta_minutes": _eta_minutes(distance_km),
             "distance_km": distance_km,
+            "issued_at": now.isoformat(),
+            "expires_at": (now + timedelta(seconds=_QUOTE_TTL_SECONDS)).isoformat(),
+            "estimated": True,
+            "data_quality": "DEMO",
         }

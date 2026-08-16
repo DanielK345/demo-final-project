@@ -8,7 +8,7 @@ from src.agents.schemas import ActionType, AgentAction, AgentInput
 from src.agents.state import AgentState
 from src.backend.services.agent_tool_executor import AgentToolExecutor
 from src.backend.services.conversation_logger import ConversationLogger
-from src.backend.services.gemini_place_rewriter import GeminiPlaceRewriter
+from src.backend.services.handoff_service import HandoffService
 
 
 class SessionService:
@@ -16,7 +16,7 @@ class SessionService:
     _agent = LLMAgent()
     _tool_executor = AgentToolExecutor()
     _conversation_logger = ConversationLogger()
-    _transcript_rewriter = GeminiPlaceRewriter()
+    _handoff_service = HandoffService()
     _MAX_TOOL_TURNS = 8
 
     def create_session(
@@ -59,11 +59,13 @@ class SessionService:
             "failed_count": 0,
             "booking_id": None,
             "handoff_triggered": False,
+            "handoff_id": None,
             "booking_lifecycle_status": None,
             "feedback": None,
             "current_workflow": None,
             "current_step": None,
             "agent_state": None,
+            "turn_sequence": 0,
         }
         return {"session_id": session_id, "status": "ACTIVE", "channel": channel, "created_at": now}
 
@@ -124,6 +126,7 @@ class SessionService:
         user_id = session.get("user_id")
         agent_state = self._load_agent_state(session_id, session)
         action = await self._run_agent_turn(
+            session=session,
             session_id=session_id,
             agent_state=agent_state,
             transcript=normalized_message,
@@ -141,6 +144,7 @@ class SessionService:
                 agent_state=agent_state,
             )
             action = await self._run_agent_turn(
+                session=session,
                 session_id=session_id,
                 agent_state=agent_state,
                 transcript="",
@@ -151,6 +155,7 @@ class SessionService:
 
         session["agent_state"] = agent_state.model_dump(mode="json")
         self._sync_legacy_session_fields(session, agent_state, action)
+        self._persist_handoff(session, agent_state, action)
         response = self._format_action_response(session, agent_state, action)
         # Return the actual text sent to the Agent, so the voice transcript is not
         # misleading when Gemini corrected an ASR place name.
@@ -165,9 +170,16 @@ class SessionService:
         )
         return response
 
+    @staticmethod
+    def _next_turn_id(session: dict[str, object]) -> str:
+        sequence = int(session.get("turn_sequence") or 0) + 1
+        session["turn_sequence"] = sequence
+        return f"turn-{sequence:03d}"
+
     async def _run_agent_turn(
         self,
         *,
+        session: dict[str, object],
         session_id: str,
         agent_state: AgentState,
         transcript: str,
@@ -228,6 +240,36 @@ class SessionService:
         session["handoff_triggered"] = action.action_type is ActionType.HANDOFF
         if action.action_type is ActionType.END_SESSION:
             session["status"] = "ENDED"
+
+    @classmethod
+    def _persist_handoff(
+        cls,
+        session: dict[str, object],
+        agent_state: AgentState,
+        action: AgentAction,
+    ) -> None:
+        if action.action_type is not ActionType.HANDOFF or session.get("handoff_id"):
+            return
+        context = agent_state.collected_data.get("handoff")
+        if not isinstance(context, dict):
+            context = {
+                "reason_code": "UNABLE_TO_CONTINUE",
+                "reason": action.reason or "Agent requested handoff",
+                "summary": "No structured handoff context was available.",
+            }
+        payload = {
+            "session_id": agent_state.session_id,
+            "reason": context.get("reason") or action.reason or "Agent requested handoff",
+            "reason_code": context.get("reason_code", "UNABLE_TO_CONTINUE"),
+            "summary": context.get("summary", "No prior conversation summary."),
+            "pending_action": context.get("pending_tool"),
+            "priority": context.get("priority", 50),
+            "severity": context.get("severity", "NORMAL"),
+            "queue": context.get("queue", "GENERAL_OPERATOR"),
+            "requires_immediate_transfer": context.get("requires_immediate_transfer", False),
+        }
+        handoff = cls._handoff_service.create_handoff(payload)
+        session["handoff_id"] = handoff["handoff_id"]
 
     @staticmethod
     def _booking_lifecycle_status(booking: dict[str, object], action: AgentAction) -> str | None:
@@ -329,6 +371,7 @@ class SessionService:
                 "vehicle_type",
                 "confirmation_status",
                 "booking_id",
+                "handoff_id",
             )
         }
         state["booking_progress"] = booking_progress

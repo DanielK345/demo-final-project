@@ -86,10 +86,11 @@ def build_vehicle_recommender(
     settings: Settings | None = None,
 ) -> VehicleRecommendationPort:
     config = settings or get_settings()
-    if not config.agent_llm_enabled or not config.openai_api_key:
+    api_key = config.llm_api_key_for(config.agent_llm_base_url)
+    if not config.agent_llm_enabled or not api_key:
         return NoRecommendation()
     return OpenAIVehicleRecommender(
-        api_key=config.openai_api_key,
+        api_key=api_key,
         model=config.agent_llm_model,
         timeout_seconds=config.agent_llm_timeout_seconds,
         reasoning_effort=config.agent_llm_reasoning_effort,

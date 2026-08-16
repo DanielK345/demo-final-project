@@ -1,8 +1,7 @@
 # Voice AI — Chạy thử ở local (project thật, có BE/FE/agentic)
 
-Hướng dẫn nhanh cho project đã tích hợp Voice AI — xem
-[prompt_voice_integration_real_be_fe.md](prompt_voice_integration_real_be_fe.md) cho kiến
-trúc đầy đủ, [mustdo_voice.md](mustdo_voice.md) cho việc còn thiếu.
+Hướng dẫn chạy runtime hiện hành. Kiến trúc: [voice-runtime-architecture.md](voice-runtime-architecture.md).
+External/release blockers: [mustdo.md](../../mustdo.md).
 
 ## 1. Cài đặt
 
@@ -13,12 +12,26 @@ pip install -r requirements.txt
 cp .env.example .env
 ```
 
-Mặc định (không sửa `.env`) vẫn chạy được: ASR dùng `FakeASRProvider` (transcript giả),
-TTS dùng `EdgeTTSProvider` thật (miễn phí). Muốn ASR thật:
+Runtime không tạo transcript giả. Cấu hình provider thật trước khi thử voice:
 
 ```env
-GROQ_API_KEY=sk-...   # free tại console.groq.com
+# LLM/Transcript rewrite qua OpenRouter
+OPENROUTER_API_KEY=...
+AGENT_LLM_MODEL=openai/gpt-5.6-luna-pro
+AGENT_LLM_BASE_URL=https://openrouter.ai/api/v1
+VOICE_TRANSCRIPT_REWRITE_ENABLED=true
+VOICE_TRANSCRIPT_REWRITE_MODEL=openai/gpt-5.6-luna-pro
+VOICE_TRANSCRIPT_REWRITE_BASE_URL=https://openrouter.ai/api/v1
+
+# Speech provider độc lập
+OPENAI_API_KEY=...                    # chỉ khi dùng OpenAI STT/TTS cho /voice/turn
+GROQ_API_KEY=...                      # /voice/stream Groq ASR
+VOICE_STT_MODEL=gpt-4o-transcribe
 ```
+
+Thiếu `GROQ_API_KEY`, WebSocket ASR trả lỗi cấu hình rõ ràng. Thiếu/sai `OPENROUTER_API_KEY`,
+live rewrite gate fail thật và transcript được giữ nguyên an toàn; không fallback sang fake provider.
+OpenRouter key không được dùng thay OpenAI Speech key.
 
 ## 2. Chạy server
 
@@ -35,8 +48,8 @@ make run
 
 1. Mở `http://localhost:8000/demo/` bằng **Chrome/Edge**.
 2. Bấm **"Gọi"** → cho phép quyền mic.
-3. Nói mẫu câu mà `SessionService` hiểu được (dialogue engine hiện tại là rule-based,
-   xem `src/backend/services/session_service.py` để biết đúng mẫu câu):
+3. Nói câu đặt xe tự nhiên. Backend chuyển transcript qua Core Agent model/tool loop;
+   booking vẫn cần địa điểm đã resolve và explicit confirmation:
    - *"Tôi muốn đặt xe"*
    - *"Từ Vincom Đồng Khởi đến Landmark 81"*
    - *"Đúng"* (xác nhận đặt xe) / *"Thôi"* (huỷ)
@@ -46,8 +59,29 @@ make run
 
 ```bash
 pytest tests/ -v          # toàn repo — phải xanh hết, kể cả test cũ của BE/agentic
-ruff check src/ tests/
+ruff check src tests scripts
 ```
 
-Test Voice **không gọi Groq/Edge-TTS thật** dù `.env` có `GROQ_API_KEY` thật (guard
-bằng biến `PYTEST_CURRENT_TEST` — xem `src/backend/api/routes/voice.py`).
+Các unit/regression test kiểm tra state và guardrail độc lập. Bài full WebSocket chỉ chạy khi
+`VOICE_LIVE_PCM16_FIXTURE` trỏ tới PCM16 16 kHz có giọng nói thật và consent. Kiểm tra LLM thật:
+
+```powershell
+.\.venv\Scripts\python.exe scripts/live_voice_rewrite_check.py
+```
+
+Provider/authentication failure làm live gate fail; không được đổi thành pass bằng mock.
+
+## 5. ASR ZipFormer local
+
+Pipeline ZipFormer CPU production, API, biến môi trường, Docker và số benchmark thật nằm tại
+[zipformer-asr.md](zipformer-asr.md). Chạy theo thứ tự:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\prepare_zipformer_model.py
+.\.venv\Scripts\python.exe scripts\live_zipformer_check.py
+.\.venv\Scripts\python.exe scripts\benchmark_zipformer.py
+```
+
+Đặt `VOICE_PROVIDER=zipformer` nếu muốn bắt buộc `/api/v1/voice/turn` dùng STT local. Ở chế độ `auto`,
+Voice flow ưu tiên ZipFormer khi `/health/ready` đã sẵn sàng; frontend vẫn chỉ gọi Voice API và không phụ
+thuộc tên file ONNX/runtime.

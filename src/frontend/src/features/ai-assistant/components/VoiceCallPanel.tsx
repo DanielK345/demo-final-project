@@ -1,11 +1,12 @@
-import React, { useEffect, useState } from "react";
-import { Mic, MicOff, PhoneOff, RotateCcw, Volume2, VolumeX } from "lucide-react";
+import React, { type FormEvent, useEffect, useState } from "react";
+import { Mic, MicOff, PhoneOff, RotateCcw, Send, Volume2, VolumeX } from "lucide-react";
 import { useVoiceAssistant } from "@/features/ai-assistant/context/useVoiceAssistant";
 import type { AssistantStatus } from "@/features/ai-assistant/context/voice-assistant-context";
 import { useVoiceActivityRecorder } from "@/features/voice/useVoiceActivityRecorder";
 import { AIStatusIndicator } from "@/features/ai-assistant/components/AIStatusIndicator";
 import { VoiceTranscript } from "@/features/ai-assistant/components/VoiceTranscript";
 import { BookingProgressStrip } from "@/features/ai-assistant/components/BookingProgressStrip";
+import { RideBookingExperience } from "@/features/ai-assistant/components/RideBookingExperience";
 
 function formatDuration(totalSeconds: number): string {
   const minutes = Math.floor(totalSeconds / 60)
@@ -27,6 +28,9 @@ export const VoiceCallPanel: React.FC = () => {
     handleVoiceRecorded,
     messages,
     bookingProgress,
+    draft,
+    setDraft,
+    sendText,
     isMuted,
     toggleMuted,
     reportError,
@@ -58,27 +62,36 @@ export const VoiceCallPanel: React.FC = () => {
 
   const displayStatus: AssistantStatus = !sessionId ? "connecting" : isSpeechDetected ? "listening" : status;
   const isActive = displayStatus === "listening" || displayStatus === "speaking";
+  const latestUserMessage = [...messages].reverse().find((message) => message.role === "user")?.text;
+
+  const submitDraft = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const value = draft.trim();
+    if (!value) return;
+    setDraft("");
+    void sendText(value);
+  };
 
   return (
-    <div className="flex flex-col items-center h-full min-h-0 px-6 py-6 text-center">
+    <div className="flex flex-col items-center h-full px-4 sm:px-6 py-5 text-center overflow-y-auto">
       <p className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">AloSM Voice</p>
       <p className="text-sm font-mono text-slate-400 dark:text-slate-500 mt-1">{formatDuration(elapsed)}</p>
 
       {/* Orb trung tâm — pulse khi đang nghe/nói, đứng yên khi rảnh */}
-      <div className="relative my-5 grid place-items-center shrink-0">
+      <div className="relative my-4 grid place-items-center">
         {isActive && (
           <span
             className={`absolute w-32 h-32 rounded-full animate-ping [animation-duration:1.6s] ${
-              displayStatus === "listening" ? "bg-[#00A651]/30" : "bg-[#04763B]/30"
+              displayStatus === "listening" ? "bg-[#00C9B7]/30" : "bg-[#008F88]/30"
             }`}
           />
         )}
         <div
           className={`w-28 h-28 rounded-full flex items-center justify-center border-4 transition-colors duration-300 ${
             displayStatus === "listening"
-              ? "bg-[#00A651]/15 border-[#00A651]"
+              ? "bg-[#00C9B7]/15 border-[#00C9B7]"
               : displayStatus === "speaking"
-                ? "bg-[#04763B]/15 border-[#04763B] dark:border-[#00A651]"
+                ? "bg-[#008F88]/15 border-[#008F88] dark:border-[#00C9B7]"
                 : displayStatus === "error"
                   ? "bg-rose-50 border-rose-300 dark:bg-rose-500/10 dark:border-rose-500/40"
                   : "bg-slate-100 border-slate-200 dark:bg-white/5 dark:border-white/10"
@@ -93,7 +106,7 @@ export const VoiceCallPanel: React.FC = () => {
                   animationDelay: `${bar * 0.12}s`,
                   height: isActive ? `${10 + ((bar % 3) + 1) * 6}px` : "4px",
                 }}
-                className={`w-1.5 rounded-full bg-[#04763B] dark:bg-[#00A651] transition-[height] duration-300 ${
+                className={`w-1.5 rounded-full bg-[#008F88] dark:bg-[#00C9B7] transition-[height] duration-300 ${
                   isActive ? "animate-[pulse_0.9s_ease-in-out_infinite]" : ""
                 }`}
               />
@@ -111,14 +124,41 @@ export const VoiceCallPanel: React.FC = () => {
         <AIStatusIndicator status={displayStatus} />
       )}
 
+      <div className="flex-1" />
+
+      {draft && (
+        <form onSubmit={submitDraft} className="mb-3 w-full rounded-2xl border border-[#00C9B7]/30 bg-[#E9FBF8] p-3 text-left dark:bg-[#00C9B7]/10">
+          <label htmlFor="assistant-draft" className="mb-1.5 block text-xs font-bold text-[#008F88]">
+            Gợi ý lệnh — sửa trước khi gửi
+          </label>
+          <div className="flex gap-2">
+            <input
+              id="assistant-draft"
+              value={draft}
+              onChange={(event) => setDraft(event.target.value)}
+              className="min-w-0 flex-1 rounded-xl border border-white bg-white px-3 py-2 text-sm text-slate-800 outline-none focus:border-[#00C9B7] dark:border-white/10 dark:bg-white/10 dark:text-white"
+            />
+            <button
+              type="submit"
+              disabled={status === "processing" || !draft.trim()}
+              aria-label="Gửi câu lệnh đã xác nhận"
+              className="grid h-10 w-10 place-items-center rounded-xl bg-[#00C9B7] text-white disabled:opacity-40"
+            >
+              <Send className="h-4 w-4" />
+            </button>
+          </div>
+        </form>
+      )}
+
       <BookingProgressStrip progress={bookingProgress} />
+      <div className="mt-3 w-full"><RideBookingExperience progress={bookingProgress} onSay={sendText} disabled={status === "processing"} voiceCommand={latestUserMessage} /></div>
       <VoiceTranscript messages={messages} />
 
       {sessionEnded ? (
         <button
           type="button"
           onClick={() => void newSession()}
-          className="mt-4 shrink-0 inline-flex items-center gap-2 rounded-xl bg-[#00A651] px-5 py-2.5 text-sm font-semibold text-[#0B0E11] hover:opacity-90"
+          className="mt-6 inline-flex items-center gap-2 rounded-xl bg-[#00C9B7] px-5 py-2.5 text-sm font-semibold text-[#0B0E11] hover:opacity-90"
         >
           <RotateCcw className="w-4 h-4" />
           Gọi lại
@@ -145,7 +185,7 @@ export const VoiceCallPanel: React.FC = () => {
             className={`w-16 h-16 rounded-full grid place-items-center shadow-lg transition ${
               micMuted
                 ? "bg-slate-200 text-slate-500 dark:bg-white/10 dark:text-slate-400"
-                : "bg-[#00A651] hover:bg-[#04763B] text-[#0B0E11] hover:text-white"
+                : "bg-[#00C9B7] hover:bg-[#008F88] text-[#0B0E11] hover:text-white"
             }`}
           >
             {micMuted ? <MicOff className="w-6 h-6" /> : <Mic className="w-6 h-6 text-white" />}

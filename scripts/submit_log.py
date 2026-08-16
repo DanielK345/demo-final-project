@@ -9,15 +9,21 @@ After a successful submit, the live log is rotated:
 
 If the POST fails, the pending file is restored so nothing is lost.
 """
+import argparse
 import json
 import os
 import shutil
 import sys
 import time
-import urllib.request
 import urllib.error
-from datetime import datetime, timezone
+import urllib.request
+from datetime import UTC, datetime
 from pathlib import Path
+
+try:
+    from scripts.ai_log_privacy import redact_secrets
+except ModuleNotFoundError:  # Direct execution: sys.path starts at scripts/.
+    from ai_log_privacy import redact_secrets
 
 try:
     from dotenv import load_dotenv
@@ -37,15 +43,16 @@ ARCHIVE_DIR = LOG_DIR / "archive"
 BATCH_LIMIT = 500
 
 
-def _archive(pending: Path) -> None:
-    """Append pending file to today's archive. Never overwrites existing data."""
-    if not pending.exists() or pending.stat().st_size == 0:
+def _archive_entries(entries: list[dict]) -> None:
+    """Append only the sanitized submitted entries to the daily archive."""
+    if not entries:
         return
     ARCHIVE_DIR.mkdir(parents=True, exist_ok=True)
-    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    today = datetime.now(UTC).strftime("%Y-%m-%d")
     archive_file = ARCHIVE_DIR / f"{today}.jsonl"
-    with open(pending, "rb") as src, open(archive_file, "ab") as dst:
-        shutil.copyfileobj(src, dst)
+    with open(archive_file, "a", encoding="utf-8") as destination:
+        for entry in entries:
+            destination.write(json.dumps(entry, ensure_ascii=False) + "\n")
 
 
 def _restore_pending(pending: Path) -> None:
@@ -67,7 +74,14 @@ def _restore_pending(pending: Path) -> None:
         pending.rename(LOG_FILE)
 
 
-def main():
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Submit queued AI logs")
+    parser.add_argument(
+        "--strict",
+        action="store_true",
+        help="return a non-zero exit code when the server submission fails",
+    )
+    args = parser.parse_args()
     if not SERVER_URL:
         print("[ai-log] AI_LOG_SERVER not set — skipping submission.", file=sys.stderr)
         sys.exit(0)
@@ -96,13 +110,12 @@ def main():
                 leftover_lines.append(line)
                 continue
             try:
-                entries.append(json.loads(stripped))
+                entries.append(redact_secrets(json.loads(stripped)))
             except json.JSONDecodeError:
                 pass  # drop unparseable line
 
     if not entries:
         # Nothing to send; archive whatever was there (probably junk) and bail.
-        _archive(pending)
         pending.unlink()
         print("[ai-log] No valid entries to submit.", file=sys.stderr)
         sys.exit(0)
@@ -125,10 +138,12 @@ def main():
         # Failure: restore the whole pending (including leftover) for next push.
         _restore_pending(pending)
         print(f"[ai-log] Submit failed: {e} — logs kept locally.", file=sys.stderr)
-        sys.exit(0)  # Don't block push on server error
+        if args.strict:
+            sys.exit(1)
+        sys.exit(0)  # Hooks must not block git push on server error.
 
     # Success: archive the submitted batch, then handle any leftover.
-    _archive(pending)
+    _archive_entries(entries)
     pending.unlink()
 
     if leftover_lines:

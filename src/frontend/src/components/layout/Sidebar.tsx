@@ -93,8 +93,8 @@ export const Sidebar: React.FC = () => {
                       "group-hover/sidebar:px-4 group-hover/sidebar:gap-4 group-focus-within/sidebar:px-4 group-focus-within/sidebar:gap-4",
                       "transition-[background-color,color,padding,gap,justify-content] duration-200",
                       isActive
-                        ? "text-[#04763B] bg-[#00A651]/10 font-bold shadow-xs dark:text-[#00A651] dark:bg-[#00A651]/15"
-                        : "text-slate-600 hover:bg-[#00A651]/10 hover:text-[#04763B] dark:text-slate-400 dark:hover:bg-white/10 dark:hover:text-[#00A651]"
+                        ? "text-[#008F88] bg-[#00C9B7]/10 font-bold shadow-xs dark:text-[#00C9B7] dark:bg-[#00C9B7]/15"
+                        : "text-slate-600 hover:bg-[#00C9B7]/10 hover:text-[#008F88] dark:text-slate-400 dark:hover:bg-white/10 dark:hover:text-[#00C9B7]"
                     )
                   }
                 >
@@ -103,7 +103,7 @@ export const Sidebar: React.FC = () => {
                       <Icon
                         className={cn(
                           "w-5 h-5 shrink-0 transition-transform duration-200",
-                          isActive ? "text-[#00A651]" : "text-slate-500 dark:text-slate-400"
+                          isActive ? "text-[#00C9B7]" : "text-slate-500 dark:text-slate-400"
                         )}
                       />
                       {/* Chữ nhãn trượt/mờ dần theo width+opacity thay vì biến mất đột
@@ -140,7 +140,7 @@ export const Sidebar: React.FC = () => {
           )}
         >
           <div className="flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-[#00A651] animate-pulse shrink-0" />
+            <span className="w-2 h-2 rounded-full bg-[#00C9B7] animate-pulse shrink-0" />
             <span
               className={cn(
                 "overflow-hidden whitespace-nowrap font-medium text-slate-700 w-0 opacity-0",

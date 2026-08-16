@@ -1,4 +1,4 @@
-"""Edge-TTS provider — Phần 5, D2 (`docs/voice-ai/voice_ai_overview.md`).
+"""Edge-TTS provider — Phần 5, D2 (`docs/voice-ai/voice-runtime-architecture.md`).
 
 Edge-TTS gọi API không chính thức của Microsoft (qua package `edge-tts`,
 kết nối WebSocket tới `speech.platform.bing.com`) — rủi ro đã ghi trong

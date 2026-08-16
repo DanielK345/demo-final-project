@@ -12,7 +12,7 @@ const mobileItems = [
 
 export const MobileNav: React.FC = () => {
   return (
-    <nav className="md:hidden fixed bottom-0 left-0 w-full bg-white/90 backdrop-blur-xl border-t border-slate-200/80 flex justify-around py-2.5 pb-5 z-50 shadow-lg dark:bg-[#0B0E11]/95 dark:border-white/10">
+    <nav className="md:hidden fixed bottom-5 left-1/2 -translate-x-1/2 w-[calc(100%-2rem)] max-w-md h-[72px] px-2 bg-white/88 backdrop-blur-2xl border border-white/90 rounded-[28px] flex items-center justify-around z-50 shadow-[0_16px_48px_rgba(19,73,74,0.2)] dark:bg-[#102021]/90 dark:border-white/10">
       {mobileItems.map((item) => {
         const Icon = item.icon;
         return (
@@ -22,15 +22,15 @@ export const MobileNav: React.FC = () => {
             end
             className={({ isActive }) =>
               cn(
-                "flex flex-col items-center gap-1 text-xs font-semibold transition-colors",
+                "relative min-w-14 h-14 rounded-[22px] flex flex-col items-center justify-center gap-0.5 text-xs font-semibold transition-all duration-200",
                 isActive
-                  ? "text-[#00A651]"
-                  : "text-slate-500 hover:text-[#04763B] dark:text-slate-400 dark:hover:text-[#00A651]"
+                  ? "text-[#00C9B7] bg-[#E7FBF9] shadow-[inset_0_0_0_1px_rgba(0,201,183,.16),0_6px_18px_rgba(0,201,183,.2)] dark:bg-[#00C9B7]/15"
+                  : "text-slate-500 hover:text-[#008F88] dark:text-slate-400 dark:hover:text-[#00C9B7]"
               )
             }
           >
             <Icon className="w-5 h-5" />
-            <span className="text-[11px]">{item.label}</span>
+            <span className="text-[9px]">{item.label}</span>
           </NavLink>
         );
       })}

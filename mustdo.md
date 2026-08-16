@@ -1,355 +1,236 @@
-# MUST DO
+# MUST DO — đầu vào bên ngoài bắt buộc
 
-Việc dưới đây **không thể** hoàn thành chỉ bằng code trong repo này — cần quyết định
-sản phẩm/kiến trúc từ team, hoặc credential/tài khoản bên ngoài. Đây là kết quả rà
-soát toàn bộ Frontend ↔ Backend ngày 13/08/2026 (xem báo cáo đầy đủ trong hội thoại /
-`capnhat.md`). Mọi phần **có thể** tự code được đã được code trực tiếp, không đưa vào
-đây (xem danh sách "Đã implement/fix" trong báo cáo cuối).
+Cập nhật: **2026-08-16**.
 
----
+File này chỉ chứa những việc không thể hoàn tất bằng code trong repository vì cần tài khoản,
+credential, dữ liệu nghiệp vụ chính thức, hạ tầng vận hành hoặc phê duyệt của con người. Các lỗi
+code, test, UI, schema và luồng Agent không được đẩy vào đây.
 
-## 1. ~~Các trang UI "đa trang" chưa được route tới~~ — ĐÃ GIẢI QUYẾT (13/08/2026)
+Nguồn điều phối: `docs/PROJECT_SOURCE_OF_TRUTH.md`. Để tránh làm sai dependency, owner nên đóng
+các nhóm theo thứ tự: **(1)** xoay secret + chọn owner/pháp lý, **(2)** production DB,
+**(3)** Maps và dữ liệu business, **(4)** booking/dispatch, **(5)** telephony/handoff,
+**(6)** ASR/TTS release gates, **(7)** payment/notification, **(8)** security/load/DR/go-live.
+Một mục chỉ được đóng khi có artifact verify, ngày chạy và người chịu trách nhiệm; có credential
+không đồng nghĩa tích hợp đã sẵn sàng production.
 
-**Cập nhật:** Theo yêu cầu trực tiếp của user ("lấy lại code tất cả các trang của
-frontend các màn bị cho là rác và tự động hoàn thiện toàn bộ cả fe và be tương ứng"),
-6 trang này đã được route lại vào `app/router/index.tsx` (lồng trong `AppLayout` —
-Sidebar/Topbar/MobileNav, vốn đã được build sẵn cho đúng việc này) và nối vào dữ liệu
-BE thật (không còn `MOCK_*`/`setTimeout` giả):
+## 1. Chọn và cấp quyền cho Maps / geocoding / routing
 
-- **HomePage** — tên chào thật + 2 chuyến gần đây thật.
-- **BookingPage** — "Xác nhận đặt xe" đi qua đúng dialogue engine thật (Core Agent) đã
-  test kỹ, không xây đường đặt xe riêng.
-- **TrackingPage** — poll `GET /api/v1/trips/status` mỗi 4s, tài xế/trạng thái mô
-  phỏng ổn định (seed theo booking_id, không random mỗi lần gọi như code cũ).
-- **ActivityPage** — `GET /api/v1/bookings` thật, đã xoá `mockData.ts`.
-- **ProfilePage** — tên/SĐT/role thật từ `/auth/me`.
-- **PaymentPage (Cài đặt)** — `GET/PUT /api/v1/users/me/settings` thật, đổi mật khẩu
-  thật qua `POST /api/v1/auth/change-password`.
+Cần chủ dự án quyết định một nhà cung cấp production và cấp credential hợp lệ:
 
-`/login` giữ nguyên đứng riêng. **Cập nhật 14/08/2026:** `/assistant` không còn là
-trang riêng nữa — đã thay bằng nút nổi + popup (`VoiceAIButton`/`VoiceAssistantPopup`)
-khả dụng ở mọi trang, xem mục 7 bên dưới. `feature/customer-call-ui`
-(nhánh remote riêng, `frontend/` — `CustomerUI.tsx`/`OperatorUI.tsx`) **không bị đụng
-tới** — vẫn là hướng đi độc lập của team, không liên quan tới `src/frontend/`.
+- Google Maps Platform, Mapbox, Goong hoặc VietMap; hoặc hạ tầng tự host Nominatim + OSRM.
+- Xác nhận quyền lưu `place_id`, địa chỉ, tọa độ và polyline theo điều khoản của nhà cung cấp.
+- Cấp API key theo từng môi trường, giới hạn domain/IP/quota và bật cảnh báo chi phí.
+- Cung cấp polygon vùng phục vụ thật của AloSM.
 
-### Còn lại — cần quyết định/thao tác thủ công (không tự code được)
+Biến môi trường dự kiến (chỉ điền provider được chọn):
 
-1. **Ví AloSM Pay / thẻ thanh toán** (`ProfilePage`) — chưa có khái niệm ví/thanh toán
-   nào ở Backend. Hiện hiển thị trạng thái rỗng trung thực ("Chưa liên kết phương thức
-   thanh toán nào") thay vì số dư/thẻ giả. Cần Payment Gateway thật — xem mục 2 bên
-   dưới.
-2. **Ưu đãi/coupon** (`ProfilePage`) — tương tự, chưa có hệ thống coupon/loyalty nào.
-   Hiện hiển thị trạng thái rỗng trung thực. Cần quyết định nghiệp vụ (loại ưu đãi,
-   điều kiện áp dụng) trước khi code được.
-3. ~~**2FA thật**~~ — ĐÃ GIẢI QUYẾT (14/08/2026), xem mục 4 bên dưới.
-
-### Cách kiểm tra
-
-Đã verify: đăng nhập → vào từng trang (Home/Booking/Tracking/Activity/Payment/
-Profile) qua Sidebar, xác nhận dữ liệu hiển thị đến từ API thật (đã test trực tiếp
-qua curl với server đang chạy thật, không phải chỉ unit test). Muốn tự kiểm tra lại:
-mở Network tab khi dùng các trang này, xác nhận có request thật tới `/api/v1/bookings`,
-`/api/v1/trips/status`, `/api/v1/users/me/settings` — không còn `MOCK_*`/`mockData.ts`.
-
----
-
-## 2. Payment Gateway thật (VNPay / MoMo / Stripe...)
-
-### Vì sao chưa thể tự làm
-
-Chỉ cần thiết **nếu** team chọn hồi sinh `PaymentPage`/ví AloSM Pay ở mục 1. Cần tài
-khoản merchant thật (VNPay/MoMo cho thị trường VN, hoặc Stripe quốc tế) — không thể
-tạo bằng code.
-
-### Cần làm
-
-1. Đăng ký tài khoản merchant (VNPay: https://sandbox.vnpayment.vn/devreg/ để lấy
-   sandbox trước; MoMo: https://business.momo.vn/).
-2. Lấy `Merchant ID`/`Secret Key` (VNPay) hoặc `Partner Code`/`Access Key`/`Secret Key`
-   (MoMo) ở chế độ **sandbox** trước khi lên production.
-3. Thêm vào `.env`:
-   ```
-   VNPAY_MERCHANT_ID=
-   VNPAY_SECRET_KEY=
-   VNPAY_RETURN_URL=http://localhost:5173/payment/callback
-   ```
-4. Code liên quan (sẽ cần tạo mới): `src/backend/services/payment_service.py`,
-   `src/backend/api/routes/payments.py`.
-
-### Cách kiểm tra
-
-Thực hiện 1 giao dịch sandbox, xác nhận callback cập nhật đúng trạng thái booking.
-
----
-
-## 3. GPS / Maps Provider thật cho Tracking
-
-### Cập nhật (14/08/2026) — nửa "mô phỏng nâng cao" đã làm, nửa "tích hợp thật" vẫn cần bạn
-
-Đã tự làm phần không cần key ngoài: marker tài xế trên `TrackingPage` trước đây đứng
-yên 1 chỗ cố định (`top-1/3 left-1/2`) suốt cả chuyến bất kể trạng thái/ETA thật đổi
-thế nào — giờ marker **di chuyển thật** theo đúng trạng thái thật (`searching` →
-`accepted` → `arriving` → `in_transit` → `completed`) trả về từ `TripService` mỗi lần
-poll (4 điểm minh hoạ + chuyển động mượt bằng CSS transition), và đã thêm cả pin điểm
-đến (trước chỉ có điểm đón). Toạ độ vẫn là % minh hoạ trên ảnh nền tĩnh, KHÔNG phải
-GPS thật — chỉ có vậy là trung thực nhất có thể nếu không có Maps provider thật.
-
-### Vì sao phần còn lại chưa thể tự làm
-
-Vị trí tài xế THEO THỜI GIAN THỰC (toạ độ GPS thật, không phải điểm minh hoạ) cần
-Maps provider thật (Google Maps Platform / Mapbox — cần API key + billing) — không
-thể tạo key hộ.
-
-### Cần làm (nếu chọn tích hợp thật)
-
-1. Tạo project tại https://console.cloud.google.com/, bật **Maps JavaScript API** +
-   **Directions API**, tạo API key, giới hạn theo domain.
-2. Thêm vào `.env`: `GOOGLE_MAPS_API_KEY=`
-3. Thêm vào `.env.example` tương ứng (không commit key thật).
-
-### Cách kiểm tra
-
-Mở `TrackingPage`, đặt 1 chuyến và theo dõi — marker tài xế đã di chuyển thật theo
-trạng thái (xác nhận bằng mắt: marker đổi vị trí mượt mỗi khi trạng thái đổi, không
-còn đứng yên). Muốn có toạ độ GPS thật (không phải điểm minh hoạ) thì cần làm mục
-"Cần làm" ở trên.
-
----
-
-## 4. ~~2FA thật (TOTP)~~ ĐÃ GIẢI QUYẾT (14/08/2026) — SMS/Email Provider cho thông báo thật vẫn cần bạn
-
-### Đã tự làm (code + verify thật qua server đang chạy, không chỉ unit test)
-
-2FA thật bằng TOTP (RFC 6238, thư viện `pyotp` — thuần Python, không cần dịch vụ
-ngoài, đúng gợi ý đã ghi ở bản trước của mục này):
-
-- `src/backend/services/auth_service.py` — sinh secret TOTP thật (`enable_two_factor_setup`),
-  chỉ THẬT SỰ bật sau khi xác nhận đúng 1 mã thật (`confirm_two_factor`, tránh tự khoá
-  tài khoản bằng secret chưa từng verify), `disable_two_factor`, và **enforce thật ở
-  bước đăng nhập**: `login()` không phát access token ngay nếu tài khoản đã bật 2FA —
-  trả `pending_token` tạm (TTL 5 phút), phải xác thực đúng mã ở
-  `verify_login_two_factor()` mới nhận access token thật.
-- Route mới: `POST /auth/2fa/setup`, `/auth/2fa/confirm`, `/auth/2fa/disable`,
-  `/auth/2fa/verify-login`. `/auth/login` giữ nguyên hành vi cũ (trả access token
-  ngay) cho tài khoản chưa bật 2FA — không phá vỡ flow đăng nhập demo hiện tại.
-  `GET /users/me/settings` đọc `two_factor_enabled` THẬT từ `AuthService` (không còn
-  là cờ trang trí tách rời).
-- Frontend: `LoginForm.tsx` có bước nhập mã 6 số khi tài khoản yêu cầu 2FA;
-  `PaymentPage.tsx` có luồng bật/tắt thật (hiện secret + otpauth URL để thêm vào
-  Google Authenticator/Authy, xác nhận bằng mã thật trước khi bật).
-- Test: `tests/test_api/test_two_factor_auth.py` (4 test, dùng `pyotp` sinh mã thật —
-  không mock) + verify thủ công qua server thật đang chạy (đăng ký → bật 2FA → đăng
-  nhập lại yêu cầu đúng mã → sai mã bị từ chối → tắt 2FA → đăng nhập lại như cũ).
-- Không làm QR code ảnh (cần thêm dependency `qrcode`/`Pillow`) — chỉ hiện secret dạng
-  text + otpauth URL, nhập tay vào app authenticator vẫn hoạt động đầy đủ, đúng tinh
-  thần hạn chế dependency mới đã có sẵn trong `auth_service.py` (tránh bcrypt/passlib).
-
-### Vì sao phần còn lại (SMS/Email thông báo thật) chưa thể tự làm
-
-`PaymentPage` vẫn còn toggle "Email/SMS Notifications" — hiện chỉ persist lựa chọn,
-CHƯA thật sự gửi thông báo qua kênh nào. Cần nhà cung cấp thật (SMS: Twilio/eSMS/Speed
-SMS cho VN; Email: SMTP hoặc SendGrid/Mailgun) — không thể tạo tài khoản hộ.
-
-### Cần làm
-
-1. Đăng ký 1 trong các dịch vụ trên, lấy API key.
-2. Thêm vào `.env`:
-   ```
-   SMS_PROVIDER_API_KEY=
-   SMTP_HOST=
-   SMTP_PORT=
-   SMTP_USER=
-   SMTP_PASSWORD=
-   ```
-
-### Cách kiểm tra
-
-2FA: đăng ký tài khoản mới → Cài đặt → Bật xác thực 2 lớp → quét/nhập secret vào
-Google Authenticator → nhập mã xác nhận → đăng xuất → đăng nhập lại → xác nhận màn
-hình yêu cầu nhập mã 6 số trước khi vào được app. Thông báo SMS/Email: cần làm mục
-"Cần làm" ở trên trước khi kiểm tra được.
-
----
-
-## 5. Database thật — ĐÃ CHỌN Supabase, hạ tầng đã xong, còn 2 việc cần bạn
-
-### Đã tự làm (code + verify thật, xem `docs/database_supabase.md` để có thiết kế đầy đủ + ERD)
-
-- `src/backend/db/base.py`, `src/backend/db/models.py` — engine async + 8 ORM model
-  (`users`, `auth_tokens`, `ride_sessions`, `bookings`, `trips`, `handoffs`, `calls`,
-  `conversation_events`), tuned sẵn cho Supabase Transaction Pooler (tắt prepared
-  statement cache — tránh lỗi kinh điển asyncpg + Supavisor).
-- `alembic.ini` + `migrations/` — migration đầu tiên. Đã verify thật: `alembic upgrade
-  head` chạy được, `alembic check` báo khớp 100% với models, insert/query round-trip
-  qua async engine thật chạy đúng (tất cả trên SQLite local, không cần Supabase để
-  verify hạ tầng).
-- `requirements.txt`: thêm `asyncpg`, `aiosqlite`.
-- `.env.example`: thêm `DATABASE_URL`/`DATABASE_URL_MIGRATIONS` mẫu cho Supabase.
-
-### Còn lại — cần bạn (không thể tự làm)
-
-1. **Tạo project Supabase thật** (cần tài khoản) — làm theo đúng 5 bước ở
-   `docs/database_supabase.md` mục 4: đăng ký → tạo project → lấy 2 connection string
-   (Transaction pooler cổng 6543 + Direct connection cổng 5432) → điền vào `.env` →
-   chạy `python -m alembic upgrade head`.
-
-### Việc tiếp theo (tôi sẽ làm, không phải việc của bạn) — nối service vào DB
-
-`AuthService`/`SessionService`/`BookingService`/`TripService` hiện **vẫn** lưu bằng
-dict RAM, chưa gọi tới `src/backend/db/*` — hạ tầng đã sẵn sàng nhưng chưa "nối dây".
-Tạm hoãn bước này vì đúng lúc rà soát thì phát hiện các file service đó (đặc biệt
-`auth_service.py`, `api/routes/sessions.py`, `api/routes/voice.py`) đang có thay đổi
-khác diễn ra song song từ nhánh `test_speech_model` — nối DB ngay lúc này dễ đụng
-việc đang dở của người khác. Sẽ làm ngay khi việc đó ổn định.
-
-### Cách kiểm tra
-
-Sau khi có Supabase + chạy migration: vào tab **Table Editor** trên dashboard Supabase,
-xác nhận thấy đủ 8 bảng. Sau khi service được nối dây (bước tiếp theo): restart server,
-xác nhận user/session/booking vẫn còn sau khi restart (thay vì mất sạch như hiện tại).
-
----
-
-## 6. ~~OPENAI_API_KEY thật~~ — ĐÃ GIẢI QUYẾT (14/08/2026)
-
-**Cập nhật:** `.env` đã có `OPENAI_API_KEY` thật, `AGENT_LLM_ENABLED` đang ở giá trị
-mặc định `true` (`src/backend/config.py`). Verify trực tiếp qua server thật đang
-chạy: `GET /api/v1/status` trả về `"understanding_mode": "openai"` (không phải
-`"rules"`) — nghĩa là `OpenAIUnderstandingAdapter` thật sự đang được dùng, không rơi
-vào fallback rule-based. Không còn việc gì cần làm ở mục này.
-
----
-
-## 7. Voice AI popup (14/08/2026): field/luồng chưa có trong hợp đồng backend thật
-
-### Bối cảnh
-
-Đã refactor Voice AI từ trang riêng `/assistant` thành nút nổi + popup
-(`VoiceAIButton`/`VoiceAssistantPopup`, mounted trong `AppLayout`) khả dụng ở mọi
-trang, gồm Mode A (chat/text), Mode B (gọi thoại thu nhỏ), `BookingConfirmationModal`
-(xác nhận trước khi đặt — đúng `BookingStep.CONFIRM` thật, đã verify qua server thật:
-gửi "Xác nhận đặt xe" tạo booking thật, trả về `booking_lifecycle_status: SUCCESS`),
-`BookingSuccessModal`. Trong lúc làm, phát hiện vài chỗ **spec đề bài yêu cầu nhưng
-backend thật chưa có dữ liệu/luồng tương ứng** — liệt kê ở đây thay vì tự bịa field
-rỗng hay giả lập hành vi không thật.
-
-### Vì sao chưa thể tự làm
-
-1. **`passenger_count`/loại dịch vụ (service tier)/`pickup_time`/ghi chú** — đề bài
-   yêu cầu thẻ xác nhận hiển thị đủ các field này, nhưng `BookingProgress` thật (xem
-   `SessionService._booking_progress()`) chỉ có `pickup`/`destination`/`vehicle_type`/
-   `fare_amount`/`currency`. `BookingConfirmationModal` hiện chỉ hiển thị đúng những
-   field có thật, không vẽ thêm field trống/giả. Core Agent hiện cũng không có khái
-   niệm "service tier" tách khỏi `vehicle_type` (`VehicleType` đã gộp luôn: xe máy/ô
-   tô 4 chỗ/ô tô 7 chỗ), và `AgentState`/`BookingData` chưa có field số hành khách,
-   giờ đón hay ghi chú tự do.
-2. **Nút "Hủy" ở thẻ xác nhận** — cố tình bỏ (đề bài ghi "có thể thêm", không bắt
-   buộc). Đã đọc `src/agents/workflows/booking.py` bước `CONFIRM`: chưa có nhánh từ
-   chối/hủy rõ ràng — bất kỳ câu trả lời nào không khớp mẫu xác nhận đều chỉ nhận lại
-   "Bạn vui lòng xác nhận đồng ý hoặc nói thông tin cần sửa." Thêm nút "Hủy" gửi 1 câu
-   lệnh mà agent không thật sự hiểu như một lệnh hủy sẽ là giả vờ có tính năng không
-   có thật.
-3. **Transcript trong Voice Call Mode cập nhật theo từng lượt, không phải theo từng
-   chữ khi đang nói** — `/api/v1/voice/turn` là REST 1-lần-1-lượt (ghi âm xong mới gửi
-   cả đoạn), không phải WebSocket streaming. Đây là hành vi thật vốn có của
-   `sendVoiceTurn`/`useVoiceRecorder` (không phải lỗi mới), giữ nguyên — không giả lập
-   caption thời gian thực khi backend không thật sự trả về theo thời gian thực.
-
-### Cần làm (nếu muốn có đủ field/luồng như đề bài mô tả)
-
-1. Bổ sung `passenger_count`/ghi chú/giờ đón vào `AgentState.collected_data["booking"]`
-   + `BookingProgress` ở backend (`src/agents/workflows/booking.py`,
-   `session_service.py`) trước khi frontend có thể hiển thị thật.
-2. Nếu cần "Hủy" tường minh ở bước CONFIRM: thêm 1 nhánh REJECT rõ ràng trong
-   `booking.py` (hiện `_REJECT_TERMS` có tồn tại ở `understanding/rules.py` nhưng
-   không được dùng riêng ở bước CONFIRM).
-3. Nếu cần caption thời gian thực khi đang nói: cần đổi `/api/v1/voice/turn` sang
-   streaming (WebSocket/SSE) — thay đổi kiến trúc lớn hơn nhiều so với phạm vi UI.
-
-### Cách kiểm tra
-
-Đã verify qua server thật lúc viết mục này (14/08, trước khi có mục 8 bên dưới):
-đăng ký user mới → tạo phiên → gửi "Tôi muốn đặt xe từ Vincom Đồng Khởi đến Landmark
-81" → "Xe máy" → nhận đúng `current_workflow: RIDE_BOOKING`, `current_step: CONFIRM`,
-`fare_amount: 47200` → gửi "Xác nhận đặt xe" → nhận `booking_lifecycle_status:
-SUCCESS` + `booking_id` thật. **Lưu ý:** sau khi nhánh này merge thêm
-`feature/agentic-ai` (refactor kiến trúc agent — xem mục 8), luồng CONFIRM này không
-còn hoạt động như lúc verify — chưa rõ do phía core agent mới hay do cấu hình môi
-trường, xem mục 8.
-
----
-
-## 8. Phát hiện (15/08/2026, không phải việc của tôi): CONFIRM booking không còn hoạt động sau merge refactor agent
-
-### Bối cảnh
-
-Trong lúc hoàn thiện các mục 3/4/6 ở trên, phát hiện nhánh `feature/voice-ai` vừa được
-merge thêm 1 refactor lớn từ `feature/agentic-ai` (commit `merge: bring model-driven
-Core Agent + RAG refactor from feature/agentic-ai`, tái cấu trúc `src/agents/` thành
-`contracts/`/`core/`/`capabilities/`/`legacy/`) — **không phải do tôi thực hiện**, xảy
-ra song song trong lúc tôi đang làm việc, tác giả là chính bạn (commit tác giả
-NamKhanh2128). Tôi KHÔNG động vào `src/agents/` hay đảo ngược merge này.
-
-### Vấn đề quan sát được
-
-Chạy lại đúng kịch bản đặt xe đã verify thành công trước đó (xem mục 7) qua server
-thật SAU khi có merge trên: mọi lượt hội thoại đều trả về
-`"Hệ thống đang phản hồi chậm nên tôi chưa xử lý xong lượt này..."` ngay từ lượt đầu
-tiên, và sau 3 lượt như vậy tự động chuyển sang `HANDOFF` — không bao giờ tới được
-`current_step: CONFIRM`. Việc này ảnh hưởng trực tiếp `BookingConfirmationModal` (mục
-7) — modal đó sẽ không bao giờ hiện được nếu core agent không còn trả về đúng tín hiệu
-`RIDE_BOOKING`/`CONFIRM` nữa.
-
-**Cập nhật — đã tìm ra nguyên nhân gốc (chỉ đọc log, KHÔNG sửa code):** commit
-`611cd32` (bạn tự làm, sau merge) đã sửa xong 4 file test bị lệch import — vấn đề
-CONFIRM này KHÁC, vẫn còn nguyên sau `611cd32`. Log backend khi lỗi xảy ra:
-
-```
-Conversation model request failed: model=gpt-5.6-luna error_type=AuthenticationError
+```env
+MAPS_PROVIDER=
+MAPS_API_KEY=
+MAPS_BASE_URL=
+MAPS_SERVICE_AREA_ID=
 ```
 
-Đây là log từ `src/agents/core/model.py::OpenAIConversationModel.decide()` — file này
-gọi OpenAI qua `self.client.chat.completions.create(...)` (Chat Completions API).
-`AuthenticationError` ở đây rất lạ vì:
-- Cùng `OPENAI_API_KEY`, cùng `base_url=None` (mặc định, không có gateway trung gian —
-  `AGENT_LLM_BASE_URL` không đặt trong `.env`) với đường xử lý LLM CŨ
-  (`OpenAIUnderstandingAdapter`/legacy — dùng `self.client.responses.parse(...)`, tức
-  Responses API) — đường cũ vẫn xác nhận hoạt động bình thường (`GET /api/v1/status`
-  vẫn trả `understanding_mode: "openai"`, xem mục 6).
-- Tức là: **cùng 1 API key, cùng 1 base_url, nhưng gọi qua Responses API thì thành
-  công còn gọi qua Chat Completions API (`chat.completions.create`, dùng bởi
-  `model.py` mới) thì bị từ chối xác thực.** Rất đáng nghi đây không phải do key sai,
-  mà do cách gọi/endpoint Chat Completions không được tài khoản/key hiện tại cấp
-  quyền (hoặc cần tham số khác) — trong khi Responses API thì được.
+Tiêu chí nghiệm thu bên ngoài: tìm kiếm và reverse-geocode địa chỉ Việt Nam thật; route trả
+`distance_meters`, `duration_seconds`, polyline; key bị giới hạn đúng môi trường; có quota alert.
 
-### Vì sao tôi không tự sửa
+## 2. Cung cấp dữ liệu nghiệp vụ AloSM đã phê duyệt
 
-`src/agents/core/` là công việc đang dở, đang chủ động của chính bạn — tôi không đủ
-ngữ cảnh về lý do chọn Chat Completions API thay vì Responses API cho vòng lặp
-model/tool mới (`model.py` có ghi chú riêng về hành vi đặc biệt của "the configured
-gateway" với tool calling — có thể là quyết định có chủ đích tôi không nên tự đảo
-ngược) để sửa đúng cách mà không có rủi ro đụng vào hướng đi bạn đang xây. Việc này
-cũng nằm ngoài phạm vi mục 3/4/6 tôi đang làm.
+Business/Product/Ops phải cung cấp phiên bản có hiệu lực, owner và ngày hiệu lực cho:
 
-### Cách kiểm tra
+- danh mục loại xe, sức chứa, hành lý và accessibility;
+- bảng giá mở cửa, giá/km, giá/phút, phí chờ, phí hủy, giá tối thiểu và surge;
+- voucher/promotion: điều kiện, ngân sách, phạm vi, stackability, thời hạn và thứ tự tối ưu;
+- vùng phục vụ, fleet/driver availability và quy tắc dispatch;
+- điều khoản dịch vụ, quyền riêng tư, ghi âm cuộc gọi, hoàn tiền, an toàn và khiếu nại;
+- SLA/giờ hoạt động cho từng hàng đợi tổng đài.
 
-Chạy `uvicorn`, đăng ký user mới, gửi qua `/api/v1/sessions/{id}/messages`: "Tôi muốn
-đặt xe từ Vincom Đồng Khởi đến Landmark 81" → nếu vẫn thấy thông báo "phản hồi chậm"
-ngay từ lượt đầu + log `error_type=AuthenticationError`, kiểm tra: tài khoản OpenAI
-đang dùng có quyền gọi Chat Completions API với model `gpt-5.6-luna` hay không (có
-thể model/API key hiện tại chỉ được cấp quyền Responses API).
+Không được lấy giá/voucher của GreenSM/Grab/Be làm dữ liệu AloSM production nếu chưa có phê
+duyệt bằng văn bản. Dữ liệu mẫu hiện tại chỉ dùng demo và được liệt kê trong
+`src/agents/DATAFINDING.md`.
 
----
+Tiêu chí nghiệm thu bên ngoài: mỗi dataset có `owner`, `version`, `effective_from`, cơ chế thu hồi
+và một bộ case đối soát do business ký duyệt.
 
-## Tổng kết mức ưu tiên
+## 3. Hạ tầng dữ liệu production cần owner/hạ tầng
 
-| # | Việc | Có bắt buộc để demo hiện tại chạy được không? |
-|---|------|------------------------------------------------|
-| 1 | Quyết định số phận trang đa-trang | Không — flow chat/voice hiện tại đã chạy đủ, không phụ thuộc |
-| 2 | Payment Gateway thật | Không — chỉ cần nếu hồi sinh mục 1 |
-| 3 | Maps Provider thật (GPS thật, mô phỏng nâng cao đã xong) | Không |
-| 4 | SMS/Email thật (2FA/TOTP đã xong) | Không — chỉ toggle thông báo, không chặn luồng chính |
-| 5 | Database thật | Không cho demo/capstone — **có** trước khi lên production thật |
-| 6 | OPENAI_API_KEY thật | Không — đã có key thật, đang hoạt động |
-| 7 | Field/luồng còn thiếu ở popup Voice AI | Không — popup hiển thị đúng field thật hiện có |
-| 8 | CONFIRM booking không hoạt động sau merge refactor agent | **Có** — chặn hẳn luồng đặt xe qua popup, cần bạn xác nhận/sửa ở `src/agents/core/` |
+Kết nối Supabase/Postgres và Alembic đã được kiểm tra thật ngày 2026-08-16: `current` khớp
+`0002_handoff_operations (head)` và SQLAlchemy thực hiện được query. Không cần tạo lại project chỉ để
+chứng minh database hoạt động.
+
+Phần còn cần con người/hạ tầng:
+
+- tạo/tách project hoặc schema dev, staging và prod theo chính sách tổ chức;
+- đưa `DATABASE_URL` và `DATABASE_URL_MIGRATIONS` vào secret manager, xoay password theo lịch;
+- chọn/cấp Redis nếu cần distributed lock, rate limit hoặc worker coordination;
+- chọn Supabase plan, cấu hình backup/PITR và thực hiện restore drill thật;
+- phê duyệt retention/xóa/export cho transcript, audio, vị trí, phone hash và audit event;
+- chỉ bật Supabase Data API cho bảng cần thiết; cấp explicit grant và ownership RLS đã review.
+
+```env
+DATABASE_URL=
+DATABASE_URL_MIGRATIONS=
+REDIS_URL=
+```
+
+Expected artifact: inventory môi trường, secret references, backup/PITR policy, restore report, retention
+approval và Redis decision. Verify bằng restore vào môi trường cô lập, Alembic revision, FK integrity,
+row counts và multi-instance test. Việc wire repository trong code không thuộc `mustdo.md` và không
+được chuyển sang đây.
+## 4. Telephony, streaming voice và kênh chuyển người thật
+
+Để “gọi điện” và transfer thật cần nhà cung cấp telephony/SIP và đích vận hành:
+
+- mua/đăng ký số điện thoại hoặc SIP trunk;
+- cấp webhook signing secret, credential gọi ra/vào và cấu hình recording consent;
+- cung cấp queue/extension cho `SAFETY_OPERATOR`, `SPECIALIST_OPERATOR`,
+  `CUSTOMER_CARE_OPERATOR`, `OPERATIONS_OPERATOR`, `GENERAL_OPERATOR`;
+- xác nhận fallback khi không có tổng đài viên, timeout, ngoài giờ và cuộc gọi bị rớt;
+- chọn STT/TTS production và cấp key/quota nếu không dùng provider local.
+
+```env
+TELEPHONY_PROVIDER=
+TELEPHONY_ACCOUNT_ID=
+TELEPHONY_SECRET=
+TELEPHONY_FROM_NUMBER=
+TELEPHONY_WEBHOOK_SECRET=
+STT_PROVIDER=
+STT_API_KEY=
+TTS_PROVIDER=
+TTS_API_KEY=
+```
+
+Tiêu chí nghiệm thu bên ngoài: cuộc gọi thật vào/ra, barge-in, reconnect, transfer có context,
+không đọc PII nội bộ, đo được latency STT/Agent/TTS và ghi nhận consent.
+
+## 5. LLM/OpenRouter production access
+
+Pipeline LLM hiện dùng OpenRouter qua giao thức OpenAI-compatible, tách credential khỏi OpenAI Speech:
+
+```env
+OPENROUTER_API_KEY=
+AGENT_LLM_MODEL=openai/gpt-5.6-luna-pro
+AGENT_LLM_BASE_URL=https://openrouter.ai/api/v1
+AGENT_LLM_ENABLED=true
+VOICE_TRANSCRIPT_REWRITE_MODEL=openai/gpt-5.6-luna-pro
+VOICE_TRANSCRIPT_REWRITE_BASE_URL=https://openrouter.ai/api/v1
+```
+
+Trạng thái kiểm tra thật ngày 2026-08-16: credential OpenRouter hoạt động, model catalog xác nhận
+`openai/gpt-5.6-luna-pro` hỗ trợ Structured Outputs, và `scripts/live_voice_rewrite_check.py`
+đã pass 5/5 case thật. Request được giới hạn output token để tránh OpenRouter từ chối `402` do dự
+trù output tối đa.
+
+Việc owner vẫn phải làm:
+
+- Thu hồi và tạo lại OpenRouter key đã từng được gửi trong hội thoại; cập nhật key mới chỉ qua secret
+  manager hoặc `.env` cục bộ, không commit.
+- Cấp budget/rate limit và cảnh báo chi phí cho staging/production.
+- Phê duyệt retention/data controls cho transcript. Pipeline đặt `store=false`, mask số/email/ID và
+  không gửi lịch sử hội thoại; phần ngôn ngữ và địa danh còn lại vẫn phải gửi để sửa lỗi STT.
+- Duy trì credential riêng cho Speech-to-Text/Text-to-Speech. `OPENROUTER_API_KEY` không được dùng
+  thay `OPENAI_API_KEY`; WebSocket ASR có thể dùng `GROQ_API_KEY`.
+- Cấp OpenAI Speech key hợp lệ nếu dùng `/voice/turn` với `gpt-4o-transcribe`, hoặc cấu hình speech
+  provider production khác đã được phê duyệt.
+
+Sau khi xoay key, bắt buộc chạy lại gate thật:
+
+```powershell
+.\.venv\Scripts\python.exe scripts/live_voice_rewrite_check.py
+```
+
+## 6. Payment và notification thật
+Chỉ triển khai giao dịch/hoàn tiền/gửi SMS-email production sau khi có:
+
+- merchant sandbox + production của VNPay/MoMo/Stripe hoặc provider được chọn;
+- webhook secret, callback domain, chính sách reconciliation/refund;
+- tài khoản SMS/email, sender đã xác minh và template được duyệt.
+
+```env
+PAYMENT_PROVIDER=
+PAYMENT_MERCHANT_ID=
+PAYMENT_SECRET=
+PAYMENT_WEBHOOK_SECRET=
+SMS_PROVIDER_API_KEY=
+SMTP_HOST=
+SMTP_USER=
+SMTP_PASSWORD=
+```
+
+Tiêu chí nghiệm thu bên ngoài: webhook được xác minh chữ ký và idempotent; sandbox reconciliation
+pass; notification có opt-in/opt-out và không rò PII.
+
+## 7. Phê duyệt an toàn, pháp lý và vận hành
+
+Con người có thẩm quyền phải phê duyệt:
+
+- playbook tai nạn, đe dọa, quấy rối, tài xế say và số khẩn cấp theo khu vực;
+- nội dung bot được phép nói, đặc biệt không hứa bồi thường/hoàn tiền hay kết luận trách nhiệm;
+- consent ghi âm, retention, quyền xóa/truy xuất dữ liệu và phân quyền operator;
+- pentest, load test, disaster recovery và go-live checklist;
+- bộ transcript đã ẩn danh dùng làm eval, gồm giọng vùng miền và lỗi ASR thực tế.
+- cung cấp ít nhất một fixture PCM16 mono 16 kHz có giọng nói thật, consent và ground-truth; cấu hình `VOICE_LIVE_PCM16_FIXTURE` để chạy full WebSocket integration test.
+
+Tiêu chí nghiệm thu bên ngoài: có người chịu trách nhiệm, ngày phê duyệt, SLA và diễn tập handoff
+khẩn cấp trước go-live.
+## 8. ZipFormer ASR — việc bắt buộc cần con người/hạ tầng
+
+### 8.1 Phê duyệt giấy phép trước commercial production
+
+1. **Việc làm:** Legal/Product owner xác nhận quyền dùng `hynt/Zipformer-30M-RNNT-6000h` hoặc chọn model thay thế.
+2. **Tại sao:** model card hiện ghi `CC-BY-NC-ND-4.0`, không được tự coi là phù hợp dịch vụ thương mại.
+3. **Ở đâu:** hồ sơ third-party software/model và quyết định go-live của dự án.
+4. **Thao tác:** lưu văn bản phê duyệt cùng model ID, revision và phạm vi sử dụng; nếu không được duyệt, thay artifact/config rồi chạy lại toàn bộ gate ASR.
+5. **Expected:** có owner, ngày phê duyệt và bằng chứng quyền sử dụng.
+6. **Verify:** audit release artifact khớp model/revision/license đã duyệt.
+7. **Risk:** vi phạm giấy phép và phải dừng dịch vụ.
+
+### 8.2 Xác minh Docker bằng daemon có quyền hoạt động
+
+1. **Việc làm:** build và chạy container thật trên máy có Docker daemon.
+2. **Tại sao:** máy hiện tại có Docker CLI nhưng `com.docker.service` dừng; tài khoản phiên này không có quyền start service, nên chưa thể trung thực đánh dấu Docker build/run pass.
+3. **Ở đâu:** Docker Desktop hoặc CI runner của dự án.
+4. **Command:** `docker build -t alosm-zipformer .`; sau đó `docker run --rm -p 8000:8000 --env-file .env alosm-zipformer`.
+5. **Expected:** build tải artifact đúng SHA-256; container chạy non-root; `/health/ready` trả 200 và upload WAV trả transcript thật.
+6. **Verify:** `curl.exe http://localhost:8000/health/ready` và lệnh upload trong `docs/voice-ai/zipformer-asr.md`.
+7. **Risk:** lỗi package/platform hoặc model path chỉ xuất hiện khi deploy.
+
+### 8.3 Nghiệm thu trên audio cuộc gọi và phần cứng production
+
+1. **Việc làm:** cung cấp corpus cuộc gọi tiếng Việt đã consent/ẩn danh và CPU/RAM mục tiêu; đo WER/CER theo miền, vùng giọng, nhiễu và tải dài hạn.
+2. **Tại sao:** WAV đi kèm model chứng minh pipeline chạy thật nhưng không đại diện điện thoại 8 kHz, tiếng ồn, địa chỉ/POI và giọng vùng miền của khách hàng.
+3. **Ở đâu:** môi trường staging với telephony codec thật và dashboard metrics.
+4. **Command:** chạy `scripts/benchmark_zipformer.py` trên SKU production; bổ sung evaluator WER/CER sau khi corpus được cấp hợp pháp.
+5. **Expected:** SLO latency/error/memory, WER/CER và tuning worker/thread được owner ký duyệt.
+6. **Verify:** soak test không tăng RSS không kiểm soát, error rate <1%, RTF theo gate và báo cáo slice chất lượng.
+7. **Risk:** transcript địa chỉ sai, handoff sai, quá tải RAM/CPU hoặc chất lượng giảm ngoài tập mẫu.
+## 9. TTS output — kiểm duyệt bắt buộc còn cần con người/hạ tầng
+
+### 9.1 Human listening review tiếng Việt
+
+1. **Việc làm:** ít nhất hai reviewer tiếng Việt nghe corpus trong `scripts/live_tts_output_check.py` và bộ câu nghiệp vụ đã consent; chấm HoaiMy/NamMinh về tự nhiên, rõ, nhịp nghỉ, địa chỉ, số tiền, phủ định và persona thương hiệu.
+2. **Tại sao:** TTS→ZipFormer, CER/WER và audio metrics không thay thế khả năng nghe cảm nhận bằng tai người.
+3. **Ở đâu:** staging Voice UI trên Chrome/Edge và thiết bị/loa/tai nghe đại diện người dùng.
+4. **Thao tác:** chạy `scripts/live_tts_output_check.py`, mở audio qua chính `/api/v1/voice/speak`; ghi `case_id`, reviewer, voice, điểm, lỗi và quyết định.
+5. **Expected:** hai reviewer ký duyệt, không có lỗi đổi nghĩa/phủ định/giá/địa chỉ và có voice/persona được Product phê duyệt.
+6. **Verify:** biên bản review gắn model/provider version và ngày chạy; case fail có regression fixture sau khi được phép lưu.
+7. **Risk:** audio đạt chỉ số kỹ thuật nhưng vẫn nghe máy, sai nhịp hoặc phát âm thương hiệu không phù hợp.
+
+### 9.2 Provider TTS có SLA cho production
+
+1. **Việc làm:** Platform/Procurement chọn và cấp credential cho provider Speech chính thức có SLA, quota, DPA và quyền thương mại; giữ Edge-TTS làm fallback/dev nếu policy cho phép.
+2. **Tại sao:** Edge-TTS là online best-effort và live audit đã quan sát `NoAudioReceived`/timeout theo câu ở cả HoaiMy lẫn NamMinh.
+3. **Ở đâu:** secret manager, billing account và hồ sơ third-party vendor của production.
+4. **Thao tác:** tích hợp provider qua contract `TTSProvider`, không bypass `TTSOrchestrator`; chạy lại cùng live report, load/soak và failover drill.
+5. **Expected:** SLO, quota/cost alert, retry policy và data retention được phê duyệt.
+6. **Verify:** canary thực tế, dashboard error/fallback/p95 và diễn tập provider outage.
+7. **Risk:** cả hai Edge voice cùng lỗi khiến TTS trả 503 dù backend/ASR/Agent còn khỏe.
+
+### 9.3 Device/browser playback matrix
+
+1. **Việc làm:** QA kiểm tra autoplay, mute/unmute, Bluetooth, đổi output device, background tab và cuộc gọi liên tiếp trên browser/mobile mục tiêu.
+2. **Tại sao:** AI agent không thể tự cấp quyền media hoặc xác nhận âm thanh phát qua thiết bị vật lý của người dùng.
+3. **Ở đâu:** staging HTTPS trên Chrome/Edge và thiết bị nằm trong support matrix.
+4. **Expected:** không nói đè, không Promise treo, lỗi phát được hiển thị và audio dừng khi mute/unmount.
+5. **Verify:** test record có browser/version/device và video/log network-console.
+6. **Risk:** server audio đúng nhưng người dùng nghe im lặng hoặc audio cũ phát đè lượt mới.

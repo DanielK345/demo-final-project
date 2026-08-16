@@ -1,4 +1,4 @@
-"""Override phát âm tên riêng — Phần 6 (`docs/voice-ai/voice_ai_overview.md` §6, Ref `S2-3`).
+"""Override phát âm tên riêng — Phần 6 (`docs/voice-ai/voice-runtime-architecture.md` §6, Ref `S2-3`).
 
 Text substitution đơn giản (quyết định đã chốt — không dùng SSML): thay tên
 thương hiệu/từ viết tắt khó đọc bằng cách viết ra cách đọc gần đúng trước

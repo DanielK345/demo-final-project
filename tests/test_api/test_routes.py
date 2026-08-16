@@ -10,9 +10,42 @@ async def test_health(client):
 
 
 @pytest.mark.asyncio
+async def test_readiness_checks_database_without_leaking_configuration(client):
+    response = await client.get("/health/ready")
+    assert response.status_code == 503
+    payload = response.json()
+    assert payload["status"] == "not_ready"
+    assert payload["checks"]["configuration"] == "ok"
+    assert payload["checks"]["database"] == "ok"
+    assert payload["checks"]["asr"] == "failed"
+    assert payload["error_codes"] == ["ASR_NOT_READY"]
+    assert "DATABASE_URL" not in response.text
+
+@pytest.mark.asyncio
 async def test_chat_empty_message(client):
-    response = await client.post("/api/v1/chat", json={"message": ""})
+    response = await client.post(
+        "/api/v1/chat",
+        json={"turn_id": "turn-001", "message": ""},
+    )
     assert response.status_code == 422  # Validation error
+
+
+@pytest.mark.asyncio
+async def test_chat_requires_turn_id(client):
+    response = await client.post(
+        "/api/v1/chat",
+        json={"message": "Tôi muốn đặt xe"},
+    )
+    assert response.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_chat_rejects_blank_turn_id(client):
+    response = await client.post(
+        "/api/v1/chat",
+        json={"turn_id": "   ", "message": "Tôi muốn đặt xe"},
+    )
+    assert response.status_code == 422
 
 
 @pytest.mark.asyncio

@@ -1,4 +1,4 @@
-"""Risk-weighted ASR confidence gate — Phần 3 (`docs/voice-ai/voice_ai_overview.md` §5/§6).
+"""Risk-weighted ASR confidence gate — Phần 3 (`docs/voice-ai/voice-runtime-architecture.md` §5/§6).
 
 BR-001 bắt buộc xác nhận bằng lời nói trước khi gọi Booking API, nên ngưỡng
 tin cậy khi user đang ở bước xác nhận đặt xe phải cao hơn ngưỡng bình thường

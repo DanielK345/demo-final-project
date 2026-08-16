@@ -2,31 +2,51 @@ name: CI
 
 on:
   push:
-    branches: [main, develop]
+    branches: [main, develop, feature/voice-ai]
   pull_request:
-    branches: [main]
+    branches: [main, develop]
 
 jobs:
-  lint-and-test:
+  backend:
     runs-on: ubuntu-latest
-
     steps:
       - uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
           cache: pip
-
       - name: Install dependencies
         run: pip install -r requirements.txt
-
-      - name: Lint with ruff
-        run: ruff check src/ tests/
-
-      - name: Run tests
-        run: pytest tests/ -v --tb=short
+      - name: Ruff
+        run: ruff check src tests scripts
+      - name: Compile
+        run: python -m compileall -q src tests scripts
+      - name: Migration graph
+        run: python -m alembic heads
         env:
           APP_ENV: test
-          OPENAI_API_KEY: test-key
+          DATABASE_URL: sqlite:///./data/ci.db
+      - name: Tests
+        run: pytest -q
+        env:
+          APP_ENV: test
+          DATABASE_URL: sqlite:///./data/ci.db
+          AGENT_LLM_ENABLED: "false"
+          AGENT_REWRITE_ENABLED: "false"
+          OPENAI_API_KEY: test-only-placeholder
+
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: src/frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: src/frontend/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run build

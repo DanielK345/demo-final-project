@@ -10,6 +10,7 @@ class Settings(BaseSettings):
         env_file=".env",
         env_file_encoding="utf-8",
         extra="ignore",
+        populate_by_name=True,
     )
 
     # App
@@ -22,14 +23,15 @@ class Settings(BaseSettings):
 
     # LLM
     openai_api_key: str = ""
+    openrouter_api_key: str = ""
     model_name: str = "gpt-4o-mini"
     llm_temperature: float = Field(default=0.7, ge=0.0, le=2.0)
 
     # Core Agent language understanding
     agent_llm_enabled: bool = True
     agent_llm_provider: Literal["openai"] = "openai"
-    agent_llm_model: str = "gpt-5.6-luna"
-    agent_llm_base_url: str | None = None
+    agent_llm_model: str = "openai/gpt-5.6-luna-pro"
+    agent_llm_base_url: str | None = "https://openrouter.ai/api/v1"
     agent_llm_timeout_seconds: float = Field(default=5.0, gt=0)
     agent_llm_reasoning_effort: Literal["none", "low", "medium"] = "none"
 
@@ -38,8 +40,8 @@ class Settings(BaseSettings):
     # nghĩa hơn theo ngữ cảnh hội thoại trước khi hiểu ý định, tắt mặc định).
     agent_rewrite_enabled: bool = False
     agent_rewrite_provider: Literal["openai"] = "openai"
-    agent_rewrite_model: str = "gpt-5.6-luna"
-    agent_rewrite_base_url: str | None = None
+    agent_rewrite_model: str = "openai/gpt-5.6-luna-pro"
+    agent_rewrite_base_url: str | None = "https://openrouter.ai/api/v1"
     agent_rewrite_timeout_seconds: float = Field(default=5.0, gt=0)
     agent_rewrite_reasoning_effort: Literal["none", "low", "medium"] = "none"
 
@@ -48,18 +50,33 @@ class Settings(BaseSettings):
         default="",
         validation_alias=AliasChoices("GOOGLE_API_KEY", "GEMINI_API_KEY"),
     )
-    voice_provider: Literal["auto", "openai", "gemini"] = "auto"
-    voice_stt_model: str = "whisper-1"
+    voice_provider: Literal["auto", "openai", "gemini", "zipformer"] = "auto"
+    voice_stt_model: str = "gpt-4o-transcribe"
     voice_tts_model: str = "tts-1"
-    voice_tts_voice: str = "nova"
+    # Tên riêng cho giọng OpenAI của pipeline `/voice/turn`. Không nhận alias
+    # `VOICE_TTS_VOICE`: tên legacy đó thuộc Voice runtime Edge-TTS và từng làm
+    # OpenAI nhận nhầm tên giọng `vi-VN-*` không hợp lệ.
+    voice_tts_voice: str = Field(
+        default="nova",
+        validation_alias="VOICE_OPENAI_TTS_VOICE",
+    )
     voice_gemini_model: str = "gemini-2.0-flash"
     voice_timeout_seconds: float = Field(default=30.0, gt=0)
 
-    # Post-ASR place-name correction. Only VOICE transcripts are sent to Gemini;
-    # chat text always bypasses this layer.
-    asr_place_rewrite_enabled: bool = True
-    asr_place_rewrite_model: str = "gemini-2.0-flash"
-    asr_place_rewrite_timeout_seconds: float = Field(default=3.0, gt=0)
+    # Post-ASR Vietnamese correction. Only the current transcript is sent and
+    # phone/email/ID/number values are replaced with immutable placeholders.
+    voice_transcript_rewrite_enabled: bool = True
+    voice_transcript_rewrite_model: str = "openai/gpt-5.6-luna-pro"
+    voice_transcript_rewrite_base_url: str | None = "https://openrouter.ai/api/v1"
+    voice_transcript_rewrite_timeout_seconds: float = Field(default=5.0, gt=0)
+    voice_transcript_rewrite_reasoning_effort: Literal["none", "low", "medium"] = "none"
+    voice_transcript_rewrite_minimum_confidence: float = Field(default=0.85, ge=0.0, le=1.0)
+
+    def llm_api_key_for(self, base_url: str | None) -> str:
+        """Select a gateway credential without reusing it for speech APIs."""
+        if base_url and "openrouter.ai" in base_url.lower():
+            return self.openrouter_api_key
+        return self.openai_api_key
 
     # Database — DATABASE_URL dùng cho app runtime (Supabase Transaction Pooler,
     # cổng 6543, driver async asyncpg khi deploy thật — xem docs/database_supabase.md).
@@ -67,6 +84,24 @@ class Settings(BaseSettings):
     # cổng 5432, driver sync psycopg2) — để trống thì Alembic dùng lại DATABASE_URL.
     database_url: str = "sqlite:///./data/app.db"
     database_url_migrations: str = ""
+    database_readiness_timeout_seconds: float = Field(default=2.0, gt=0, le=30)
+
+    def production_readiness_errors(self) -> list[str]:
+        """Return safe configuration error codes; never include secret values."""
+        if self.app_env != "production":
+            return []
+        # Auth/session/settings/booking/trip/handoff services still use process-memory.
+        # Keep production fail-closed until typed repositories and restart/multi-instance
+        # integration tests are wired; no environment flag may bypass this code gate.
+        errors: list[str] = ["DURABLE_SERVICE_PERSISTENCE_REQUIRED"]
+        if not self.database_url.startswith(("postgres://", "postgresql://", "postgresql+asyncpg://")):
+            errors.append("DATABASE_URL_MUST_BE_POSTGRES")
+        if not self.database_url_migrations.startswith(("postgres://", "postgresql://", "postgresql+psycopg2://")):
+            errors.append("DATABASE_URL_MIGRATIONS_REQUIRED")
+        origins = {origin.strip() for origin in self.cors_origins.split(",") if origin.strip()}
+        if not origins or "*" in origins:
+            errors.append("CORS_ORIGINS_MUST_BE_EXPLICIT")
+        return errors
 
     # Vector Store
     chroma_persist_dir: str = "./data/chroma"

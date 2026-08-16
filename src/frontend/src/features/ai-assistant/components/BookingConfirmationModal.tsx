@@ -32,7 +32,7 @@ export const BookingConfirmationModal: React.FC = () => {
         <div className="px-5 py-4 space-y-3">
           {bookingProgress.pickup && (
             <div className="flex items-start gap-3">
-              <MapPin className="w-4 h-4 text-[#00A651] mt-0.5 shrink-0" />
+              <MapPin className="w-4 h-4 text-[#00C9B7] mt-0.5 shrink-0" />
               <div>
                 <p className="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wide">
                   Điểm đón
@@ -45,7 +45,7 @@ export const BookingConfirmationModal: React.FC = () => {
           )}
           {bookingProgress.destination && (
             <div className="flex items-start gap-3">
-              <Navigation className="w-4 h-4 text-[#04763B] dark:text-[#00A651] mt-0.5 shrink-0" />
+              <Navigation className="w-4 h-4 text-[#008F88] dark:text-[#00C9B7] mt-0.5 shrink-0" />
               <div>
                 <p className="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wide">
                   Điểm đến
@@ -96,7 +96,7 @@ export const BookingConfirmationModal: React.FC = () => {
             type="button"
             onClick={() => void confirmBooking()}
             disabled={isConfirming}
-            className="flex-1 rounded-xl bg-[#00A651] px-4 py-2.5 text-sm font-bold text-[#0B0E11] hover:opacity-90 disabled:opacity-60"
+            className="flex-1 rounded-xl bg-[#00C9B7] px-4 py-2.5 text-sm font-bold text-[#0B0E11] hover:opacity-90 disabled:opacity-60"
           >
             {isConfirming ? "Đang đặt xe…" : "Xác nhận đặt xe"}
           </button>

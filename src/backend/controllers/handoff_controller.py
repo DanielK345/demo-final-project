@@ -12,5 +12,5 @@ class HandoffController:
     async def list_handoffs(self, status: str) -> list[HandoffResponseDTO]:
         return [HandoffResponseDTO(**item) for item in self.service.list_handoffs(status)]
 
-    async def accept_handoff(self, handoff_id: str) -> HandoffAcceptanceDTO:
-        return HandoffAcceptanceDTO(**self.service.accept_handoff(handoff_id))
+    async def accept_handoff(self, handoff_id: str, operator_id: str | None = None) -> HandoffAcceptanceDTO:
+        return HandoffAcceptanceDTO(**self.service.accept_handoff(handoff_id, operator_id))

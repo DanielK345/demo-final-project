@@ -1,46 +1,40 @@
-# AloSM Frontend — Status & Hardening Final Report
+# AloSM Frontend — trạng thái hiện hành
 
-Báo cáo chi tiết trạng thái tính năng và kết quả hardened frontend.
+Cập nhật: **2026-08-16**. Trạng thái dùng taxonomy tại
+`docs/PROJECT_SOURCE_OF_TRUTH.md`; build pass không đồng nghĩa dữ liệu production.
 
-## 1. Summary Matrix
+## Ma trận tính năng
 
-| Feature | UI Implementation | Logic / API Client | Backend Endpoint | Real Status |
-|:---|:---|:---|:---|:---:|
-| **Authentication** | Login Page (`/login`) | Form State & Redirect | Missing Backend API | `UI PROTOTYPE` |
-| **Home Dashboard** | Bento Grid Figma Layout | Complete + Agent Status | `GET /api/v1/status` | `PARTIAL` |
-| **AI Assistant** | Voice Visualizer + Chat | Complete + Live Hook | `POST /api/v1/chat` | `IMPLEMENTED` |
-| **Voice UI (STT/TTS)** | Mic Pulse & Waveforms | Visualizer State | STT/TTS Engine Missing | `UI ONLY` |
-| **Service & Booking** | Full Catalog & Modal Card | Isolated `mockData.ts` | Missing Booking API | `MOCK DATA` |
-| **Live Tracking** | Live Map & Tracking Card | `/tracking` Route & Types | Missing GPS Streaming API | `UI PROTOTYPE` |
-| **Trip History** | Filter Chips & Timeline Cards | Isolated `mockData.ts` | Missing Trips API | `MOCK DATA` |
-| **Payment & Wallet** | Balance Card + Methods | Static State | Missing Payment API | `UI PROTOTYPE` |
-| **Profile & Settings** | User Profile & Security UI | Static State | Missing User Profile API | `UI PROTOTYPE` |
+| Feature | UI/route | API đang dùng | Trạng thái dữ liệu |
+|---|---|---|---|
+| Authentication + 2FA | `/login`, guard | `/api/v1/auth/*` | `DEMO`: backend identity còn process-memory |
+| Home | `/` | agent status + session APIs | `IMPLEMENTED`, business cards phụ thuộc data bên dưới |
+| Voice assistant popup | toàn bộ AppLayout | `/api/v1/voice/turn`, `/api/v1/voice/speak` | `STAGING_ONLY/RELEASE_GATED` |
+| Typed booking conversation | popup | `/api/v1/sessions/*`; server TTS cho reply | `IMPLEMENTED`, provider business còn demo |
+| Service catalog | `/booking` | `MOCK_SERVICES_CATALOG` | `DEMO` |
+| Tracking | `/tracking` | `/api/v1/trips/status` | `STAGING_ONLY`: trip process-memory, chưa GPS/dispatch thật |
+| Activity/history | `/activity` | `/api/v1/bookings`, `/api/v1/sessions/history*` | `STAGING_ONLY`: dữ liệu backend chưa persistent |
+| Payment/security | `/payment` | settings/2FA/password APIs | Security settings có API; wallet/payment là `DEMO/EXTERNAL_BLOCKED` |
+| Profile/settings | `/profile` | auth/settings APIs | `DEMO`: settings process-memory |
+| `/assistant` compatibility | redirect + mở popup | không có page riêng | `IMPLEMENTED` |
 
----
+## Boundary bắt buộc
 
-## 2. Real APIs Integrated
-- `GET /health` -> Health status check
-- `GET /api/v1/status` -> Agent status check
-- `POST /api/v1/chat` -> AI Chat conversation with FastAPI LangGraph Agent
+- Frontend không tự tính fare, ETA, voucher eligibility hoặc booking success.
+- Marker xe chưa assign phải được aggregate/privacy-filter từ Backend.
+- Mọi lỗi audio/playback/fallback phải hiển thị; không chuyển browser voice âm thầm.
+- Khi API business chưa sẵn sàng, component phải gắn nhãn demo và giữ data trong
+  file riêng; không trộn mock vào API client.
+- OpenAPI/DTO Backend là contract; type gần giống nhưng khác semantics phải bị loại.
 
----
+## Kiểm tra bắt buộc
 
-## 3. Mock Data & Isolation Files
-- `src/features/booking/mockData.ts` -> Dữ liệu giả lập 5 loại xe AloSM.
-- `src/features/activity/mockData.ts` -> Dữ liệu giả lập lịch sử chuyến đi.
-
----
-
-## 4. Build & Production Verification Results
-
-```bash
-cd frontend && npm run build
+```powershell
+cd src/frontend
+npm run lint
+npx tsc -b
+npm run build
 ```
 
-- **Status**: `PASS`
-- **TypeScript Errors**: `0`
-- **Build Output**:
-  - `dist/index.html` (0.91 kB)
-  - `dist/assets/index-B61gEmDu.css` (58.28 kB)
-  - `dist/assets/index-jThIP4Cw.js` (416.08 kB)
-- **Time**: `606 ms`
+Nghiệm thu production còn cần device/browser matrix, API business truth và
+multi-instance persistence; xem `mustdo.md`.

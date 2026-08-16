@@ -5,3 +5,5 @@ from src.backend.integrations.postgres import PostgresClient
 from src.backend.integrations.redis_client import RedisClient
 from src.backend.integrations.trip_client import TripClient
 from src.backend.integrations.tts_client import TTSClient
+
+__all__ = ["ASRClient", "BookingClient", "MapsClient", "PostgresClient", "RedisClient", "TTSClient", "TripClient"]

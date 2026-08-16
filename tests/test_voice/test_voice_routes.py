@@ -1,12 +1,15 @@
 """Integration test cho `src/backend/api/routes/voice.py` — verify WS route thật
 chạy được qua FastAPI app thật (`src/main.py` shim -> `src.backend.main:app`), gồm cả
 đường đi qua `SessionBridge` -> `SessionService` thật (không mock session, chỉ mock
-ASR/TTS qua Fake provider mặc định khi GROQ_API_KEY chưa cấu hình trong môi trường
-test — xem `src/backend/api/routes/voice.py::build_gateway`)."""
+ASR/TTS qua provider thật. Bài full roundtrip chỉ chạy khi có fixture PCM16 giọng nói thật
+được cấp rõ ràng qua biến môi trường; không dùng waveform giả làm bằng chứng STT."""
 
 import json
+import os
+from pathlib import Path
 
 import numpy as np
+import pytest
 from fastapi.testclient import TestClient
 
 from src.main import app
@@ -25,6 +28,10 @@ def test_voice_health_endpoint():
     assert response.json()["status"] == "ok"
 
 
+@pytest.mark.skipif(
+    not os.getenv("VOICE_LIVE_PCM16_FIXTURE"),
+    reason="Set VOICE_LIVE_PCM16_FIXTURE to consented, real 16 kHz PCM16 speech audio.",
+)
 def test_voice_ws_full_call_roundtrip():
     client = TestClient(app)
     with client.websocket_connect("/api/v1/voice/stream") as ws:
@@ -38,8 +45,9 @@ def test_voice_ws_full_call_roundtrip():
         status = ws.receive_json()
         assert status["type"] == "status"
 
-        ws.send_bytes(_pcm16(0.5, 1.0))  # 1s "nói"
-        ws.send_bytes(_pcm16(0.0, 1.0))  # 1s im lặng -> kết thúc utterance
+        fixture_path = Path(os.environ["VOICE_LIVE_PCM16_FIXTURE"])
+        ws.send_bytes(fixture_path.read_bytes())
+        ws.send_bytes(_pcm16(0.0, 1.0))  # endpoint silence
 
         seen_types: list[str] = []
         for _ in range(20):
@@ -61,13 +69,6 @@ def test_voice_ws_full_call_roundtrip():
         audio_frame = ws.receive()
         assert audio_frame.get("bytes") is not None
 
-        # FakeASRProvider trả transcript demo cố định ("[demo] đã nhận ...ms audio"),
-        # không phải câu đặt xe thật — Core Agent thật (LLMAgent + AgentGuardrails,
-        # xem src/backend/services/session_service.py) có thể coi input không hiểu
-        # được này là cần handoff ngay (khác rule-engine cũ, vốn có 1 câu trả lời mặc
-        # định chung chung). Vì vậy chỉ còn lại 0-1 event "status"/"handoff" trước khi
-        # session thực sự kết thúc — verify roundtrip WS chạy hết vòng đời, không ép
-        # cứng 1 nhánh nghiệp vụ cụ thể.
         trailing = ws.receive_json()
         assert trailing["type"] in {"session_ended", "status", "handoff"}
 

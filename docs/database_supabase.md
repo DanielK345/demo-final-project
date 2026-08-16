@@ -23,11 +23,11 @@ gọi thử 1 API) chứ đừng demo trực tiếp ngay.
 Supabase không cho app nối thẳng vào Postgres — mọi kết nối đi qua **Supavisor**
 (pooler), có 2 chế độ:
 
-| | Transaction Pooler (cổng 6543) | Direct / Session (cổng 5432) |
-|---|---|---|
-| Dùng cho | App runtime (FastAPI, nhiều request ngắn/đồng thời) | Alembic migration (DDL, chạy không thường xuyên) |
-| Ưu điểm | Chia sẻ connection giữa nhiều client, hiệu quả cao | Giữ 1 connection riêng, ổn định cho DDL |
-| Hạn chế | **Không hỗ trợ prepared statement** — nếu không tắt statement cache ở driver, sẽ gặp lỗi `prepared statement "..." already exists` ngẫu nhiên khi có nhiều request cùng lúc | Không phù hợp cho traffic lớn/đồng thời |
+|            | Transaction Pooler (cổng 6543)                                                                                                                                                                      | Direct / Session (cổng 5432)                         |
+| ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------- |
+| Dùng cho  | App runtime (FastAPI, nhiều request ngắn/đồng thời)                                                                                                                                             | Alembic migration (DDL, chạy không thường xuyên) |
+| Ưu điểm | Chia sẻ connection giữa nhiều client, hiệu quả cao                                                                                                                                              | Giữ 1 connection riêng, ổn định cho DDL          |
+| Hạn chế  | **Không hỗ trợ prepared statement** — nếu không tắt statement cache ở driver, sẽ gặp lỗi `prepared statement "..." already exists` ngẫu nhiên khi có nhiều request cùng lúc | Không phù hợp cho traffic lớn/đồng thời        |
 
 Đây không phải lý thuyết suông — là lỗi thật nhiều người gặp khi ghép SQLAlchemy +
 asyncpg + Supavisor transaction mode
@@ -148,13 +148,14 @@ erDiagram
 
 ## 3. Code đã có sẵn (verify được ngay, không cần Supabase)
 
-| File | Vai trò |
-|---|---|
-| `src/backend/db/base.py` | Engine/session async, `to_async_url`/`to_sync_url` (tự chuyển `postgresql://` ↔ `postgresql+asyncpg://`/`+psycopg2://`), `get_db()` (FastAPI dependency) |
-| `src/backend/db/models.py` | 8 ORM model khớp schema ở mục 2 |
-| `alembic.ini` + `migrations/env.py` + `migrations/versions/0001_initial_schema.py` | Migration đầu tiên, tạo đủ 8 bảng |
+| File                                                                                     | Vai trò                                                                                                                                                               |
+| ---------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/backend/db/base.py`                                                               | Engine/session async,`to_async_url`/`to_sync_url` (tự chuyển `postgresql://` ↔ `postgresql+asyncpg://`/`+psycopg2://`), `get_db()` (FastAPI dependency) |
+| `src/backend/db/models.py`                                                             | 8 ORM model khớp schema ở mục 2                                                                                                                                     |
+| `alembic.ini` + `migrations/env.py` + `migrations/versions/0001_initial_schema.py` | Migration đầu tiên, tạo đủ 8 bảng                                                                                                                               |
 
 **Đã verify thật** (không phải suy đoán):
+
 - `alembic upgrade head` chạy thành công, tạo đủ bảng trên SQLite local.
 - `alembic check` — **"No new upgrade operations detected"**: `models.py` và migration khớp tuyệt đối, không lệch schema.
 - Insert + query round-trip qua async engine thật (`AsyncSession`, không mock) cho `User`/`RideSession`/`AuthToken` — chạy đúng, default field (`current_step="START"`, `vehicle_type="4_SEAT"`...) áp dụng đúng.
@@ -166,8 +167,7 @@ sang connection string Supabase thật — không cần sửa code.
 
 **Chưa làm (việc tiếp theo, không nằm trong phần "database" mà là "nối service vào
 DB"):** `AuthService`/`SessionService`/`BookingService`/... hiện vẫn đang lưu bằng
-dict RAM, CHƯA gọi tới `src/backend/db/*`. Lý do tạm dừng ở đây: `src/backend/services/
-auth_service.py` và `src/backend/api/routes/sessions.py` đang có thay đổi khác diễn ra
+dict RAM, CHƯA gọi tới `src/backend/db/*`. Lý do tạm dừng ở đây: `src/backend/services/ auth_service.py` và `src/backend/api/routes/sessions.py` đang có thay đổi khác diễn ra
 đồng thời (thêm token-session binding) — nối DB vào ngay lúc này dễ đụng/ghi đè công
 việc đó. Sẽ làm ngay sau khi việc kia ổn định — xem phần hỏi riêng ở cuối tin nhắn.
 
@@ -199,6 +199,7 @@ việc đó. Sẽ làm ngay sau khi việc kia ổn định — xem phần hỏi
    ```
    postgresql://postgres.xxxxxxxxxxxx:[YOUR-PASSWORD]@aws-0-ap-southeast-1.pooler.supabase.com:6543/postgres
    ```
+
    Thay `[YOUR-PASSWORD]` bằng mật khẩu đã lưu ở Bước 1.
 
 ### Bước 3 — Điền vào `.env`
@@ -258,4 +259,4 @@ tự viết `AuthService`, RLS mới thực sự cần thiết.
 - [Connect to your database | Supabase Docs](https://supabase.com/docs/guides/database/connecting-to-postgres)
 - [Supavisor and Connection Terminology Explained](https://supabase.com/docs/guides/troubleshooting/supavisor-and-connection-terminology-explained-9pr_ZO)
 - [asyncpg prepared statement errors with Supabase poolers (GitHub issue)](https://github.com/supabase/supabase/issues/39227)
-- [Supabase Free Tier Limits 2026 — Hidden Pauses & Caps](https://www.itpathsolutions.com/supabase-free-tier-limits)
+- [Supabase Free Tier Limits 2026 — Hidden Pauses &amp; Caps](https://www.itpathsolutions.com/supabase-free-tier-limits)

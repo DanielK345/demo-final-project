@@ -1,4 +1,4 @@
-// Demo UI client — Phần 7 (docs/voice_ai_overview.md §4/§5).
+// Demo UI client — Phần 7 (docs/voice-ai/voice-runtime-architecture.md §4/§5).
 //
 // Nói chuyện đúng theo protocol định nghĩa trong src/models/voice_schemas.py
 // (WSServerEvent / WSClientControl) — xem docstring đầu src/api/voice_routes.py

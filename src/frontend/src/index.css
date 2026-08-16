@@ -11,13 +11,13 @@
 
     /* AloSM Green Mobility Palette — tham khảo tinh thần thiết kế "di chuyển xanh"
        của GreenSM (màu xanh lá sống động, không sao chép mã màu/asset/logo của họ). */
-    --color-brand-green: #00A651;
-    --color-brand-primary: #00A651;
-    --color-brand-primary-hover: #04763B;
-    --color-brand-accent: #00A651;
+    --color-brand-green: #00C9B7;
+    --color-brand-primary: #00C9B7;
+    --color-brand-primary-hover: #008F88;
+    --color-brand-accent: #00C9B7;
     --color-brand-light: rgba(0, 166, 81, 0.1);
 
-    --color-bg: #F8F9FB;
+    --color-bg: #F4FBFA;
     --color-card: #FFFFFF;
     --color-card-border: rgba(16, 18, 19, 0.08);
     --color-text-main: #191C1E;
@@ -81,3 +81,36 @@ body {
 ::-webkit-scrollbar-thumb:hover {
   background: #94a3b8;
 }
+
+/* AloSM mobility UI system — derived from the supplied reference screens. */
+.app-surface {
+  background:
+    radial-gradient(circle at 12% 4%, rgba(84, 180, 232, 0.13), transparent 28rem),
+    radial-gradient(circle at 90% 14%, rgba(0, 209, 193, 0.12), transparent 24rem),
+    var(--color-bg);
+}
+.mobility-card {
+  background: rgba(255, 255, 255, 0.95);
+  border: 1px solid rgba(39, 74, 75, 0.08);
+  border-radius: 1.75rem;
+  box-shadow: 0 12px 36px rgba(0, 143, 136, 0.08);
+}
+.mobility-input {
+  background: rgba(255, 255, 255, 0.97);
+  border: 1px solid rgba(39, 74, 75, 0.1);
+  border-radius: 1.5rem;
+  box-shadow: 0 10px 30px rgba(15, 75, 77, 0.09);
+}
+.mobility-chip {
+  border: 1px solid rgba(39, 74, 75, 0.12);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.92);
+}
+.soft-cyan-panel {
+  background: linear-gradient(135deg, rgba(224, 250, 248, .96), rgba(230, 247, 252, .94) 55%, rgba(255, 249, 222, .88));
+}
+.no-scrollbar { scrollbar-width: none; }
+.no-scrollbar::-webkit-scrollbar { display: none; }
+:root.dark .mobility-card,
+:root.dark .mobility-input,
+:root.dark .mobility-chip { background: rgba(18, 32, 33, 0.95); border-color: rgba(255,255,255,.1); }

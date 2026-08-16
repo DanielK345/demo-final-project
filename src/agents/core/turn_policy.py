@@ -8,6 +8,7 @@ from src.agents.contracts.state import AgentState, ConfirmationStatus
 from src.agents.core.booking.actions import request_cancel_booking_action, request_create_booking_action
 from src.agents.core.booking.messages import format_fare, passenger_confirmation, vehicle_label
 from src.agents.core.booking.state import BookingData, BookingStep
+from src.agents.core.handoff import HandoffReason, classify_handoff, deterministic_handoff_action
 from src.agents.core.policy import AgentPolicy
 from src.agents.tools.builders import CancelBookingTool, CreateBookingTool
 from src.agents.tools.schemas import CancelBookingResult, CreateBookingResult
@@ -65,6 +66,13 @@ class TurnPolicy:
         replay = self._completed_side_effect_replay(agent_input, state)
         if replay is not None:
             return replay
+        immediate_handoff = classify_handoff(agent_input.transcript)
+        if immediate_handoff is not None and immediate_handoff is not HandoffReason.USER_REQUEST:
+            return deterministic_handoff_action(
+                state,
+                reason_code=immediate_handoff,
+                reason=f"Deterministic handoff trigger: {immediate_handoff.value}",
+            )
         if agent_input.tool_result is not None:
             return None
         if state.pending_tool_name is not None:
@@ -84,13 +92,9 @@ class TurnPolicy:
             and state.last_stt_confidence < self.policy.low_confidence_threshold
         )
         if repeated:
-            return AgentAction(
-                action_type=ActionType.HANDOFF,
-                message="Tôi chưa nghe rõ sau nhiều lần. Tôi sẽ chuyển bạn tới tổng đài viên để hỗ trợ.",
-                state_updates={
-                    "current_workflow": WorkflowType.HUMAN_HANDOFF,
-                    "current_step": "HANDOFF_REQUIRED",
-                },
+            return deterministic_handoff_action(
+                state,
+                reason_code=HandoffReason.LOW_STT_CONFIDENCE,
                 reason="Repeated low STT confidence requires human assistance.",
             )
         return AgentAction(

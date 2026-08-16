@@ -39,6 +39,13 @@ class TTSResult(BaseModel):
     sample_rate: int = 24000
     text: str = ""
     duration_ms: int | None = Field(default=None, ge=0)
+    provider: str | None = None
+    voice: str | None = None
+    fallback_used: bool = False
+    review_decision: str | None = None
+    review_reason_codes: list[str] = Field(default_factory=list)
+    spoken_text: str | None = None
+    audio_metrics: dict[str, Any] = Field(default_factory=dict)
 
 
 # ---------------------------------------------------------------------------

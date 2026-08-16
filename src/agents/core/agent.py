@@ -37,7 +37,7 @@ class ModelDrivenAgent:
             )
         except ValueError:
             session = TurnSession.load(AgentState(session_id=state.session_id), event={})
-            return handoff(session, {"reason": "Invalid typed session state"})
+            return handoff(session, {"reason": "Invalid typed session state", "reason_code": "POLICY_BLOCK"})
 
         if agent_input.tool_result is not None:
             outcome = self._reduce_result(session, agent_input)
@@ -78,7 +78,7 @@ class ModelDrivenAgent:
                     reason="Model generated a conversational response from typed state.",
                 )
             if decision.tool_call is None:
-                return handoff(session, {"reason": "Conversation model returned no decision"})
+                return handoff(session, {"reason": "Conversation model returned no decision", "reason_code": "UNABLE_TO_CONTINUE"})
 
             outcome = self.registry.invoke(session, decision.tool_call)
             if isinstance(outcome, AgentAction):
@@ -86,7 +86,7 @@ class ModelDrivenAgent:
             session.event = outcome.event
             exchanges.append(ToolExchange(decision.tool_call, outcome.event))
 
-        return handoff(session, {"reason": "Internal model/tool loop limit reached"})
+        return handoff(session, {"reason": "Internal model/tool loop limit reached", "reason_code": "RETRY_LIMIT"})
 
     @staticmethod
     def _required_fare_estimate(session: TurnSession) -> AgentAction | None:
@@ -115,7 +115,7 @@ class ModelDrivenAgent:
                 state_updates=session.updates,
                 reason="Transient conversation model failure; state retained for retry.",
             )
-        return handoff(session, {"reason": "Conversation model repeatedly unavailable"})
+        return handoff(session, {"reason": "Conversation model repeatedly unavailable", "reason_code": "MODEL_UNAVAILABLE"})
 
     def _reduce_result(self, session: TurnSession, agent_input: AgentInput):
         result = agent_input.tool_result
@@ -123,11 +123,11 @@ class ModelDrivenAgent:
         try:
             correlate_tool_result(result, session.state)
         except ValueError:
-            return handoff(session, {"reason": "Tool result does not match pending call"})
+            return handoff(session, {"reason": "Tool result does not match pending call", "reason_code": "CRITICAL_TOOL_ERROR"})
 
         if result.status is ToolStatus.ERROR:
             if result.tool_name in {ToolName.CREATE_BOOKING, ToolName.CANCEL_BOOKING, ToolName.CREATE_HANDOFF}:
-                return handoff(session, {"reason": "Side-effect tool failed and requires reconciliation"})
+                return handoff(session, {"reason": "Side-effect tool failed and requires reconciliation", "reason_code": "SIDE_EFFECT_RECONCILIATION"})
             session.updates.update(clear_pending_tool_updates())
             session.updates.update(current_step=None, retry_count=session.state.retry_count + 1)
             return ContinueToolLoop({
@@ -140,4 +140,4 @@ class ModelDrivenAgent:
         try:
             return self.registry.reduce(session, result)
         except ValueError:
-            return handoff(session, {"reason": "Backend returned an invalid tool payload"})
+            return handoff(session, {"reason": "Backend returned an invalid tool payload", "reason_code": "CRITICAL_TOOL_ERROR"})
