@@ -7,6 +7,10 @@ class VoiceTurnResponseDTO(BaseModel):
     transcript_rewritten: bool = False
     transcript_rewrite_confidence: float | None = Field(default=None, ge=0, le=1)
     transcript_rewrite_reason: str | None = None
+    # Backward-compatible UI trace for the call-content dropdown.  The typed
+    # fields above remain the API contract; this compact object explains whether
+    # a rewrite provider was invoked without exposing raw provider errors.
+    transcript_rewrite: dict[str, object] | None = None
     stt_confidence: float | None = Field(default=None, ge=0, le=1)
     message_id: str
     action: str

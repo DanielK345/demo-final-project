@@ -16,6 +16,10 @@ class VoiceProviderError(RuntimeError):
     pass
 
 
+class NoSpeechDetectedError(VoiceProviderError):
+    """ASR completed successfully but no usable speech was detected."""
+
+
 def resolve_voice_provider(settings: Settings | None = None) -> VoiceProviderName:
     config = settings or get_settings()
     from src.voice.asr.zipformer.service import get_zipformer_service
@@ -76,7 +80,7 @@ class OpenAIVoiceClient:
             raise VoiceProviderError("OpenAI transcription failed") from exc
         text = response.text.strip()
         if not text:
-            raise VoiceProviderError("Không nhận diện được giọng nói")
+            raise NoSpeechDetectedError("Không nhận diện được giọng nói")
         return text
 
     async def synthesize(self, text: str) -> bytes:
@@ -128,7 +132,7 @@ class GeminiVoiceClient:
         except (KeyError, IndexError, TypeError) as exc:
             raise VoiceProviderError("Gemini transcription returned no text") from exc
         if not text:
-            raise VoiceProviderError("Không nhận diện được giọng nói")
+            raise NoSpeechDetectedError("Không nhận diện được giọng nói")
         return text
 
     async def synthesize(self, text: str) -> bytes:
@@ -155,7 +159,7 @@ class ZipformerVoiceClient:
         except Exception as exc:
             raise VoiceProviderError("ZipFormer transcription failed") from exc
         if not result.text:
-            raise VoiceProviderError("Không nhận diện được giọng nói")
+            raise NoSpeechDetectedError("Không nhận diện được giọng nói")
         return result.text
 
     async def synthesize(self, text: str) -> bytes:

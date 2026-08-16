@@ -73,12 +73,12 @@ export const VoiceCallPanel: React.FC = () => {
   };
 
   return (
-    <div className="flex flex-col items-center h-full px-4 sm:px-6 py-5 text-center overflow-y-auto">
-      <p className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">AloSM Voice</p>
-      <p className="text-sm font-mono text-slate-400 dark:text-slate-500 mt-1">{formatDuration(elapsed)}</p>
+    <div className="flex h-full min-h-0 flex-col items-center overflow-hidden px-4 py-5 text-center sm:px-6">
+      <p className="shrink-0 text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">AloSM Voice</p>
+      <p className="mt-1 shrink-0 text-sm font-mono text-slate-400 dark:text-slate-500">{formatDuration(elapsed)}</p>
 
       {/* Orb trung tâm — pulse khi đang nghe/nói, đứng yên khi rảnh */}
-      <div className="relative my-4 grid place-items-center">
+      <div className="relative my-4 grid shrink-0 place-items-center">
         {isActive && (
           <span
             className={`absolute w-32 h-32 rounded-full animate-ping [animation-duration:1.6s] ${
@@ -115,6 +115,7 @@ export const VoiceCallPanel: React.FC = () => {
         </div>
       </div>
 
+      <div className="shrink-0">
       {micMuted ? (
         <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-400 dark:text-slate-500">
           <MicOff className="w-3.5 h-3.5" />
@@ -123,8 +124,7 @@ export const VoiceCallPanel: React.FC = () => {
       ) : (
         <AIStatusIndicator status={displayStatus} />
       )}
-
-      <div className="flex-1" />
+      </div>
 
       {draft && (
         <form onSubmit={submitDraft} className="mb-3 w-full rounded-2xl border border-[#00C9B7]/30 bg-[#E9FBF8] p-3 text-left dark:bg-[#00C9B7]/10">
@@ -150,8 +150,17 @@ export const VoiceCallPanel: React.FC = () => {
         </form>
       )}
 
-      <BookingProgressStrip progress={bookingProgress} />
-      <div className="mt-3 w-full"><RideBookingExperience progress={bookingProgress} onSay={sendText} disabled={status === "processing"} voiceCommand={latestUserMessage} /></div>
+      <div className="w-full shrink-0">
+        <BookingProgressStrip progress={bookingProgress} />
+      </div>
+      <div className="mt-3 w-full shrink-0">
+        <RideBookingExperience
+          progress={bookingProgress}
+          onSay={sendText}
+          disabled={status === "processing"}
+          voiceCommand={latestUserMessage}
+        />
+      </div>
       <VoiceTranscript messages={messages} />
 
       {sessionEnded ? (

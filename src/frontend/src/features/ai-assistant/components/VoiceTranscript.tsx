@@ -7,15 +7,16 @@ type Props = {
 };
 
 function rewriteTraceLabel(trace: NonNullable<Message["transcriptRewrite"]>): string {
+  const provider = trace.provider === "gemini" ? "Gemini" : "LLM";
   if (trace.called) {
-    return trace.applied ? "Gemini đã sửa tên địa điểm" : "Gemini đã kiểm tra, không cần sửa";
+    return trace.applied ? `${provider} đã sửa transcript` : `${provider} đã kiểm tra, không cần sửa`;
   }
-  const skipped = {
+  const skipped: Record<string, string> = {
     missing_api_key: "chưa gọi Gemini: thiếu API key",
     disabled: "chưa gọi Gemini: tính năng đang tắt",
     skipped_hallucination: "không gọi Gemini: âm thanh không rõ",
-  }[trace.status];
-  return skipped ?? "không gọi Gemini cho transcript này";
+  };
+  return skipped[trace.status] ?? "không gọi LLM cho transcript này";
 }
 
 // "1 cửa sổ nhỏ hiển thị lại text lời người dùng và AI hội thoại với nhau" — đây là
@@ -39,7 +40,7 @@ export const VoiceTranscript: React.FC<Props> = ({ messages }) => {
   const visible = expanded ? messages : messages.slice(-2);
 
   return (
-    <div className="w-full min-h-0 flex-1 flex flex-col rounded-2xl bg-slate-50 border border-slate-200/80 dark:bg-white/5 dark:border-white/10">
+    <div className="mt-3 flex min-h-[9rem] w-full flex-1 flex-col rounded-2xl border border-slate-200/80 bg-slate-50 dark:border-white/10 dark:bg-white/5">
       <button
         type="button"
         onClick={() => setExpanded((value) => !value)}
@@ -51,7 +52,7 @@ export const VoiceTranscript: React.FC<Props> = ({ messages }) => {
         </span>
         {expanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
       </button>
-      <div className="px-4 pb-3 pr-2 space-y-2 flex-1 min-h-0 overflow-y-scroll overscroll-contain">
+      <div className="min-h-0 flex-1 space-y-2 overflow-y-auto overscroll-contain px-4 pb-3 pr-2 text-left">
         {visible.map((message) => (
           <p key={message.id} className="text-xs leading-5">
             <span className={message.role === "user" ? "font-bold text-[#191C1E] dark:text-white" : "font-bold text-[#008F88] dark:text-[#00C9B7]"}>

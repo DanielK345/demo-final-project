@@ -11,7 +11,7 @@ from __future__ import annotations
 from functools import lru_cache
 from typing import Literal
 
-from pydantic import AliasChoices, Field
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -44,7 +44,10 @@ class VoiceSettings(BaseSettings):
     voice_tts_rate: float = Field(default=1.0, gt=0.0, le=2.0)
     voice_tts_primary_voice: str = Field(
         default="vi-VN-HoaiMyNeural",
-        validation_alias=AliasChoices("VOICE_TTS_PRIMARY_VOICE", "VOICE_TTS_VOICE"),
+        # Do not accept the legacy VOICE_TTS_VOICE alias here. That key is
+        # commonly set to an OpenAI voice (for example "nova"), which Edge-TTS
+        # cannot use. Configure this runtime only with a full Edge voice ID.
+        validation_alias="VOICE_TTS_PRIMARY_VOICE",
     )
     voice_tts_fallback_voices: str = "vi-VN-NamMinhNeural"
     voice_tts_timeout_seconds: float = Field(default=12.0, gt=0, le=60)

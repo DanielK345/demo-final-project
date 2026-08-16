@@ -7,6 +7,7 @@ export interface VoiceTurnResponse {
   transcript_rewritten: boolean;
   transcript_rewrite_confidence?: number | null;
   transcript_rewrite_reason?: string | null;
+  transcript_rewrite?: TranscriptRewriteTrace | null;
   stt_confidence: number | null;
   message_id: string;
   action: "ASK_USER" | "RESPOND" | "HANDOFF" | "END_SESSION";
@@ -27,6 +28,13 @@ export interface VoiceTurnResponse {
 export interface SpeechReviewContext {
   bookingConfirmed?: boolean;
   action?: string;
+}
+
+export interface TranscriptRewriteTrace {
+  provider: string;
+  called: boolean;
+  applied: boolean;
+  status: string;
 }
 
 export interface SynthesizedSpeech {

@@ -8,6 +8,7 @@ def test_edge_tts_voice_is_separate_from_openai_voice(monkeypatch):
     settings = VoiceSettings(_env_file=None)
 
     assert settings.voice_tts_voice == "vi-VN-HoaiMyNeural"
+    assert settings.voice_tts_primary_voice == "vi-VN-HoaiMyNeural"
 
 
 def test_edge_tts_voice_uses_its_default_when_only_openai_voice_is_set(monkeypatch):
@@ -17,3 +18,4 @@ def test_edge_tts_voice_uses_its_default_when_only_openai_voice_is_set(monkeypat
     settings = VoiceSettings(_env_file=None)
 
     assert settings.voice_tts_voice == "vi-VN-HoaiMyNeural"
+    assert settings.voice_tts_primary_voice == "vi-VN-HoaiMyNeural"

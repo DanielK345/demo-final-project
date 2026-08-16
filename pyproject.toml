@@ -28,7 +28,12 @@ dependencies = [
     "openai>=2.20.0",
     "numpy>=1.26.4",
     "sherpa-onnx==1.13.4",
+    # sherpa-onnx's Python bindings dynamically load this platform wheel.
+    # Keep it explicit: a stale lockfile can otherwise install the bindings
+    # without libonnxruntime.so, causing ZipFormer to fail at import time.
+    "sherpa-onnx-core==1.13.4",
     "psutil==7.2.2",
     "edge-tts==7.2.8",
     "rapidfuzz>=3.14.5",
+    "pyotp>=2.10.0",
 ]

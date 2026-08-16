@@ -190,7 +190,7 @@ export const VoiceAssistantProvider: React.FC<{ children: React.ReactNode }> = (
             id: `user-${Date.now()}`,
             role: "user",
             text: result.transcript,
-            transcriptRewrite: result.transcript_rewrite,
+            transcriptRewrite: result.transcript_rewrite ?? undefined,
           },
           { id: result.message_id, role: "assistant", text: result.message },
         ]);

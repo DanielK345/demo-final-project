@@ -72,6 +72,14 @@ class Settings(BaseSettings):
     voice_transcript_rewrite_reasoning_effort: Literal["none", "low", "medium"] = "none"
     voice_transcript_rewrite_minimum_confidence: float = Field(default=0.85, ge=0.0, le=1.0)
 
+    # Legacy Gemini place rewriter compatibility. The active voice paths use
+    # VOICE_TRANSCRIPT_REWRITE_* above; retain these fields so importing the old
+    # adapter cannot crash after a merge. Disabled by default to avoid a second
+    # LLM rewrite of the same transcript.
+    asr_place_rewrite_enabled: bool = False
+    asr_place_rewrite_model: str = "gemini-2.0-flash"
+    asr_place_rewrite_timeout_seconds: float = Field(default=3.0, gt=0)
+
     def llm_api_key_for(self, base_url: str | None) -> str:
         """Select a gateway credential without reusing it for speech APIs."""
         if base_url and "openrouter.ai" in base_url.lower():
