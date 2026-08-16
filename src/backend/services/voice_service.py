@@ -16,6 +16,7 @@ from src.config import Settings, get_settings
 from src.voice.asr.biasing import correct_place_names
 from src.voice.asr.groq_provider import is_known_hallucination
 from src.voice.text.gazetteer import Gazetteer
+from src.voice.text.place_aliases import PlaceAliasCatalog
 from src.voice.text.normalizer import normalize_transcript
 from src.voice.text.rewrite_contract import TranscriptRewriter, TranscriptRewriteResult
 from src.voice.tts.orchestrator import get_tts_orchestrator
@@ -35,6 +36,7 @@ class VoiceService:
         self.session_service = session_service or SessionService()
         self.settings = settings or get_settings()
         self.gazetteer = Gazetteer.load()
+        self.place_aliases = PlaceAliasCatalog.load()
         self.transcript_rewriter = transcript_rewriter or build_transcript_rewriter(self.settings, self.gazetteer)
 
     async def process_turn(
@@ -70,6 +72,16 @@ class VoiceService:
             return self._reprompt_response(provider_name, reason="no_speech_detected")
 
         deterministic_transcript = normalize_transcript(correct_place_names(raw_transcript, self.gazetteer))
+        alias_corrected_transcript = self.place_aliases.correct(deterministic_transcript)
+        alias_applied = alias_corrected_transcript != deterministic_transcript
+        if alias_applied:
+            logger.info(
+                "Voice place alias corrected session=%s input=%r output=%r",
+                session_id,
+                deterministic_transcript,
+                alias_corrected_transcript,
+            )
+        deterministic_transcript = alias_corrected_transcript
         if is_known_hallucination(deterministic_transcript):
             logger.info("Voice STT hallucination blocked session=%s provider=%s", session_id, provider_name)
             return self._reprompt_response(provider_name, reason="known_asr_hallucination")
@@ -123,10 +135,10 @@ class VoiceService:
 
         return {
             "transcript": transcript,
-            "transcript_rewritten": rewrite.applied,
+            "transcript_rewritten": alias_applied or rewrite.applied,
             "transcript_rewrite_confidence": rewrite.confidence,
-            "transcript_rewrite_reason": rewrite.reason,
-            "transcript_rewrite": self._rewrite_trace(rewrite),
+            "transcript_rewrite_reason": "alias_catalog_applied" if alias_applied and not rewrite.applied else rewrite.reason,
+            "transcript_rewrite": self._rewrite_trace(rewrite, alias_applied=alias_applied),
             "stt_confidence": None,
             "message_id": agent_result["message_id"],
             "action": agent_result["action"],
@@ -195,11 +207,13 @@ class VoiceService:
         }
 
     @staticmethod
-    def _rewrite_trace(rewrite: TranscriptRewriteResult) -> dict[str, object]:
+    def _rewrite_trace(rewrite: TranscriptRewriteResult, *, alias_applied: bool = False) -> dict[str, object]:
         skipped_reasons = {"disabled_or_unconfigured", "empty", "too_long"}
         return {
-            "provider": "openai-compatible" if rewrite.model else "none",
+            "provider": "alias_catalog+openai-compatible" if alias_applied and rewrite.model else (
+                "alias_catalog" if alias_applied else "openai-compatible" if rewrite.model else "none"
+            ),
             "called": rewrite.reason not in skipped_reasons,
-            "applied": rewrite.applied,
-            "status": rewrite.reason,
+            "applied": alias_applied or rewrite.applied,
+            "status": "alias_catalog_applied" if alias_applied and not rewrite.applied else rewrite.reason,
         }

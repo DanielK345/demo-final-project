@@ -17,6 +17,7 @@ from pydantic import BaseModel, Field
 
 from src.config import Settings, get_settings
 from src.voice.text.gazetteer import Gazetteer
+from src.voice.text.place_aliases import PlaceAliasCatalog
 from src.voice.text.rewrite_contract import TranscriptRewriteResult
 
 logger = logging.getLogger(__name__)
@@ -127,7 +128,7 @@ class OpenAITranscriptRewriter:
         self.timeout_seconds = timeout_seconds
         self.reasoning_effort = reasoning_effort
         self.minimum_confidence = minimum_confidence
-        self.glossary = [term.strip() for term in (glossary or []) if term.strip()][:50]
+        self.glossary = [term.strip() for term in (glossary or []) if term.strip()][:120]
         self.client = client or AsyncOpenAI(api_key=api_key, base_url=base_url, max_retries=0)
 
     async def rewrite(
@@ -246,12 +247,16 @@ def build_transcript_rewriter(
     if not config.voice_transcript_rewrite_enabled or not api_key:
         return None
     places = (gazetteer or Gazetteer.load()).entries
+    hanoi_places = PlaceAliasCatalog.load().canonical_names
     return OpenAITranscriptRewriter(
         api_key=api_key,
         model=config.voice_transcript_rewrite_model,
         timeout_seconds=config.voice_transcript_rewrite_timeout_seconds,
         reasoning_effort=config.voice_transcript_rewrite_reasoning_effort,
         base_url=config.voice_transcript_rewrite_base_url,
-        glossary=["AloSM", "Xanh SM", "Green SM", *places],
+        # Canonical Hanoi names come first so model gets the exact target for the
+        # common V/B and U/Y ASR confusions; the legacy seed gazetteer remains a
+        # secondary source of hints.
+        glossary=["AloSM", "Xanh SM", "Green SM", *hanoi_places, *places],
         minimum_confidence=config.voice_transcript_rewrite_minimum_confidence,
     )
