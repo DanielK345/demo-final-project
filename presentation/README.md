@@ -1,26 +1,17 @@
-# Pitch Deck & Demo Materials
+# Presentation deliverables
 
-## Files
+> **DELIVERABLE AREA** — Nội dung trong thư mục này không phải nguồn sự thật về runtime.
 
-- `pitch_deck.pptx` — Slide thuyết trình Demo Day
-- `video_demo.mp4` — Video demo sản phẩm (tối đa 5 phút)
+Hiện repository chưa có pitch deck hoặc video demo đã nghiệm thu. Khi tạo artifact, lấy thông tin từ:
 
-## Pitch Deck Structure (10 slides)
+- [Product Brief](../docs/PRODUCT_BRIEF.md)
+- [PRD v1.2](../docs/PRD_AloSM_Voice.md)
+- [Project Source of Truth](../docs/PROJECT_SOURCE_OF_TRUTH.md)
+- [Architecture](../docs/architecture_diagram.md)
 
-1. **Title** — Tên dự án + Team
-2. **Problem** — Vấn đề là gì? Có bao nhiêu người gặp?
-3. **Solution** — Giải pháp AI của bạn
-4. **Demo** — Screenshot/Video ngắn
-5. **Architecture** — System diagram đơn giản
-6. **Tech Stack** — Technologies used
-7. **Traction** — Metrics, users, feedback
-8. **Market** — Quy mô thị trường
-9. **Team** — Ai làm gì
-10. **Ask** — Bạn cần gì tiếp theo?
+## Checklist đề xuất
 
-## Video Demo Checklist
-
-- [ ] Giới thiệu problem (< 30 giây)
-- [ ] Demo live feature chính (2-3 phút)
-- [ ] Hiển thị kết quả AI (1 phút)
-- [ ] Tóm tắt impact (< 30 giây)
+- Pitch deck: problem, solution, demo, architecture, evidence, limitations, team và next ask.
+- Video demo: giới thiệu ngắn, chạy luồng thật, hiển thị lỗi/handoff và nêu rõ dữ liệu demo.
+- Không đưa KPI, production claim hoặc tích hợp provider vào slide nếu chưa có evidence hiện hành.
+- Mọi blocker còn lại phải dẫn về `mustdo.md`, không tạo TODO riêng trong thư mục này.

@@ -4,7 +4,7 @@ Trợ lý đặt xe bằng giọng nói/tin nhắn cho AloSM: khách nói/nhắn
 hiểu, thu thập điểm đón/đến, xác nhận → đặt xe hoặc chuyển tổng đài viên nếu cần.
 Bắt đầu tại [`docs/PROJECT_SOURCE_OF_TRUTH.md`](docs/PROJECT_SOURCE_OF_TRUTH.md) để
 biết nguồn dữ liệu nào có thẩm quyền, trạng thái thật của từng miền và trình tự hoàn
-thiện. Yêu cầu sản phẩm nằm tại [`docs/PRD_AloSM_Voice.md`](docs/PRD_AloSM_Voice.md).
+thiện. Tóm tắt sản phẩm nằm tại [`docs/PRODUCT_BRIEF.md`](docs/PRODUCT_BRIEF.md); yêu cầu chuẩn nằm tại [`docs/PRD_AloSM_Voice.md`](docs/PRD_AloSM_Voice.md).
 
 ## Kiến trúc tổng quan
 
@@ -83,8 +83,8 @@ cd src/frontend && npm run lint && npx tsc -b && npm run build
 | Thư mục | Nội dung |
 |---|---|
 | `docs/README.md`, `docs/PROJECT_SOURCE_OF_TRUTH.md` | Chỉ mục, trạng thái và trình tự hoàn thiện chuẩn |
-| docs/AI_LOGS.md | Trạng thái kết nối, privacy redaction và runbook AI Logs |
-| `docs/PRD_AloSM_Voice.md`, `docs/MVP.md` | Yêu cầu sản phẩm và phạm vi MVP |
+| `docs/AI_LOGS.md` | Trạng thái kết nối, privacy redaction và runbook AI Logs |
+| `docs/PRODUCT_BRIEF.md`, `docs/PRD_AloSM_Voice.md`, `docs/MVP.md` | Tóm tắt, yêu cầu chuẩn v1.2 và phạm vi MVP |
 | `docs/architecture_diagram.md`, `docs/interface_design.md` | Kiến trúc runtime và HTTP/WS contract hiện hành |
 | `docs/voice-ai/` | Voice runtime, local runbook, ASR/rewrite/TTS và evidence |
 | `docs/database_supabase.md` | Thiết kế + hướng dẫn setup database Supabase |

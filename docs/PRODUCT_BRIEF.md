@@ -1,4 +1,6 @@
-﻿# PRODUCT BRIEF
+# Product Brief — AloSM Voice AI Agent
+
+> **PRODUCT · CURRENT** — Tóm tắt định hướng sản phẩm. Chi tiết yêu cầu nằm tại [PRD_AloSM_Voice.md](PRD_AloSM_Voice.md); trạng thái runtime nằm tại [PROJECT_SOURCE_OF_TRUTH.md](PROJECT_SOURCE_OF_TRUTH.md).
 ## AloSM Voice AI Agent
 **AI Voice Customer Service Agent for AloSM**
 Prepared by: Team T160

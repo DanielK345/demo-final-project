@@ -17,7 +17,7 @@ Khi hai nguồn mâu thuẫn, áp dụng thứ tự sau:
 
 | Câu hỏi | Nguồn chuẩn |
 |---|---|
-| Sản phẩm cần làm gì? | `docs/PRD_AloSM_Voice.md`, sau đó `docs/MVP.md` |
+| Sản phẩm hướng tới điều gì? | `docs/PRODUCT_BRIEF.md`, sau đó `docs/PRD_AloSM_Voice.md` và `docs/MVP.md` |
 | Hệ thống hiện chạy thế nào? | code trong `src/`, migration và test |
 | Contract Agent | `src/agents/README.md`, `src/agents/docs/BACKEND_INTEGRATION.md` |
 | Trạng thái Core Agent | `src/agents/docs/CORE_AGENT_STATUS.md` |
