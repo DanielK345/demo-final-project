@@ -5,6 +5,8 @@ class RegisterRequestDTO(BaseModel):
     full_name: str = Field(..., min_length=2, max_length=100)
     phone: str = Field(..., min_length=8, max_length=20)
     password: str = Field(..., min_length=8, max_length=128)
+    accepted_terms_version: str = Field(..., min_length=1, max_length=40)
+    accepted_privacy_version: str = Field(..., min_length=1, max_length=40)
 
 
 class LoginRequestDTO(BaseModel):
@@ -59,12 +61,20 @@ class TwoFactorStatusDTO(BaseModel):
     two_factor_enabled: bool
 
 
+class PolicyAcceptanceDTO(BaseModel):
+    terms_version: str
+    privacy_version: str
+    accepted_at: str
+    source_sha256: str
+
+
 class CurrentUserDTO(BaseModel):
     user_id: str
     full_name: str
     phone: str
     role: str
     session_id: str | None = None
+    policy_acceptance: PolicyAcceptanceDTO | None = None
 
 
 class ChangePasswordRequestDTO(BaseModel):

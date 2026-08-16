@@ -1,5 +1,6 @@
 import { fetchApi } from "@/app/config/api";
 import { getAccessToken } from "@/features/auth/storage";
+import { CURRENT_POLICY_VERSION } from "@/features/policies/api";
 
 export interface AuthResponse {
   user_id: string;
@@ -28,6 +29,12 @@ export interface CurrentUser {
   phone: string;
   role: "CUSTOMER";
   session_id: string | null;
+  policy_acceptance: {
+    terms_version: string;
+    privacy_version: string;
+    accepted_at: string;
+    source_sha256: string;
+  } | null;
 }
 
 function authHeader(): HeadersInit {
@@ -56,7 +63,13 @@ export async function verifyTwoFactorLogin(pendingToken: string, code: string): 
 export async function register(fullName: string, phone: string, password: string): Promise<AuthResponse> {
   return fetchApi<AuthResponse>("/api/v1/auth/register", {
     method: "POST",
-    body: JSON.stringify({ full_name: fullName, phone, password }),
+    body: JSON.stringify({
+      full_name: fullName,
+      phone,
+      password,
+      accepted_terms_version: CURRENT_POLICY_VERSION,
+      accepted_privacy_version: CURRENT_POLICY_VERSION,
+    }),
   });
 }
 

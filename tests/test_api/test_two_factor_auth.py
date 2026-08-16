@@ -12,7 +12,13 @@ import pytest
 async def _register(client, phone: str) -> dict:
     response = await client.post(
         "/api/v1/auth/register",
-        json={"full_name": "2FA Tester", "phone": phone, "password": "Password123!"},
+        json={
+            "full_name": "2FA Tester",
+            "phone": phone,
+            "password": "Password123!",
+            "accepted_terms_version": "2026-08-16",
+            "accepted_privacy_version": "2026-08-16",
+        },
     )
     assert response.status_code == 201
     return response.json()

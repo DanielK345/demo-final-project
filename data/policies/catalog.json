@@ -1,0 +1,42 @@
+{
+  "schema_version": "1.0.0",
+  "catalog_version": "2026-08-16",
+  "approved_at": "2026-08-16T00:00:00+07:00",
+  "effective_from": "2026-08-16T00:00:00+07:00",
+  "status": "APPROVED_PROJECT_POLICY",
+  "approved_by": "PROJECT_OWNER_SELF_REVIEW",
+  "target_product": "AloSM Voice",
+  "jurisdiction": "VN",
+  "language": "vi-VN",
+  "source_file": "approved-source-2026-08-16.txt",
+  "source_sha256": "5954A5851773F70BA8E5E81AD3785EAA662B86FED5DB7FE38089BC99270F791B",
+  "source_attribution": "Green SM/GSM policy corpus supplied and approved by the AloSM project owner",
+  "source_identity_preserved": true,
+  "identity_substitution_allowed": false,
+  "legal_notice": "Tên pháp nhân, hotline, email, địa chỉ và URL Green SM/GSM trong tài liệu nguồn không phải thông tin liên hệ AloSM và không được tự động thay thế hoặc trình bày như pháp nhân AloSM.",
+  "documents": [
+    {"slug": "terms", "title": "Điều khoản sử dụng", "source_effective_date": "2026-08-07"},
+    {"slug": "privacy", "title": "Chính sách bảo vệ dữ liệu cá nhân", "source_effective_date": "2024-12-25"},
+    {"slug": "cookies", "title": "Chính sách sử dụng cookies", "source_effective_date": null},
+    {"slug": "operations", "title": "Quy chế hoạt động và sử dụng dịch vụ", "source_effective_date": null},
+    {"slug": "transport-contract", "title": "Hợp đồng và điều kiện dịch vụ vận chuyển", "source_effective_date": "2026-07-31"}
+  ],
+  "operational_rules": [
+    {"id":"eligibility","category":"account","title":"Điều kiện sử dụng","content":"Người tự đăng ký và chấp thuận điều khoản phải từ đủ 18 tuổi, có năng lực hành vi dân sự và cung cấp thông tin chính xác, cập nhật.","citation":"Điều khoản sử dụng — Mục 2.1(i)-(ii)"},
+    {"id":"lawful-use","category":"account","title":"Sử dụng hợp pháp","content":"Tài khoản và dịch vụ chỉ được dùng cho mục đích hợp pháp; cấm gian lận, giả mạo chuyến, quấy rối, đe dọa hoặc can thiệp gây mất an toàn.","citation":"Điều khoản sử dụng — Mục 2.1(iv), 2.1(viii)-(ix)"},
+    {"id":"data-minimization","category":"privacy","title":"Tối thiểu hóa dữ liệu","content":"Chỉ thu thập và xử lý dữ liệu cá nhân tối thiểu cần thiết để cung cấp dịch vụ. Không coi việc giao kết dịch vụ là đồng ý cho mục đích khác.","citation":"Điều khoản sử dụng và Điều khoản chung vận chuyển — Mục 2.2.5"},
+    {"id":"optional-consent","category":"privacy","title":"Đồng ý riêng cho mục đích tùy chọn","content":"Tiếp thị, quảng cáo, nghiên cứu thị trường, cookie không thiết yếu và các mục đích ngoài cung cấp dịch vụ cần lựa chọn đồng ý riêng; từ chối không ngăn cản sử dụng chức năng thiết yếu.","citation":"Điều khoản sử dụng — phần mở đầu; Chính sách cookies"},
+    {"id":"voice-consent","category":"privacy","title":"Đồng ý xử lý giọng nói","content":"Trước khi mở micro hoặc gửi audio/transcript, giao diện phải thông báo mục đích xử lý và nhận xác nhận chủ động. Người dùng có thể không đồng ý và tiếp tục bằng nhập văn bản.","citation":"Quy tắc dự án áp dụng nguyên tắc tối thiểu hóa và đồng ý riêng"},
+    {"id":"price-confirmation","category":"pricing","title":"Xác nhận giá trước đặt chuyến","content":"Giá dự kiến, phí và điều kiện áp dụng phải được hiển thị hoặc đọc rõ để người dùng xác nhận trước khi giao kết chuyến.","citation":"Điều khoản chung vận chuyển — Mục 1.15 và 2.2.1"},
+    {"id":"price-change","category":"pricing","title":"Thay đổi giá cần xác nhận","content":"Sau xác nhận, giá chỉ được điều chỉnh khi người dùng yêu cầu đổi lộ trình hoặc phát sinh phí thực tế hợp lệ như cầu đường, đỗ xe, cầu phà; khoản điều chỉnh phải được thông báo và người dùng xác nhận trước khi áp dụng.","citation":"Điều khoản chung vận chuyển — Mục 1.15(a)-(b)"},
+    {"id":"cancellation","category":"booking","title":"Hủy chuyến","content":"Phí hủy chỉ được áp dụng khi chính sách và mức phí đã hiển thị trong ứng dụng, gồm trường hợp người dùng hủy sau giao kết hoặc không có mặt tại điểm đón. Agent không được tự nêu hoặc cam kết mức phí chưa được backend xác nhận.","citation":"Điều khoản chung vận chuyển — Mục 3.1.6 và 3.2.8"},
+    {"id":"refund","category":"payment","title":"Hoàn tiền","content":"Người dùng có thể yêu cầu hoàn lại cước khi đơn vị vận tải hoặc tài xế không thực hiện chuyến sau giao kết mà không có lý do chính đáng. Yêu cầu hợp lệ được policy nguồn nêu thời hạn xử lý 05 ngày làm việc; Agent chỉ tiếp nhận và chuyển chuyên viên, không tự phê duyệt hoàn tiền.","citation":"Điều khoản chung vận chuyển — Mục 3.1.7 và 4.3-4.4"},
+    {"id":"passenger-safety","category":"safety","title":"An toàn hành khách","content":"Hành khách phải thắt dây an toàn, không hút thuốc, không can thiệp việc lái xe và không vượt số người được phép. Tài xế có thể chọn điểm đón/trả gần đó nếu điểm ban đầu nguy hiểm hoặc bị cấm.","citation":"Điều khoản chung vận chuyển — Mục 2.1.5 và 3.2.13-3.2.16"},
+    {"id":"minor-passenger","category":"safety","title":"Trẻ vị thành niên","content":"Trẻ vị thành niên sử dụng dịch vụ phải có người lớn đi kèm; người đặt chuyến cho người khác chịu trách nhiệm cung cấp thông tin và bảo đảm người đó tuân thủ quy tắc an toàn.","citation":"Điều khoản chung vận chuyển — Mục 3.2.18"},
+    {"id":"driver-duty","category":"safety","title":"Nghĩa vụ tài xế và đơn vị vận tải","content":"Đơn vị vận tải và tài xế phải cung cấp thông tin hành trình, giá cước trung thực, tuân thủ pháp luật giao thông, cư xử văn minh và không thu thêm ngoài các khoản phí đã xác nhận.","citation":"Điều khoản chung vận chuyển — Mục 2.2.1-2.2.15"},
+    {"id":"complaint-handoff","category":"support","title":"Khiếu nại và tranh chấp","content":"Phản ánh về an toàn, quấy rối, mất đồ, thanh toán, hoàn tiền, bồi thường hoặc tranh chấp phải được ghi nhận và chuyển đúng hàng đợi hỗ trợ. Agent không kết luận trách nhiệm hoặc tự hứa bồi thường.","citation":"Điều khoản chung vận chuyển — Mục 5-6"},
+    {"id":"policy-update","category":"governance","title":"Cập nhật chính sách","content":"Thay đổi điều khoản ảnh hưởng người dùng phải được thông báo trước ít nhất 07 ngày. Người dùng có quyền chấm dứt sử dụng nếu không đồng ý trước ngày hiệu lực.","citation":"Điều khoản sử dụng — phần mở đầu; Điều khoản chung vận chuyển — Mục 2.2.14"},
+    {"id":"governing-law","category":"governance","title":"Luật áp dụng","content":"Tranh chấp được ưu tiên thương lượng và chịu sự điều chỉnh của pháp luật Việt Nam; nếu không giải quyết được thì chuyển cơ quan hoặc tòa án có thẩm quyền.","citation":"Điều khoản chung vận chuyển — Mục 6"},
+    {"id":"legal-identity","category":"governance","title":"Thông tin pháp nhân và liên hệ","content":"Tài liệu nguồn chứa thông tin Green SM/GSM. Không dùng hotline, email, địa chỉ hoặc pháp nhân đó như thông tin AloSM. Khi người dùng yêu cầu liên hệ pháp lý AloSM, Agent phải nói chưa có thông tin AloSM đã xác minh và chuyển tổng đài viên.","citation":"Policy manifest — legal_notice"}
+  ]
+}

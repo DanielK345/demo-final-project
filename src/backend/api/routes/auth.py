@@ -91,7 +91,12 @@ async def me(authorization: str | None = Header(default=None)) -> CurrentUserDTO
     user = service.get_user_for_token(token)
     if user is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=_SESSION_AUTH_MESSAGE)
-    return CurrentUserDTO(**AuthService._public_user(user), session_id=service.get_session_for_token(token))
+    acceptance = user.get("policy_acceptance")
+    return CurrentUserDTO(
+        **AuthService._public_user(user),
+        session_id=service.get_session_for_token(token),
+        policy_acceptance=acceptance if isinstance(acceptance, dict) else None,
+    )
 
 
 @router.post("/change-password", status_code=status.HTTP_204_NO_CONTENT)

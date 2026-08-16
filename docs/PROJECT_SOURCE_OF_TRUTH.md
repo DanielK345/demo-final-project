@@ -81,7 +81,7 @@ Catalog máy đọc được nằm tại `data/catalog.json`; giải thích các
 | Fare | bảng giá code + route không thật | `DEMO` | quote versioned, expiring, gắn `estimate_id` |
 | Promotion | UI demo, chưa có service eligibility | `DEMO` | backend eligibility/ranking có version |
 | Booking/trip | idempotency có, process-memory | `STAGING_ONLY` | DB transaction + provider reconciliation |
-| FAQ/RAG | corpus tự soạn + keyword retrieval | `DEMO` | corpus legal/product approved, versioned |
+| Policy/RAG | owner-approved catalog + checksum/citation retrieval | `STAGING_ONLY` | AloSM legal identity/contact + durable consent + production eval |
 | Handoff | typed lifecycle/queue có, chưa transfer thật | `STAGING_ONLY` | operator routing + telephony + SLA/disposition |
 | ASR ZipFormer | runtime và benchmark thật | `RELEASE_GATED` | license + corpus telephony + production hardware |
 | Transcript rewrite | live OpenRouter check + semantic guard | `STAGING_ONLY` | rotated key + consent/data controls + release eval |
@@ -230,6 +230,7 @@ Khi thay đổi contract/runtime:
 - ZipFormer ASR: `RELEASE_GATED`.
 - Transcript rewrite: `STAGING_ONLY`, đã live validate nhưng cần key rotation/data approval.
 - TTS: `RELEASE_GATED`, đã có orchestrator/live technical validation.
+- Policy/RAG: `STAGING_ONLY`, catalog owner-approved đã tích hợp; còn pháp nhân/liên hệ AloSM và durable consent.
 - Supabase connectivity/migration: `LIVE_VALIDATED`; service repository wiring vẫn là internal `STAGING_ONLY`.
 - Telephony, maps business truth, backup/PITR/retention, Redis decision và payment: `EXTERNAL_BLOCKED`.
 

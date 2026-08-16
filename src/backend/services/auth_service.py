@@ -8,6 +8,7 @@ from uuid import uuid4
 
 import pyotp
 
+from src.backend.services.policy_service import PolicyService
 from src.backend.services.session_service import SessionService
 
 # PBKDF2-HMAC-SHA256, stdlib-only (không thêm dependency mới như bcrypt/passlib) —
@@ -66,8 +67,20 @@ class AuthService:
     # bất kỳ endpoint nào khác ngoài verify_login_two_factor), TTL ngắn hơn nhiều.
     pending_2fa: dict[str, dict[str, object]] = {}
     _session_service = SessionService()
+    _policy_service = PolicyService()
 
-    def register(self, full_name: str, phone: str, password: str) -> dict[str, object]:
+    def register(
+        self,
+        full_name: str,
+        phone: str,
+        password: str,
+        accepted_terms_version: str,
+        accepted_privacy_version: str,
+    ) -> dict[str, object]:
+        self._policy_service.assert_acceptance(
+            terms_version=accepted_terms_version,
+            privacy_version=accepted_privacy_version,
+        )
         if phone in self.users:
             raise ValueError("Số điện thoại đã được đăng ký")
         user = {
@@ -76,6 +89,12 @@ class AuthService:
             "phone": phone,
             "password_hash": _hash_password(password),
             "role": "CUSTOMER",
+            "policy_acceptance": {
+                "terms_version": accepted_terms_version,
+                "privacy_version": accepted_privacy_version,
+                "accepted_at": datetime.now(UTC).isoformat(),
+                "source_sha256": self._policy_service.catalog.source_sha256,
+            },
         }
         self.users[phone] = user
         return self._auth_response(user)

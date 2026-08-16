@@ -61,11 +61,11 @@
     },
     {
       "id": "knowledge_policy",
-      "runtime_source": ["src/backend/services/knowledge_service.py", "src/agents/rag"],
-      "canonical_schema": ["src/agents/DATAFINDING.md"],
-      "status": "DEMO",
-      "owner": ["Product", "Legal", "Support", "Agent"],
-      "production_gap": "Approved versioned corpus with effective dates, ingestion, citations and rollback."
+      "runtime_source": ["data/policies/catalog.json", "data/policies/approved-source-2026-08-16.txt", "src/backend/services/policy_service.py", "src/backend/services/knowledge_service.py", "src/agents/rag"],
+      "canonical_schema": ["src/backend/schemas/policy.py", "src/agents/DATAFINDING.md"],
+      "status": "STAGING_ONLY",
+      "owner": ["Project Owner", "Product", "Support", "Agent"],
+      "production_gap": "Verified AloSM legal entity/contact, durable consent withdrawal/export/delete, policy evaluation and rollback."
     },
     {
       "id": "handoff",

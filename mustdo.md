@@ -42,7 +42,7 @@ Business/Product/Ops phải cung cấp phiên bản có hiệu lực, owner và 
 - bảng giá mở cửa, giá/km, giá/phút, phí chờ, phí hủy, giá tối thiểu và surge;
 - voucher/promotion: điều kiện, ngân sách, phạm vi, stackability, thời hạn và thứ tự tối ưu;
 - vùng phục vụ, fleet/driver availability và quy tắc dispatch;
-- điều khoản dịch vụ, quyền riêng tư, ghi âm cuộc gọi, hoàn tiền, an toàn và khiếu nại;
+- pháp nhân, hotline, email, địa chỉ liên hệ AloSM; retention/xóa/export và đầu mối xử lý quyền dữ liệu;
 - SLA/giờ hoạt động cho từng hàng đợi tổng đài.
 
 Không được lấy giá/voucher của GreenSM/Grab/Be làm dữ liệu AloSM production nếu chưa có phê
@@ -73,6 +73,16 @@ Verify: Finance đối soát golden cases qua API, kiểm tra quote/booking audi
 kiểm thử timezone/rounding/boundary và ký biên bản release. Risk nếu bỏ qua: báo sai giá, thu sai phí,
 khiếu nại và vi phạm nghĩa vụ công bố giá.
 
+### 2.2 Xác minh pháp nhân và đầu mối liên hệ AloSM
+
+Chủ dự án đã tự phê duyệt policy catalog phiên bản `2026-08-16`; phần nội dung vận hành, RAG,
+registration consent, cookie choice và voice consent đã được tích hợp. Tuy nhiên bản nguồn giữ nguyên
+415 lần tham chiếu Green SM/GSM và không chứa AloSM. Trước public production, owner phải cung cấp và
+xác minh: tên pháp nhân AloSM, mã đăng ký, địa chỉ, hotline, email hỗ trợ, email/DPO xử lý quyền dữ liệu
+và kênh khiếu nại. Không được dùng thông tin Green SM/GSM thay thế.
+
+Expected artifact: legal contact sheet có owner/approver/effective date. Verify qua cuộc gọi/email test
+và legal sign-off; sau đó cập nhật một policy version mới, không sửa ngược catalog `2026-08-16`.
 ## 3. Hạ tầng dữ liệu production cần owner/hạ tầng
 
 Kết nối Supabase/Postgres và Alembic đã được kiểm tra thật ngày 2026-08-16: `current` khớp

@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { MessageCircle, Mic, MicOff, PhoneOff, RotateCcw, Volume2, VolumeX } from "lucide-react";
 import { useVoiceAssistant } from "@/features/ai-assistant/context/useVoiceAssistant";
 import type { AssistantStatus } from "@/features/ai-assistant/context/voice-assistant-context";
@@ -6,6 +7,7 @@ import { useVoiceActivityRecorder } from "@/features/voice/useVoiceActivityRecor
 import { AIStatusIndicator } from "@/features/ai-assistant/components/AIStatusIndicator";
 import { BookingProgressStrip } from "@/features/ai-assistant/components/BookingProgressStrip";
 import { RideBookingExperience } from "@/features/ai-assistant/components/RideBookingExperience";
+import { CURRENT_POLICY_VERSION } from "@/features/policies/api";
 
 function formatDuration(totalSeconds: number): string {
   const minutes = Math.floor(totalSeconds / 60)
@@ -37,16 +39,19 @@ export const VoiceCallPanel: React.FC = () => {
   } = useVoiceAssistant();
   const [micMuted, setMicMuted] = useState(false);
   const [elapsed, setElapsed] = useState(0);
+  const consentKey = `alosm_voice_consent_v${CURRENT_POLICY_VERSION}`;
+  const [voiceConsent, setVoiceConsent] = useState(() => localStorage.getItem(consentKey) === "accepted");
 
   // Chỉ thật sự lắng nghe khi: đã có phiên, chưa tự tắt mic, phiên chưa kết thúc, và
   // AI hiện không đang xử lý/đang nói (tránh ghi đè lượt đang gửi hoặc tự ghi lại
   // chính giọng AI phát ra loa). Cho phép lắng nghe lại ngay cả sau lỗi (status
   // "error") — không cần bấm gì để "thử lại" như trước.
   const listeningActive =
-    Boolean(sessionId) && !sessionEnded && !micMuted && status !== "processing" && status !== "speaking" && status !== "connecting";
+    voiceConsent && Boolean(sessionId) && !sessionEnded && !micMuted && status !== "processing" && status !== "speaking" && status !== "connecting";
 
   const { isSpeechDetected } = useVoiceActivityRecorder({
     active: listeningActive,
+    permissionGranted: voiceConsent,
     onUtterance: handleVoiceRecorded,
     onError: (error) => reportError(error.message),
   });
@@ -61,6 +66,20 @@ export const VoiceCallPanel: React.FC = () => {
   const displayStatus: AssistantStatus = !sessionId ? "connecting" : isSpeechDetected ? "listening" : status;
   const isActive = displayStatus === "listening" || displayStatus === "speaking";
   const latestUserMessage = [...messages].reverse().find((message) => message.role === "user")?.text;
+  if (!voiceConsent) {
+    return (
+      <div className="flex h-full flex-col items-center justify-center px-6 text-center">
+        <div className="grid h-16 w-16 place-items-center rounded-full bg-[#E7FBF9] text-[#008F88]"><Mic className="h-7 w-7" /></div>
+        <h2 className="mt-5 text-xl font-extrabold text-[#173132] dark:text-white">Cho phép xử lý giọng nói?</h2>
+        <p className="mt-3 max-w-md text-sm leading-6 text-slate-600 dark:text-slate-300">Khi bạn đồng ý, trình duyệt mới mở micro. Audio và transcript được gửi tới pipeline Voice AI để nhận dạng, sửa lỗi và phản hồi trong phiên. Đây là consent riêng, không dùng cho quảng cáo.</p>
+        <Link to="/policies?section=privacy" className="mt-3 text-xs font-bold text-[#008F88] underline">Xem chính sách dữ liệu phiên bản {CURRENT_POLICY_VERSION}</Link>
+        <div className="mt-6 flex flex-wrap justify-center gap-2">
+          <button type="button" onClick={openConversation} className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-bold text-slate-600 dark:border-white/20 dark:text-slate-200">Dùng chat chữ</button>
+          <button type="button" onClick={() => { localStorage.setItem(consentKey, "accepted"); setVoiceConsent(true); }} className="rounded-xl bg-[#00C9B7] px-4 py-2 text-sm font-bold text-white">Đồng ý và mở micro</button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="relative flex h-full min-h-0 flex-col items-center overflow-hidden px-4 py-5 pb-28 text-center sm:px-6">

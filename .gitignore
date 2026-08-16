@@ -50,6 +50,7 @@ data/*
 !data/catalog.json
 !data/gazetteer/
 !data/pricing/
+!data/policies/
 *.db
 *.sqlite3
 

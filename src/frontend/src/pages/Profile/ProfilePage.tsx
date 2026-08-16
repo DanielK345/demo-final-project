@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import {
   Star,
   BadgeCheck,
@@ -8,6 +8,7 @@ import {
   Wallet,
   Ticket,
   AlertCircle,
+  BookOpen,
 } from "lucide-react";
 import { getCurrentUser, type CurrentUser } from "@/features/auth/api";
 import { redirectToLoginIfUnauthorized } from "@/features/auth/sessionGuard";
@@ -58,6 +59,10 @@ export const ProfilePage: React.FC = () => {
         </p>
       )}
 
+      <Link to="/policies" className="flex items-center justify-between gap-4 rounded-2xl border border-[#00C9B7]/30 bg-[#E7FBF9] p-4 text-sm text-[#173132] transition hover:border-[#00C9B7] dark:bg-[#00C9B7]/10 dark:text-white">
+        <span className="flex items-center gap-3"><BookOpen className="h-5 w-5 text-[#008F88]" /><span><strong className="block">Điều khoản và quyền riêng tư</strong><small className="text-slate-500 dark:text-slate-300">{user?.policy_acceptance ? `Đã chấp thuận phiên bản ${user.policy_acceptance.terms_version}` : "Xem policy hiện hành"}</small></span></span>
+        <span className="font-bold text-[#008F88]">Xem</span>
+      </Link>
       {/* Bento Grid Layout for Account Info */}
       <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
         {/* Profile Header Card (8 cols on desktop) */}

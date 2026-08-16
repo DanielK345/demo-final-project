@@ -12,6 +12,7 @@ quyền cao hơn ví dụ trong tài liệu. Agent tool contract nằm tại
 |---|---|
 | Health | `GET /health`, `/ready`; ASR `/health/live`, `/health/ready`, `/metrics` |
 | Auth | `POST /api/v1/auth/register`, `/login`, `/2fa/*`, `/change-password`; `GET /auth/me` |
+| Policy | `GET /api/v1/policies/current`, `/policies/current/source`; register bắt buộc policy versions |
 | Session | `POST /api/v1/sessions`, `GET/PATCH /sessions/{id}`, `POST /messages`, `/resume`, `/feedback`, `/end` |
 | History | `GET /api/v1/sessions/history`, `/history/{id}` |
 | Booking | `POST/GET /api/v1/bookings` |

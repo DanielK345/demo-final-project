@@ -18,6 +18,7 @@ export interface UseVoiceActivityRecorderOptions {
   // không đang xử lý/trả lời) — điều khiển từ ngoài (VoiceCallPanel) thay vì hook tự
   // quyết định, để không lẫn với vòng đời state của cuộc gọi.
   active: boolean;
+  permissionGranted: boolean;
   onUtterance: (audio: Blob) => Promise<void> | void;
   onError?: (error: Error) => void;
 }
@@ -32,6 +33,7 @@ export interface UseVoiceActivityRecorderOptions {
  */
 export function useVoiceActivityRecorder({
   active,
+  permissionGranted,
   onUtterance,
   onError,
 }: UseVoiceActivityRecorderOptions): { isSpeechDetected: boolean } {
@@ -59,6 +61,7 @@ export function useVoiceActivityRecorder({
   // Xin quyền micro + dựng AnalyserNode đúng 1 lần cho cả cuộc gọi — giải phóng khi
   // component unmount (đóng popup = kết thúc cuộc gọi = nhả micro thật).
   useEffect(() => {
+    if (!permissionGranted) return;
     let cancelled = false;
     navigator.mediaDevices
       .getUserMedia({ audio: true })
@@ -95,7 +98,7 @@ export function useVoiceActivityRecorder({
       void audioContextRef.current?.close().catch(() => undefined);
       audioContextRef.current = null;
     };
-  }, []);
+  }, [permissionGranted]);
 
   useEffect(() => {
     const stopPolling = () => {

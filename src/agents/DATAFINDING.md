@@ -249,14 +249,14 @@ Không dùng audio/transcript thật làm eval nếu chưa có retention, consen
 
 ## 6. RAG và policy truth
 
-Hiện `knowledge_service.py` có sáu FAQ tự soạn; một số khẳng định như bảo hiểm, phí hủy hoặc AloSM
-Pay chưa có nguồn business chính thức. Trước production:
+Policy catalog hiện hành nằm tại `data/policies/catalog.json`, bản nguồn nguyên vẹn tại
+`data/policies/approved-source-2026-08-16.txt` (SHA-256 được kiểm tra fail-closed). Chủ dự án đã
+tự phê duyệt bộ quy tắc vận hành ngày 2026-08-16; RAG không còn dùng sáu FAQ tự soạn.
 
-1. chuyển policy thành file/data source có version thay vì string trong code;
-2. legal/product approve từng document;
-3. ingest, checksum, effective-date filter và rollback;
-4. dùng keyword retriever làm fallback; chỉ thêm embedding/vector DB khi corpus đủ lớn;
-5. eval groundedness, citation correctness, stale-policy rejection và prompt injection.
+Đã có version, approved/effective time, checksum, citation, effective-date filter và identity guard.
+Phần còn lại trước production: (1) cung cấp pháp nhân/hotline/email AloSM thật; (2) lưu consent
+bền vững trong Postgres và hỗ trợ rút consent/xóa/export; (3) eval groundedness, citation correctness,
+stale-policy rejection và prompt injection trên bộ câu hỏi thật; (4) rollback/canary policy.
 
 Không hạ threshold chỉ để tăng answer rate. Khi không có nguồn đủ tin cậy, Agent phải nói chưa có
 dữ liệu xác thực hoặc handoff đúng policy.

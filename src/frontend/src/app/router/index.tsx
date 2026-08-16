@@ -11,6 +11,8 @@ import { ActivityPage } from "@/pages/Activity/ActivityPage";
 import { PaymentPage } from "@/pages/Payment/PaymentPage";
 import { ProfilePage } from "@/pages/Profile/ProfilePage";
 import { NotFoundPage } from "@/pages/NotFound/NotFoundPage";
+import { PoliciesPage } from "@/pages/Policies/PoliciesPage";
+import { CookieConsentBanner } from "@/features/policies/CookieConsentBanner";
 
 // Voice AI không còn là trang riêng "/assistant" — giờ là nút nổi + popup khả dụng ở
 // mọi trang (xem AppLayout.tsx). Route này chỉ còn để không phá các đường dẫn cũ đã
@@ -33,6 +35,10 @@ const router = createBrowserRouter([
     element: <LoginPage />,
   },
   {
+    path: "/policies",
+    element: <PoliciesPage />,
+  },
+  {
     element: (
       <RequireAuth>
         <AppLayout />
@@ -51,6 +57,9 @@ const router = createBrowserRouter([
   { path: "*", element: <NotFoundPage /> },
 ]);
 
-export const AppRouter: React.FC = () => {
-  return <RouterProvider router={router} />;
-};
+export const AppRouter: React.FC = () => (
+  <>
+    <RouterProvider router={router} />
+    <CookieConsentBanner />
+  </>
+);

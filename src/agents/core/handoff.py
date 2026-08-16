@@ -23,6 +23,8 @@ class HandoffReason(StrEnum):
     SIDE_EFFECT_RECONCILIATION = "SIDE_EFFECT_RECONCILIATION"
     MODEL_UNAVAILABLE = "MODEL_UNAVAILABLE"
     POLICY_BLOCK = "POLICY_BLOCK"
+    PRIVACY_REQUEST = "PRIVACY_REQUEST"
+    LEGAL_REQUEST = "LEGAL_REQUEST"
     UNABLE_TO_CONTINUE = "UNABLE_TO_CONTINUE"
 
 
@@ -40,6 +42,8 @@ _SAFETY_TERMS = ("so tai xe", "lai xe nguy hiem", "bi theo doi", "mac ket trong 
 _PAYMENT_TERMS = ("tru tien sai", "thu tien sai", "thu them tien", "tranh chap thanh toan")
 _LOST_ITEM_TERMS = ("quen do", "mat do", "de quen", "that lac")
 _COMPLAINT_TERMS = ("khieu nai", "phan nan", "to cao", "khong hai long")
+_PRIVACY_TERMS = ("xoa du lieu", "rut dong y", "du lieu ca nhan", "quyen rieng tu", "xuat du lieu")
+_LEGAL_TERMS = ("phap nhan", "dieu khoan phap ly", "khoi kien", "boi thuong", "luat su")
 _HUMAN_TERMS = (
     "tong dai vien", "nhan vien ho tro", "nguoi that", "gap nhan vien",
     "chuyen nhan vien", "noi chuyen voi nhan vien",
@@ -62,6 +66,8 @@ def classify_handoff(transcript: str) -> HandoffReason | None:
         (HandoffReason.PAYMENT_DISPUTE, _PAYMENT_TERMS),
         (HandoffReason.LOST_ITEM, _LOST_ITEM_TERMS),
         (HandoffReason.COMPLAINT, _COMPLAINT_TERMS),
+        (HandoffReason.PRIVACY_REQUEST, _PRIVACY_TERMS),
+        (HandoffReason.LEGAL_REQUEST, _LEGAL_TERMS),
         (HandoffReason.USER_REQUEST, _HUMAN_TERMS),
     ):
         if any(term in text for term in terms):
@@ -75,6 +81,10 @@ def handoff_metadata(reason_code: HandoffReason) -> tuple[int, HandoffSeverity, 
     if reason_code is HandoffReason.SAFETY_RISK:
         return 90, HandoffSeverity.CRITICAL, "SAFETY_OPERATOR"
     if reason_code in {HandoffReason.PAYMENT_DISPUTE, HandoffReason.LOST_ITEM}:
+        return 75, HandoffSeverity.HIGH, "SPECIALIST_OPERATOR"
+    if reason_code is HandoffReason.PRIVACY_REQUEST:
+        return 80, HandoffSeverity.HIGH, "PRIVACY_OPERATOR"
+    if reason_code is HandoffReason.LEGAL_REQUEST:
         return 75, HandoffSeverity.HIGH, "SPECIALIST_OPERATOR"
     if reason_code is HandoffReason.COMPLAINT:
         return 70, HandoffSeverity.HIGH, "CUSTOMER_CARE_OPERATOR"

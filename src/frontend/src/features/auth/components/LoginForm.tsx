@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { ArrowLeft, ArrowRight, Lock, Phone, ShieldCheck, UserRound } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import logoSvg from "@/assets/logo.svg";
 import { isTwoFactorChallenge, login, register, verifyTwoFactorLogin } from "@/features/auth/api";
 import { saveAuthSession } from "@/features/auth/storage";
@@ -12,6 +12,7 @@ export const LoginForm: React.FC = () => {
   const [password, setPassword] = useState("Password123!");
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [policyAccepted, setPolicyAccepted] = useState(false);
   const navigate = useNavigate();
 
   // Bước 2 của đăng nhập khi tài khoản đã bật 2FA thật (xem PaymentPage.tsx) — mật
@@ -97,7 +98,7 @@ export const LoginForm: React.FC = () => {
             placeholder="000000"
             className="w-full p-3 rounded-xl border border-slate-200 bg-slate-50 text-center font-mono text-lg tracking-[0.4em] dark:border-white/10 dark:bg-white/5 dark:text-white"
           />
-          {error && <p role="alert" className="text-sm text-rose-600 bg-rose-50 p-3 rounded-xl dark:text-rose-300 dark:bg-rose-500/10">{error}</p>}
+        {error && <p role="alert" className="text-sm text-rose-600 bg-rose-50 p-3 rounded-xl dark:text-rose-300 dark:bg-rose-500/10">{error}</p>}
           <button disabled={isLoading || twoFactorCode.length !== 6} className="w-full bg-[#00C9B7] hover:bg-[#008F88] disabled:opacity-60 text-white font-bold rounded-xl py-3 flex justify-center gap-2">
             {isLoading ? "Đang xác thực..." : "Xác nhận"}<ArrowRight className="w-5 h-5" />
           </button>
@@ -133,12 +134,18 @@ export const LoginForm: React.FC = () => {
         <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">MẬT KHẨU
           <span className="relative block mt-2"><Lock className="w-5 h-5 absolute left-3 top-3 text-slate-400 dark:text-slate-500" /><input required type="password" value={password} onChange={(e) => setPassword(e.target.value)} className="w-full pl-10 p-3 rounded-xl border border-slate-200 bg-slate-50 dark:border-white/10 dark:bg-white/5 dark:text-white" /></span>
         </label>
+        {isRegistering && (
+          <label className="flex items-start gap-3 rounded-xl bg-[#E7FBF9] p-3 text-xs leading-5 text-slate-700 dark:bg-[#00C9B7]/10 dark:text-slate-200">
+            <input required type="checkbox" checked={policyAccepted} onChange={(event) => setPolicyAccepted(event.target.checked)} className="mt-1 h-4 w-4 accent-[#00C9B7]" />
+            <span>Tôi xác nhận từ đủ 18 tuổi, đã đọc và đồng ý với <Link to="/policies?section=terms" className="font-bold text-[#008F88] underline">Điều khoản sử dụng</Link> và <Link to="/policies?section=privacy" className="font-bold text-[#008F88] underline">Chính sách dữ liệu cá nhân</Link> phiên bản 2026-08-16.</span>
+          </label>
+        )}
         {error && <p role="alert" className="text-sm text-rose-600 bg-rose-50 p-3 rounded-xl dark:text-rose-300 dark:bg-rose-500/10">{error}</p>}
-        <button disabled={isLoading} className="w-full bg-[#00C9B7] hover:bg-[#008F88] disabled:opacity-60 text-white font-bold rounded-xl py-3 flex justify-center gap-2">
+        <button disabled={isLoading || (isRegistering && !policyAccepted)} className="w-full bg-[#00C9B7] hover:bg-[#008F88] disabled:opacity-60 text-white font-bold rounded-xl py-3 flex justify-center gap-2">
           {isLoading ? "Đang xử lý..." : isRegistering ? "Tạo tài khoản" : "Đăng nhập"}<ArrowRight className="w-5 h-5" />
         </button>
       </form>
-      <button type="button" onClick={() => { setIsRegistering(!isRegistering); setError(null); }} className="mt-6 text-sm font-semibold text-[#008F88] dark:text-[#00C9B7]">
+      <button type="button" onClick={() => { setIsRegistering(!isRegistering); setPolicyAccepted(false); setError(null); }} className="mt-6 text-sm font-semibold text-[#008F88] dark:text-[#00C9B7]">
         {isRegistering ? "Đã có tài khoản? Đăng nhập" : "Chưa có tài khoản? Đăng ký"}
       </button>
       {!isRegistering && <p className="mt-5 text-xs text-slate-400 dark:text-slate-500">Tài khoản demo: 0901234567 / Password123!</p>}

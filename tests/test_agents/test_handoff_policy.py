@@ -24,6 +24,8 @@ class ShouldNotRunModel:
         ("Tôi bị trừ tiền sai", HandoffReason.PAYMENT_DISPUTE),
         ("Tôi để quên đồ trên xe", HandoffReason.LOST_ITEM),
         ("Cho tôi gặp tổng đài viên", HandoffReason.USER_REQUEST),
+        ("Tôi muốn xóa dữ liệu cá nhân", HandoffReason.PRIVACY_REQUEST),
+        ("Tôi cần hỏi pháp nhân và luật sư", HandoffReason.LEGAL_REQUEST),
     ],
 )
 def test_classify_specialized_handoff_cases(transcript, expected):
