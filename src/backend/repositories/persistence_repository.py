@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import logging
 from collections.abc import Mapping
 from datetime import UTC, datetime, timedelta
 from typing import Any
@@ -28,6 +29,8 @@ from src.backend.db.models import (
     User,
     UserSetting,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def _token_hash(token: str) -> str:
@@ -162,6 +165,19 @@ class PersistenceRepository:
                 password_hash=password_hash,
                 role="CUSTOMER",
             )
+            # Flush the FK parent first. PolicyAcceptance intentionally stores only
+            # user_id and has no ORM relationship to this transient User object, so
+            # add_all() does not guarantee the dependency order on PostgreSQL.
+            db.add(user)
+            try:
+                await db.flush()
+            except IntegrityError as exc:
+                sqlstate = getattr(exc.orig, "sqlstate", None) or getattr(exc.orig, "pgcode", None)
+                if sqlstate == "23505":
+                    raise ValueError("Số điện thoại đã được đăng ký") from exc
+                logger.warning("User insert failed sqlstate=%s error_type=%s", sqlstate, type(exc.orig).__name__)
+                raise ValueError("Không thể tạo tài khoản do dữ liệu người dùng không hợp lệ") from exc
+
             acceptance = PolicyAcceptance(
                 id=f"pa_{uuid4().hex[:16]}",
                 user_id=user.id,
@@ -170,11 +186,17 @@ class PersistenceRepository:
                 source_sha256=source_sha256,
                 acceptance_channel="WEB",
             )
-            db.add_all((user, acceptance))
+            db.add(acceptance)
             try:
                 await db.flush()
             except IntegrityError as exc:
-                raise ValueError("Số điện thoại đã được đăng ký") from exc
+                sqlstate = getattr(exc.orig, "sqlstate", None) or getattr(exc.orig, "pgcode", None)
+                logger.warning(
+                    "Policy acceptance insert failed sqlstate=%s error_type=%s",
+                    sqlstate,
+                    type(exc.orig).__name__,
+                )
+                raise ValueError("Không thể lưu xác nhận điều khoản sử dụng") from exc
             await db.refresh(acceptance)
             return _user_dict(user, acceptance)
 

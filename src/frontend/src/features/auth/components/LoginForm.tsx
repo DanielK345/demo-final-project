@@ -8,8 +8,8 @@ import { saveAuthSession } from "@/features/auth/storage";
 export const LoginForm: React.FC = () => {
   const [isRegistering, setIsRegistering] = useState(false);
   const [fullName, setFullName] = useState("");
-  const [phone, setPhone] = useState("0901234567");
-  const [password, setPassword] = useState("Password123!");
+  const [phone, setPhone] = useState("");
+  const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [policyAccepted, setPolicyAccepted] = useState(false);
@@ -148,7 +148,6 @@ export const LoginForm: React.FC = () => {
       <button type="button" onClick={() => { setIsRegistering(!isRegistering); setPolicyAccepted(false); setError(null); }} className="mt-6 text-sm font-semibold text-[#008F88] dark:text-[#00C9B7]">
         {isRegistering ? "Đã có tài khoản? Đăng nhập" : "Chưa có tài khoản? Đăng ký"}
       </button>
-      {!isRegistering && <p className="mt-5 text-xs text-slate-400 dark:text-slate-500">Tài khoản demo: 0901234567 / Password123!</p>}
     </div>
   );
 };
