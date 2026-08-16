@@ -5,10 +5,12 @@ from src.agents.capabilities.common import handoff
 from src.agents.contracts.schemas import ActionType, AgentAction, AgentInput, ToolName, ToolStatus
 from src.agents.contracts.state import AgentState
 from src.agents.core.instructions import SERVICE_AGENT_INSTRUCTIONS
+from src.agents.core.booking.actions import request_fare_estimate_action
 from src.agents.core.model import ConversationModel, ConversationModelError, ToolExchange
 from src.agents.core.policy import AgentPolicy
 from src.agents.core.registry import ContinueToolLoop, ToolRegistry
 from src.agents.core.session import TurnSession
+from src.agents.tools.builders import EstimateFareTool
 from src.agents.tools.lifecycle import clear_pending_tool_updates, correlate_tool_result
 
 
@@ -45,6 +47,14 @@ class ModelDrivenAgent:
 
         exchanges: list[ToolExchange] = []
         for _ in range(self.max_internal_decisions):
+            # Passenger and luggage counts are optional booking preferences.  Once
+            # the route and an explicit vehicle type are known, never let the
+            # conversational model stall the flow by asking for those preferences:
+            # obtain the required fare estimate instead.
+            fare_action = self._required_fare_estimate(session)
+            if fare_action is not None:
+                return fare_action
+
             try:
                 decision = await self.model.decide(
                     instructions=SERVICE_AGENT_INSTRUCTIONS,
@@ -77,6 +87,20 @@ class ModelDrivenAgent:
             exchanges.append(ToolExchange(decision.tool_call, outcome.event))
 
         return handoff(session, {"reason": "Internal model/tool loop limit reached"})
+
+    @staticmethod
+    def _required_fare_estimate(session: TurnSession) -> AgentAction | None:
+        data = session.booking
+        state = session.working_state()
+        if (
+            state.pending_tool_name is None
+            and data.pickup is not None
+            and data.destination is not None
+            and data.vehicle_type is not None
+            and data.fare_estimate_id is None
+        ):
+            return request_fare_estimate_action(state, data, EstimateFareTool())
+        return None
 
     def _handle_model_failure(self, session: TurnSession) -> AgentAction:
         failures = session.working_state().model_failure_count + 1

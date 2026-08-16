@@ -24,6 +24,17 @@ class TranscriptRewriteResult:
     rewritten: str
     applied: bool
     provider: str
+    called: bool = False
+    status: str = "skipped"
+
+    def trace(self) -> dict[str, object]:
+        """Safe, UI-facing diagnostic data; never expose credentials or raw errors."""
+        return {
+            "provider": self.provider,
+            "called": self.called,
+            "applied": self.applied,
+            "status": self.status,
+        }
 
 
 class GeminiPlaceRewriter:
@@ -43,13 +54,15 @@ Transcript: {transcript}"""
     async def rewrite(self, transcript: str, *, source: str) -> TranscriptRewriteResult:
         original = transcript.strip()
         if source != "VOICE" or not original:
-            return TranscriptRewriteResult(original, original, False, "skipped")
+            return TranscriptRewriteResult(original, original, False, "skipped", status="skipped")
         # Unit tests must remain hermetic even when a developer has credentials
         # in their local .env file.
         if os.getenv("PYTEST_CURRENT_TEST"):
-            return TranscriptRewriteResult(original, original, False, "test")
-        if not self.settings.asr_place_rewrite_enabled or not self.settings.google_api_key:
-            return TranscriptRewriteResult(original, original, False, "disabled")
+            return TranscriptRewriteResult(original, original, False, "test", status="test")
+        if not self.settings.asr_place_rewrite_enabled:
+            return TranscriptRewriteResult(original, original, False, "gemini", status="disabled")
+        if not self.settings.google_api_key:
+            return TranscriptRewriteResult(original, original, False, "gemini", status="missing_api_key")
 
         payload = {
             "contents": [{"parts": [{"text": self._PROMPT.format(transcript=original)}]}],
@@ -68,7 +81,22 @@ Transcript: {transcript}"""
             # Guardrail: an empty/model-commentary response must never replace ASR text.
             if not rewritten or "\n" in rewritten:
                 raise ValueError("Gemini returned an invalid rewrite")
-            return TranscriptRewriteResult(original, rewritten, rewritten != original, "gemini")
+            applied = rewritten != original
+            return TranscriptRewriteResult(
+                original,
+                rewritten,
+                applied,
+                "gemini",
+                called=True,
+                status="rewritten" if applied else "unchanged",
+            )
         except (httpx.HTTPError, KeyError, IndexError, TypeError, ValueError) as exc:
             logger.warning("Gemini ASR place rewrite failed; using original transcript: %s", exc)
-            return TranscriptRewriteResult(original, original, False, "fallback")
+            return TranscriptRewriteResult(
+                original,
+                original,
+                False,
+                "gemini",
+                called=True,
+                status="failed",
+            )

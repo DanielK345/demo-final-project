@@ -493,6 +493,42 @@ async def test_vehicle_correction_updates_typed_state_before_next_backend_call()
 
 
 @pytest.mark.asyncio
+async def test_explicit_vehicle_with_resolved_route_estimates_without_asking_passengers_or_luggage():
+    model = ScriptedConversationModel(
+        tool("update_booking", vehicle_type="CAR_4"),
+        ModelDecision(
+            message="Bạn đi bao nhiêu người và có bao nhiêu hành lý?",
+        ),
+    )
+    agent = LLMAgent(conversation_model=model)
+    data = BookingData.model_validate(
+        {
+            "pickup": {"place_id": "p1", "display_name": "VinUniversity"},
+            "destination": {"place_id": "p2", "display_name": "Hồ Hoàn Kiếm"},
+        }
+    )
+    state = AgentState(
+        session_id="session-1",
+        current_workflow=WorkflowType.RIDE_BOOKING,
+        collected_data={"booking": data.model_dump(mode="json")},
+    )
+
+    action = await agent.handle(
+        AgentInput(session_id=state.session_id, turn_id="turn-1", transcript="xe 4 chỗ"),
+        state,
+    )
+
+    assert action.action_type is ActionType.CALL_TOOL
+    assert action.tool_call.tool_name.value == "estimate_fare"
+    assert action.tool_call.params == {
+        "pickup_place_id": "p1",
+        "destination_place_id": "p2",
+        "vehicle_type": "CAR_4",
+    }
+    assert len(model.contexts) == 1
+
+
+@pytest.mark.asyncio
 async def test_complete_booking_conversation_uses_backend_tool_results():
     model = ScriptedConversationModel(
         tool(

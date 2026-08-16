@@ -37,6 +37,15 @@ async def test_voice_transcript_is_rewritten_before_agent(monkeypatch):
     service = SessionService()
     session_id = service.create_session("usr_test", "WEB_VOICE")["session_id"]
 
-    await service.process_message(str(session_id), "Đón tôi ở Bình Yuni rồi đi Hồ Cương", source="VOICE")
+    response = await service.process_message(
+        str(session_id), "Đón tôi ở Bình Yuni rồi đi Hồ Cương", source="VOICE"
+    )
 
     assert agent.transcripts == ["Đón tôi ở VinUni rồi đi Hồ Gươm"]
+    assert response["transcript"] == "Đón tôi ở VinUni rồi đi Hồ Gươm"
+    assert response["transcript_rewrite"] == {
+        "provider": "gemini",
+        "called": False,
+        "applied": True,
+        "status": "skipped",
+    }

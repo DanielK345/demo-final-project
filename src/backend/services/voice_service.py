@@ -58,6 +58,12 @@ class VoiceService:
                 "audio_base64": None,
                 "audio_mime_type": "audio/mpeg",
                 "voice_provider": provider_name,
+                "transcript_rewrite": {
+                    "provider": "gemini",
+                    "called": False,
+                    "applied": False,
+                    "status": "skipped_hallucination",
+                },
             }
 
         agent_result = await self.session_service.process_message(
@@ -78,7 +84,8 @@ class VoiceService:
                 audio_base64 = None
 
         return {
-            "transcript": transcript,
+            "transcript": str(agent_result.get("transcript", transcript)),
+            "transcript_rewrite": agent_result.get("transcript_rewrite", {}),
             "stt_confidence": self.DEFAULT_STT_CONFIDENCE,
             "message_id": agent_result["message_id"],
             "action": agent_result["action"],

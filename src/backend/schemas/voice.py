@@ -12,3 +12,4 @@ class VoiceTurnResponseDTO(BaseModel):
     audio_base64: str | None = None
     audio_mime_type: str = "audio/mpeg"
     voice_provider: str
+    transcript_rewrite: dict[str, object] = Field(default_factory=dict)

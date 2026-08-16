@@ -60,12 +60,12 @@ export const VoiceCallPanel: React.FC = () => {
   const isActive = displayStatus === "listening" || displayStatus === "speaking";
 
   return (
-    <div className="flex flex-col items-center h-full px-6 py-8 text-center">
+    <div className="flex flex-col items-center h-full min-h-0 px-6 py-6 text-center">
       <p className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">AloSM Voice</p>
       <p className="text-sm font-mono text-slate-400 dark:text-slate-500 mt-1">{formatDuration(elapsed)}</p>
 
       {/* Orb trung tâm — pulse khi đang nghe/nói, đứng yên khi rảnh */}
-      <div className="relative my-8 grid place-items-center">
+      <div className="relative my-5 grid place-items-center shrink-0">
         {isActive && (
           <span
             className={`absolute w-32 h-32 rounded-full animate-ping [animation-duration:1.6s] ${
@@ -111,8 +111,6 @@ export const VoiceCallPanel: React.FC = () => {
         <AIStatusIndicator status={displayStatus} />
       )}
 
-      <div className="flex-1" />
-
       <BookingProgressStrip progress={bookingProgress} />
       <VoiceTranscript messages={messages} />
 
@@ -120,13 +118,13 @@ export const VoiceCallPanel: React.FC = () => {
         <button
           type="button"
           onClick={() => void newSession()}
-          className="mt-6 inline-flex items-center gap-2 rounded-xl bg-[#00A651] px-5 py-2.5 text-sm font-semibold text-[#0B0E11] hover:opacity-90"
+          className="mt-4 shrink-0 inline-flex items-center gap-2 rounded-xl bg-[#00A651] px-5 py-2.5 text-sm font-semibold text-[#0B0E11] hover:opacity-90"
         >
           <RotateCcw className="w-4 h-4" />
           Gọi lại
         </button>
       ) : (
-        <div className="flex items-center gap-6 mt-6">
+        <div className="flex items-center gap-6 mt-4 shrink-0">
           <button
             type="button"
             onClick={toggleMuted}
