@@ -1,99 +1,184 @@
-# AloSM Voice — AI Booking Assistant
+# AloSM AI Booking Assistant
 
-Trợ lý đặt xe bằng giọng nói/tin nhắn cho AloSM: khách nói/nhắn nhu cầu → Agent AI
-hiểu, thu thập điểm đón/đến, xác nhận → đặt xe hoặc chuyển tổng đài viên nếu cần.
-Bắt đầu tại [`docs/PROJECT_SOURCE_OF_TRUTH.md`](docs/PROJECT_SOURCE_OF_TRUTH.md) để
-biết nguồn dữ liệu nào có thẩm quyền, trạng thái thật của từng miền và trình tự hoàn
-thiện. Tóm tắt sản phẩm nằm tại [`docs/PRODUCT_BRIEF.md`](docs/PRODUCT_BRIEF.md); yêu cầu chuẩn nằm tại [`docs/PRD_AloSM_Voice.md`](docs/PRD_AloSM_Voice.md).
+Web MVP đặt xe bằng **text hoặc voice**. Phạm vi chính gồm Login/Auth và Homepage với AloSM Assistant; chưa gồm live tracking, trip history, payment hoặc wallet.
 
-## Kiến trúc tổng quan
+Kiến trúc: [`docs/MVP_ARCHITECTURE.md`](docs/MVP_ARCHITECTURE.md) · Runtime truth: [`docs/PROJECT_SOURCE_OF_TRUTH.md`](docs/PROJECT_SOURCE_OF_TRUTH.md)
 
-```
-Frontend (React/Vite)  --HTTP/WS-->  Backend (FastAPI)
-                                        │
-                        ┌───────────────┼──────────────────┐
-                        │               │                  │
-                   Agentic AI       Voice AI           Auth/Session/
-                (src/agents/)     (src/voice/,        Booking/Trip
-                LangGraph agent,   src/backend/       (src/backend/
-                RAG, tools,        api/routes/         services/,
-                guardrails         voice.py)           controllers/)
-```
+## 1. Setup
 
-- **Backend**: FastAPI, entrypoint `src/main.py` → `src/backend/main.py`. Auth,
-  token/2FA, session, settings, conversation, quote, booking, trip, handoff và call
-  đã dùng repository PostgreSQL trong development/production. `APP_ENV=test` giữ
-  adapter bộ nhớ cũ cho unit test lịch sử; xem [`docs/database_supabase.md`](docs/database_supabase.md).
-- **Agentic AI** (`src/agents/`): LangGraph agent thật điều khiển hội thoại đặt xe
-  (thay cho rule-engine đơn giản ban đầu) — xem `src/agents/README.md`.
-- **Voice AI**: một pipeline kiểm duyệt dùng chung với ba transport: `/voice/turn`
-  cho một lượt audio hoàn chỉnh, `/voice/speak` cho text→speech và `/voice/stream`
-  cho WebSocket. Xem
-  [`docs/voice-ai/voice-runtime-architecture.md`](docs/voice-ai/voice-runtime-architecture.md).
-- **Frontend** (`src/frontend/`): React + Vite + Tailwind. Các route `/`, `/booking`,
-  `/tracking`, `/activity`, `/payment`, `/profile` đã được đăng ký; `/assistant`
-  mở popup Voice rồi redirect về `/`. Một số màn vẫn dùng catalog/UI demo và được
-  phân loại rõ trong `docs/PROJECT_SOURCE_OF_TRUTH.md`.
-
-## Chạy dự án
-
-### Backend
+Yêu cầu: Python 3.12, [uv](https://docs.astral.sh/uv/), Node.js/npm và FFmpeg/FFprobe.
 
 ```bash
-cp .env.example .env   # điền GROQ_API_KEY / OPENAI_API_KEY / DATABASE_URL... theo nhu cầu
-pip install -r requirements.txt
-make run                # hoặc: uvicorn src.main:app --reload --port 8000
-```
+uv sync
+cp .env.example .env
+uv run alembic upgrade head
 
-### Frontend
-
-```bash
 cd src/frontend
-npm install
+npm ci
+```
+
+Chạy hai terminal:
+
+```bash
+# Terminal 1 — backend: http://localhost:8000
+uv run uvicorn src.main:app --reload --host 0.0.0.0 --port 8000
+
+# Terminal 2 — frontend: http://localhost:5173
+cd src/frontend
 npm run dev
 ```
 
-### Test / lint
+Demo account local:
 
-```bash
-make test        # pytest tests/ -v
-make lint         # ruff check
-cd src/frontend && npm run lint && npx tsc -b && npm run build
+```text
+Phone:    0901234567
+Password: Password123!
 ```
 
-## Cấu trúc thư mục
+## 2. Environment variables
 
-| Đường dẫn | Nội dung |
-|---|---|
-| `src/backend/` | FastAPI app: routes, controllers, services, schemas, DB layer |
-| `src/agents/` | Agentic AI (LangGraph agent, RAG, tools, guardrails, workflows) |
-| `src/voice/` | Voice runtime: audio/VAD, ASR, normalization, TTS và WebSocket gateway |
-| `src/backend/schemas/`, `src/voice/schemas.py` | DTO HTTP và protocol Voice/WebSocket hiện hành |
-| `src/frontend/` | React app (Vite) |
-| `docs/` | Tài liệu dự án — xem bảng dưới |
-| `mustdo.md` | Việc cần người thật làm (credential, tài khoản, quyết định sản phẩm) — không phải việc code được |
-| `tests/` | Test (pytest cho backend/agents/voice) |
-| `migrations/` | Alembic migration (Postgres/Supabase) |
-| `examples/`, `demo/` | Script/demo độc lập, không phải production code |
-| `scripts/` | Script hạ tầng (AI usage logging hooks — yêu cầu của khoá học) |
+Copy `.env.example` thành `.env`; không commit secret.
 
-## Tài liệu (`docs/`)
+| Biến | Khi nào cần | Giá trị/vai trò |
+|---|---|---|
+| `APP_ENV` | Luôn có | `development`, `test` hoặc `production` |
+| `DATABASE_URL` | Luôn có | SQLite local hoặc PostgreSQL runtime URL |
+| `DATABASE_URL_MIGRATIONS` | Supabase/PostgreSQL | Connection riêng cho Alembic |
+| `AGENT_LLM_ENABLED` | Chat/booking qua LLM | `true` |
+| `AGENT_LLM_MODEL` | Chat/booking qua LLM | Model hỗ trợ tool calling |
+| `AGENT_LLM_BASE_URL` | LLM | OpenAI endpoint hoặc OpenRouter endpoint |
+| `OPENAI_API_KEY` | OpenAI Agent/STT/TTS | Không thay thế bằng OpenRouter key cho Speech API |
+| `OPENROUTER_API_KEY` | LLM/rewrite qua OpenRouter | Chỉ dùng với `openrouter.ai` base URL |
+| `VOICE_PROVIDER` | Voice REST | `auto`, `zipformer`, `openai` hoặc `gemini` |
+| `VOICE_TRANSCRIPT_REWRITE_ENABLED` | Sửa transcript | `true` để bật contextual rewrite |
+| `VOICE_TTS_PROVIDER` | Voice output | `openai` hoặc `edge` |
+| `GROQ_API_KEY` | WebSocket ASR fallback | Groq Whisper |
+| `GEMINI_API_KEY` | Gemini ASR | Chỉ cần khi chọn Gemini |
+| `QUOTE_SIGNING_KEY` | Durable quote | Secret tối thiểu 32 ký tự |
+| `FIELD_ENCRYPTION_KEY` | 2FA fields | Secret tối thiểu 32 ký tự |
+| `VITE_API_URL` | Frontend deploy khác origin | Mặc định `http://localhost:8000` |
+
+### OpenRouter cho Agent và rewrite
+
+```env
+OPENROUTER_API_KEY=...
+AGENT_LLM_ENABLED=true
+AGENT_LLM_BASE_URL=https://openrouter.ai/api/v1
+AGENT_LLM_MODEL=openai/gpt-5.6-luna-pro
+VOICE_TRANSCRIPT_REWRITE_ENABLED=true
+VOICE_TRANSCRIPT_REWRITE_BASE_URL=https://openrouter.ai/api/v1
+VOICE_TRANSCRIPT_REWRITE_MODEL=openai/gpt-5.6-luna-pro
+```
+
+### OpenAI trực tiếp và Voice REST
+
+```env
+OPENAI_API_KEY=...
+AGENT_LLM_BASE_URL=https://api.openai.com/v1
+AGENT_LLM_MODEL=<OPENAI_MODEL_SUPPORTING_TOOL_CALLS>
+VOICE_PROVIDER=openai
+VOICE_STT_MODEL=gpt-4o-transcribe
+VOICE_STT_FALLBACK_MODEL=whisper-1
+VOICE_TTS_PROVIDER=openai
+VOICE_TTS_MODEL=tts-1
+VOICE_OPENAI_TTS_VOICE=nova
+```
+
+### Database
+
+Local không cần Supabase:
+
+```env
+DATABASE_URL=sqlite:///./data/app.db
+```
+
+Với Supabase, project này dùng transaction pooler cho app và direct/session connection cho migration:
+
+```env
+DATABASE_URL=postgresql://postgres.<PROJECT_REF>:<PASSWORD>@<POOLER_HOST>:6543/postgres
+DATABASE_URL_MIGRATIONS=postgresql://postgres:<PASSWORD>@db.<PROJECT_REF>.supabase.co:5432/postgres
+```
+
+Direct connection thường cần IPv6; lấy đúng URL từ nút **Connect** trong Supabase Dashboard. Không đưa database password hoặc service-role key vào frontend. Chi tiết: [`docs/database_supabase.md`](docs/database_supabase.md) và [Supabase connection guide](https://supabase.com/docs/guides/database/connecting-to-postgres).
+
+Tạo hai application secrets độc lập:
+
+```bash
+python -c "import secrets; print(secrets.token_urlsafe(48))"
+```
+
+## 3. Sample queries
+
+Happy path Hà Nội hiện yêu cầu chọn candidate cụ thể cho VinUni và Hồ Gươm:
+
+```text
+User: Cho tôi xe 4 chỗ từ VinUni tới Hồ Gươm.
+User: Tôi chọn Cổng chính VinUni.
+User: Tôi chọn Bưu điện Hà Nội.
+User: Đúng, tôi xác nhận đặt chuyến này.
+```
+
+Các câu thử Voice rewrite:
+
+```text
+Đón tôi ở Bình Yuni rồi đi Hồ Cương.
+Tôi chọn cổng thành cũng.       # khi Agent đang hỏi cổng VinUni
+Không, tôi muốn sửa điểm đến.
+```
+
+API examples:
+
+```bash
+# Login
+curl -X POST http://localhost:8000/api/v1/auth/login \
+  -H 'Content-Type: application/json' \
+  -d '{"phone":"0901234567","password":"Password123!"}'
+
+# Text turn
+curl -X POST http://localhost:8000/api/v1/sessions/<SESSION_ID>/messages \
+  -H 'Authorization: Bearer <ACCESS_TOKEN>' \
+  -H 'Content-Type: application/json' \
+  -d '{"message":"Cho tôi xe 4 chỗ từ VinUni tới Hồ Gươm","source":"TEXT"}'
+
+# Voice turn
+curl -X POST http://localhost:8000/api/v1/voice/turn \
+  -H 'Authorization: Bearer <ACCESS_TOKEN>' \
+  -F 'session_id=<SESSION_ID>' \
+  -F 'audio=@sample.webm;type=audio/webm'
+```
+
+## 4. Tests và eval evidence
+
+```bash
+# Full backend/agent/voice suite
+uv run pytest -q
+uv run ruff check src tests eval_cases
+
+# Frontend
+cd src/frontend
+npm run lint
+npm run build
+```
+
+Chạy 7 MVP eval cases offline và selected regression tests:
+
+```bash
+uv run python -m eval_cases.run_mvp_evals
+```
+
+Kết quả tổng hợp nằm tại [`eval_cases/mvp_eval_results.json`](eval_cases/mvp_eval_results.json); input, expected và actual output của từng case nằm trong [`eval_cases/results/`](eval_cases/results/). Xem [`eval_cases/README.md`](eval_cases/README.md) để đọc schema và tái chạy evidence.
+
+Các eval dùng deterministic adapters, không gọi provider thật và không cần API key. Live provider checks nằm trong [`docs/voice-ai/`](docs/voice-ai/README.md).
+
+## 5. Project layout
 
 | Thư mục | Nội dung |
 |---|---|
-| `docs/README.md`, `docs/PROJECT_SOURCE_OF_TRUTH.md` | Chỉ mục, trạng thái và trình tự hoàn thiện chuẩn |
-| `docs/AI_LOGS.md` | Trạng thái kết nối, privacy redaction và runbook AI Logs |
-| `docs/PRODUCT_BRIEF.md`, `docs/PRD_AloSM_Voice.md`, `docs/MVP.md` | Tóm tắt, yêu cầu chuẩn v1.2 và phạm vi MVP |
-| `docs/architecture_diagram.md`, `docs/interface_design.md` | Kiến trúc runtime và HTTP/WS contract hiện hành |
-| `docs/voice-ai/` | Voice runtime, local runbook, ASR/rewrite/TTS và evidence |
-| `docs/database_supabase.md` | Thiết kế + hướng dẫn setup database Supabase |
-| `docs/DOCUMENTATION_REMEDIATION_PROMPT.md` | Quy trình audit/làm sạch tài liệu có thể tái sử dụng |
-| `docs/guide/`, `specification_documents/` | Tài liệu/template gốc của khoá học AI20K — không phải tài liệu riêng của project này, giữ nguyên để tham khảo |
-
-## Ghi chú quan trọng
-
-- **`mustdo.md`** liệt kê mọi việc cần thao tác thủ công (tạo tài khoản Supabase,
-  Payment Gateway thật, v.v.) — luôn xem file này trước khi hỏi "sao chưa hoạt động".
-- Runtime development/production đã dùng persistence và quote snapshot. Database live
-  vẫn phải được migrate lên `9e9b6f420a9a` và chạy acceptance trước khi bỏ production gate;
-  xem `docs/verification/database.md` và `mustdo.md`.
+| `src/frontend/` | React Login, Homepage và Assistant popup |
+| `src/backend/` | FastAPI routes, services, repositories và provider adapters |
+| `src/agents/` | Core Agent model/tool loop, typed state và guardrails |
+| `src/voice/` | ASR, VAD, transcript processing và TTS |
+| `migrations/` | Alembic migrations |
+| `data/gazetteer/` | Hà Nội places, ASR aliases và landmark candidates |
+| `eval_cases/` | Reproducible MVP evaluation và JSON evidence |
+| `docs/` | Architecture, runtime contracts và operations guides |
