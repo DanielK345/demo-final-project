@@ -113,17 +113,23 @@ class VoiceService:
             logger.info("Voice STT returned a blank transcript session=%s provider=%s", session_id, provider_name)
             return self._reprompt_response(provider_name, reason="no_speech_detected")
 
-        deterministic_transcript = normalize_transcript(correct_place_names(raw_transcript, self.gazetteer))
-        alias_corrected_transcript = self.place_aliases.correct(deterministic_transcript)
-        alias_applied = alias_corrected_transcript != deterministic_transcript
+        normalized_raw_transcript = normalize_transcript(raw_transcript)
+        # Correct known multi-token ASR aliases before fuzzy gazetteer matching.
+        # Otherwise "Bình Yuni" can become "Bình VinUni" when the one-token
+        # fuzzy matcher replaces only "Yuni", preventing the exact phrase alias
+        # from matching afterward.
+        alias_corrected_transcript = self.place_aliases.correct(normalized_raw_transcript)
+        alias_applied = alias_corrected_transcript != normalized_raw_transcript
         if alias_applied:
             logger.info(
                 "Voice place alias corrected session=%s input=%r output=%r",
                 session_id,
-                deterministic_transcript,
+                normalized_raw_transcript,
                 alias_corrected_transcript,
             )
-        deterministic_transcript = alias_corrected_transcript
+        deterministic_transcript = normalize_transcript(
+            correct_place_names(alias_corrected_transcript, self.gazetteer)
+        )
         if is_known_hallucination(deterministic_transcript):
             logger.info("Voice STT hallucination blocked session=%s provider=%s", session_id, provider_name)
             return self._reprompt_response(provider_name, reason="known_asr_hallucination")

@@ -1,6 +1,7 @@
 import json
 
 from src.voice.text.gazetteer import Gazetteer
+from src.voice.text.place_aliases import PlaceAliasCatalog
 
 
 def test_gazetteer_dedupes_and_strips_entries():
@@ -43,4 +44,9 @@ def test_load_from_plain_list_shape(tmp_path):
 def test_default_seed_file_loads_and_is_nonempty():
     gz = Gazetteer.load()
     assert len(gz) > 0
-    assert "Landmark 81" in gz
+    assert "VinUni" in gz
+    assert "Hồ Gươm" in gz
+
+
+def test_hanoi_seed_and_alias_catalog_have_the_same_canonical_places():
+    assert set(Gazetteer.load().entries) == set(PlaceAliasCatalog.load().canonical_names)

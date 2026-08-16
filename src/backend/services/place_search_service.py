@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
+import unicodedata
 from functools import lru_cache
 from pathlib import Path
 
@@ -10,6 +12,13 @@ from pathlib import Path
 # Agent thay vì bịa candidate giả (bản cũ chỉ echo lại nguyên câu người dùng nhập thành
 # 1 candidate duy nhất, không thật sự "tìm kiếm" gì cả).
 _GAZETTEER_PATH = Path(__file__).resolve().parents[3] / "data" / "gazetteer" / "place_names.json"
+_ALIASES_PATH = Path(__file__).resolve().parents[3] / "data" / "gazetteer" / "hanoi_place_aliases.json"
+_LANDMARK_PICKUP_POINTS_PATH = (
+    Path(__file__).resolve().parents[3]
+    / "data"
+    / "gazetteer"
+    / "hanoi_landmark_pickup_points.json"
+)
 
 
 @lru_cache
@@ -22,6 +31,78 @@ def _load_place_names() -> tuple[str, ...]:
     return tuple(name for name in names if isinstance(name, str) and name.strip())
 
 
+def _normalize(value: str) -> str:
+    decomposed = unicodedata.normalize("NFKD", value.casefold())
+    without_marks = "".join(char for char in decomposed if not unicodedata.combining(char))
+    return " ".join(re.sub(r"[^a-z0-9]+", " ", without_marks).split())
+
+
+@lru_cache
+def _load_aliases() -> dict[str, str]:
+    """Map normalized Hanoi aliases to canonical names in the active gazetteer."""
+    try:
+        raw = json.loads(_ALIASES_PATH.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    active_names = set(_load_place_names())
+    aliases: dict[str, str] = {}
+    for item in raw.get("entries", []):
+        if not isinstance(item, dict):
+            continue
+        canonical = item.get("canonical_name")
+        if not isinstance(canonical, str) or canonical not in active_names:
+            continue
+        aliases[_normalize(canonical)] = canonical
+        for alias in item.get("asr_aliases", []):
+            if isinstance(alias, str) and alias.strip():
+                aliases.setdefault(_normalize(alias), canonical)
+    return aliases
+
+
+@lru_cache
+def _load_landmark_pickup_points() -> dict[str, tuple[dict[str, str], ...]]:
+    """Load explicit pickup/drop-off choices for the two intentionally ambiguous landmarks."""
+    try:
+        raw = json.loads(_LANDMARK_PICKUP_POINTS_PATH.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+
+    version = str(raw.get("version", "hanoi-landmark-pickup-points-v1"))
+    landmarks: dict[str, tuple[dict[str, str], ...]] = {}
+    for landmark in raw.get("landmarks", []):
+        if not isinstance(landmark, dict):
+            continue
+        canonical_name = landmark.get("canonical_name")
+        if not isinstance(canonical_name, str) or not canonical_name.strip():
+            continue
+        candidates: list[dict[str, str]] = []
+        for point in landmark.get("pickup_points", []):
+            if not isinstance(point, dict):
+                continue
+            name = point.get("name")
+            address = point.get("address")
+            maps_url = point.get("google_maps_url")
+            if not isinstance(name, str) or not isinstance(address, str):
+                continue
+            candidates.append(
+                {
+                    "place_id": place_id_for(f"{canonical_name}:{name}:{address}"),
+                    "display_name": name,
+                    "address": address,
+                    "provider": "local_landmark_mock",
+                    "provider_payload_version": version,
+                    "data_quality": "MOCK_VERIFIED_FROM_PUBLIC_SOURCES",
+                    "serviceable": None,
+                    "city": "Hà Nội",
+                    "parent_landmark": canonical_name,
+                    "google_maps_url": maps_url if isinstance(maps_url, str) else "",
+                }
+            )
+        if len(candidates) >= 2:
+            landmarks[canonical_name] = tuple(candidates)
+    return landmarks
+
+
 def place_id_for(display_name: str) -> str:
     """place_id ổn định (không random) theo tên đã chuẩn hoá — cùng 1 địa điểm luôn ra
     cùng 1 place_id giữa các lượt gọi, cần thiết để guardrails đối chiếu
@@ -31,29 +112,39 @@ def place_id_for(display_name: str) -> str:
 
 
 class PlaceSearchService:
-    """search_place thật — khớp chuỗi con trên gazetteer địa danh thật (23 địa điểm nội
-    thành TP.HCM, xem file gazetteer). Không có toạ độ thật trong gazetteer (chỉ có
+    """Demo search for the Hanoi seed gazetteer and its known ASR aliases.
+
+    Không có toạ độ thật trong gazetteer (chỉ có
     tên) nên không trả lat/lng giả; nơi cần khoảng cách (PricingService) tự suy ra
     deterministic từ place_id thay vì bịa GPS."""
 
     def search(self, query: str, *, limit: int = 5) -> list[dict[str, str]]:
-        normalized_query = query.strip().casefold()
+        normalized_query = _normalize(query)
         if not normalized_query:
             return []
-        matches = [name for name in _load_place_names() if normalized_query in name.casefold()]
+        alias_match = _load_aliases().get(normalized_query)
+        if alias_match:
+            matches = [alias_match]
+        else:
+            matches = [name for name in _load_place_names() if normalized_query in _normalize(name)]
         if not matches:
             # Gazetteer không phải geocoder. Không echo free-form text thành place đã
             # resolve; caller phải hỏi lại hoặc dùng MapsProvider thật.
             return []
+        if len(matches) == 1:
+            landmark_candidates = _load_landmark_pickup_points().get(matches[0])
+            if landmark_candidates:
+                return [dict(candidate) for candidate in landmark_candidates[:limit]]
         return [
             {
                 "place_id": place_id_for(name),
                 "display_name": name,
                 "address": name,
                 "provider": "local_gazetteer",
-                "provider_payload_version": "2026-08-16",
+                "provider_payload_version": "hanoi-v2-2026-08-16",
                 "data_quality": "DEMO",
                 "serviceable": None,
+                "city": "Hà Nội",
             }
             for name in matches[:limit]
         ]

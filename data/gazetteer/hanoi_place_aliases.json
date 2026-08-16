@@ -2,7 +2,7 @@
   "city": "Hà Nội",
   "version": 1,
   "entries": [
-    {"canonical_name": "VinUni", "asr_aliases": ["Bình Yuni", "Binh Yuni", "Bin Yomi", "Binh Yomi", "Bình Yomi", "Vinh Yuni", "Vinh Uni", "Vin Uni", "Bình Uni", "Binh Uni", "Vin Yuni", "Vinu Uni", "Vinuni"]},
+    {"canonical_name": "VinUni", "asr_aliases": ["VinUniversity", "Đại học VinUni", "Bình Yuni", "Binh Yuni", "Bin Yomi", "Binh Yomi", "Bình Yomi", "Vinh Yuni", "Vinh Uni", "Vin Uni", "Bình Uni", "Binh Uni", "Vin Yuni", "Vinu Uni", "Vinuni"]},
     {"canonical_name": "Hồ Gươm", "asr_aliases": ["Hồ Cương", "Hồ Gương", "Hồ Guôm", "Hồ Guơm", "Hồ Gồm", "Hồ Gờm", "Hồ Gươn", "Hồ Gừm", "Hồ Gôm", "Hồ Gươ", "Ho Guom"]},
     {"canonical_name": "Hồ Tây", "asr_aliases": ["Hồ Tay", "Hồ Tấy", "Hồ Đây", "Hồ Đầy", "Hồ Tây Hà Nội", "Hồ Tây HN", "Hồ Tài", "Ho Tay", "Hồ Tâyy", "Hồ Thây"]},
     {"canonical_name": "Sân bay Nội Bài", "asr_aliases": ["Sân bay Nội Bai", "Sân bay Nôi Bài", "Sân bay Nồi Bài", "Sân bay Nộ Bài", "Sân bay Nội Bảy", "Sân bay Nổi Bài", "Sân bay Nội Bài Hà Nội", "Sân bay Nội Bài HN", "Sân bay Nôi Bai", "Sân bay Noi Bai"]},

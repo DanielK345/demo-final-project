@@ -1,0 +1,59 @@
+{
+  "version": "hanoi-landmark-pickup-points-v1-2026-08-17",
+  "data_quality": "MOCK_VERIFIED_FROM_PUBLIC_SOURCES",
+  "description": "Mock điểm đón/trả cụ thể chỉ dành cho hai landmark VinUni và Hồ Gươm. Google Maps URL dùng để đối chiếu thủ công, không phải kết quả Places API trực tiếp.",
+  "sources": [
+    "https://vinuni.edu.vn/vi/campus-services-vi/",
+    "https://horizons2025.vinuni.edu.vn/transportation/",
+    "https://www.google.com/maps"
+  ],
+  "landmarks": [
+    {
+      "canonical_name": "VinUni",
+      "selection_prompt_name": "VinUni",
+      "pickup_points": [
+        {
+          "name": "Cổng chính VinUni",
+          "address": "Đường San Hô, Vinhomes Ocean Park, Đa Tốn, Gia Lâm, Hà Nội",
+          "google_maps_url": "https://www.google.com/maps/search/?api=1&query=Cong+chinh+VinUniversity+Gia+Lam+Ha+Noi"
+        },
+        {
+          "name": "Cổng phụ VinUni",
+          "address": "Trường Đại học VinUni, Vinhomes Ocean Park, Đa Tốn, Gia Lâm, Hà Nội",
+          "google_maps_url": "https://www.google.com/maps/search/?api=1&query=Cong+phu+VinUniversity+Gia+Lam+Ha+Noi"
+        },
+        {
+          "name": "Cổng ký túc xá VinUni",
+          "address": "Ký túc xá VinUni, Vinhomes Ocean Park, Đa Tốn, Gia Lâm, Hà Nội",
+          "google_maps_url": "https://www.google.com/maps/search/?api=1&query=VinUniversity+Dormitory+Gia+Lam+Ha+Noi"
+        }
+      ]
+    },
+    {
+      "canonical_name": "Hồ Gươm",
+      "selection_prompt_name": "Hồ Gươm",
+      "pickup_points": [
+        {
+          "name": "Đền Ngọc Sơn",
+          "address": "Phố Đinh Tiên Hoàng, Hoàn Kiếm, Hà Nội",
+          "google_maps_url": "https://www.google.com/maps/search/?api=1&query=Den+Ngoc+Son+Hoan+Kiem+Ha+Noi"
+        },
+        {
+          "name": "Bưu điện Hà Nội",
+          "address": "75 Đinh Tiên Hoàng, Tràng Tiền, Hoàn Kiếm, Hà Nội",
+          "google_maps_url": "https://www.google.com/maps/search/?api=1&query=Buu+dien+Ha+Noi+75+Dinh+Tien+Hoang"
+        },
+        {
+          "name": "Quảng trường Đông Kinh Nghĩa Thục",
+          "address": "7 Đinh Tiên Hoàng, Hàng Trống, Hoàn Kiếm, Hà Nội",
+          "google_maps_url": "https://www.google.com/maps/search/?api=1&query=Quang+truong+Dong+Kinh+Nghia+Thuc+Ha+Noi"
+        },
+        {
+          "name": "Tượng đài Vua Lý Thái Tổ",
+          "address": "Vườn hoa Lý Thái Tổ, phố Lê Lai, Tràng Tiền, Hoàn Kiếm, Hà Nội",
+          "google_maps_url": "https://www.google.com/maps/search/?api=1&query=Tuong+dai+Vua+Ly+Thai+To+Ha+Noi"
+        }
+      ]
+    }
+  ]
+}

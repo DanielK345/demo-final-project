@@ -45,6 +45,7 @@ from src.voice.schemas import ClientControlType, WSClientControl, WSEventType, W
 from src.voice.session_bridge import SessionBridge
 from src.voice.text.gazetteer import Gazetteer
 from src.voice.text.normalizer import normalize_transcript
+from src.voice.text.place_aliases import PlaceAliasCatalog
 from src.voice.tts.cache import STATIC_PHRASES
 from src.voice.tts.errors import TTSError
 from src.voice.tts.orchestrator import get_tts_orchestrator
@@ -66,6 +67,7 @@ def build_gateway(settings: VoiceSettings | None = None) -> VoiceGateway:
     settings = settings or get_voice_settings()
 
     gazetteer = Gazetteer.load()
+    place_aliases = PlaceAliasCatalog.load()
     if not len(gazetteer):
         logger.info("Gazetteer rỗng (data/gazetteer/place_names.json không có/không đọc được).")
 
@@ -85,7 +87,11 @@ def build_gateway(settings: VoiceSettings | None = None) -> VoiceGateway:
         settings=settings,
         session_bridge=SessionBridge(),
         gazetteer=gazetteer,
-        text_corrector=(lambda text: correct_place_names(text, gazetteer)) if len(gazetteer) else None,
+        text_corrector=(
+            lambda text: correct_place_names(place_aliases.correct(text), gazetteer)
+        )
+        if len(gazetteer)
+        else place_aliases.correct,
         transcript_rewriter=build_transcript_rewriter(get_app_settings(), gazetteer),
         normalizer=normalize_transcript,
     )
