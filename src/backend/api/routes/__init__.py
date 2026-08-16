@@ -10,7 +10,6 @@ from src.backend.api.routes.health import router as health_router
 from src.backend.api.routes.sessions import router as sessions_router
 from src.backend.api.routes.settings import router as settings_router
 from src.backend.api.routes.trips import router as trips_router
-from src.backend.api.routes.voice import router as voice_router
 from src.backend.integrations.voice_client import resolve_voice_provider
 from src.backend.models.schemas import ChatRequest, ChatResponse
 
@@ -19,7 +18,6 @@ router = APIRouter()
 router.include_router(auth_router)
 router.include_router(calls_router)
 router.include_router(sessions_router)
-router.include_router(voice_router)
 router.include_router(bookings_router)
 router.include_router(handoffs_router)
 router.include_router(trips_router)
@@ -43,7 +41,9 @@ async def chat(request: ChatRequest) -> ChatResponse:
 async def agent_status():
     """Agent readiness and language-understanding configuration."""
     settings = get_app_settings()
-    llm_ready = settings.agent_llm_enabled and bool(settings.openai_api_key)
+    llm_ready = settings.agent_llm_enabled and bool(
+        settings.llm_api_key_for(settings.agent_llm_base_url)
+    )
     voice_provider = None
     try:
         voice_provider = resolve_voice_provider(settings)

@@ -9,7 +9,7 @@ from openai import AsyncOpenAI, OpenAIError
 
 from src.config import Settings, get_settings
 
-VoiceProviderName = Literal["openai", "gemini"]
+VoiceProviderName = Literal["openai", "gemini", "zipformer"]
 
 
 class VoiceProviderError(RuntimeError):
@@ -18,6 +18,12 @@ class VoiceProviderError(RuntimeError):
 
 def resolve_voice_provider(settings: Settings | None = None) -> VoiceProviderName:
     config = settings or get_settings()
+    from src.voice.asr.zipformer.service import get_zipformer_service
+
+    if config.voice_provider == "zipformer":
+        if not get_zipformer_service().ready:
+            raise VoiceProviderError("ZipFormer ASR model is not ready")
+        return "zipformer"
     if config.voice_provider == "openai":
         if not config.openai_api_key:
             raise VoiceProviderError("OPENAI_API_KEY is required for voice_provider=openai")
@@ -26,11 +32,24 @@ def resolve_voice_provider(settings: Settings | None = None) -> VoiceProviderNam
         if not config.google_api_key:
             raise VoiceProviderError("GEMINI_API_KEY is required for voice_provider=gemini")
         return "gemini"
+    if get_zipformer_service().ready:
+        return "zipformer"
     if config.openai_api_key:
         return "openai"
     if config.google_api_key:
         return "gemini"
     raise VoiceProviderError("Configure OPENAI_API_KEY or GEMINI_API_KEY for voice")
+
+
+async def _synthesize_with_unified_tts(text: str) -> bytes:
+    from src.voice.tts.errors import TTSError
+    from src.voice.tts.orchestrator import get_tts_orchestrator
+
+    try:
+        result = await get_tts_orchestrator().synthesize(text)
+    except TTSError as exc:
+        raise VoiceProviderError(str(exc)) from exc
+    return result.audio
 
 
 class OpenAIVoiceClient:
@@ -61,20 +80,7 @@ class OpenAIVoiceClient:
         return text
 
     async def synthesize(self, text: str) -> bytes:
-        cleaned = text.strip()
-        if not cleaned:
-            raise VoiceProviderError("Không có nội dung để đọc")
-        try:
-            response = await self.client.audio.speech.create(
-                model=self.settings.voice_tts_model,
-                voice=self.settings.voice_tts_voice,
-                input=cleaned,
-                response_format="mp3",
-                timeout=self.settings.voice_timeout_seconds,
-            )
-        except OpenAIError as exc:
-            raise VoiceProviderError("OpenAI speech synthesis failed") from exc
-        return response.content
+        return await _synthesize_with_unified_tts(text)
 
 
 class GeminiVoiceClient:
@@ -126,12 +132,42 @@ class GeminiVoiceClient:
         return text
 
     async def synthesize(self, text: str) -> bytes:
-        del text
-        raise VoiceProviderError("Gemini TTS is not enabled in this prototype")
+        return await _synthesize_with_unified_tts(text)
 
 
-def build_voice_client(settings: Settings | None = None) -> OpenAIVoiceClient | GeminiVoiceClient:
+class ZipformerVoiceClient:
+    async def transcribe(self, audio_bytes: bytes, *, mime_type: str, prompt_hint: str = "") -> str:
+        del prompt_hint
+        from src.voice.asr.zipformer.service import get_zipformer_service
+
+        suffix = {
+            "audio/wav": "wav",
+            "audio/mpeg": "mp3",
+            "audio/mp4": "m4a",
+            "audio/ogg": "ogg",
+        }.get(mime_type.partition(";")[0].lower(), "webm")
+        try:
+            result = await get_zipformer_service().transcribe_upload(
+                audio_bytes,
+                filename=f"recording.{suffix}",
+                mime_type=mime_type,
+            )
+        except Exception as exc:
+            raise VoiceProviderError("ZipFormer transcription failed") from exc
+        if not result.text:
+            raise VoiceProviderError("Không nhận diện được giọng nói")
+        return result.text
+
+    async def synthesize(self, text: str) -> bytes:
+        return await _synthesize_with_unified_tts(text)
+
+
+def build_voice_client(
+    settings: Settings | None = None,
+) -> OpenAIVoiceClient | GeminiVoiceClient | ZipformerVoiceClient:
     provider = resolve_voice_provider(settings)
     if provider == "openai":
         return OpenAIVoiceClient(settings)
+    if provider == "zipformer":
+        return ZipformerVoiceClient()
     return GeminiVoiceClient(settings)

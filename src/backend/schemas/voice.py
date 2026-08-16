@@ -16,3 +16,9 @@ class VoiceTurnResponseDTO(BaseModel):
     audio_base64: str | None = None
     audio_mime_type: str = "audio/mpeg"
     voice_provider: str
+    tts_provider: str | None = None
+    tts_voice: str | None = None
+    tts_fallback_used: bool = False
+    tts_duration_ms: int | None = Field(default=None, ge=0)
+    tts_review_decision: str | None = None
+    tts_review_reason_codes: list[str] = Field(default_factory=list)

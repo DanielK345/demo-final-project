@@ -11,7 +11,13 @@ import {
   submitSessionFeedback,
 } from "@/features/ride/api";
 import type { BookingLifecycleStatus, BookingProgress, RideTurn } from "@/features/ride/api";
-import { playBase64Audio, sendVoiceTurn, speakWithBrowser } from "@/features/voice/api";
+import {
+  playAudioBlob,
+  playBase64Audio,
+  sendVoiceTurn,
+  stopVoicePlayback,
+  synthesizeSpeech,
+} from "@/features/voice/api";
 import type { CompletedBooking } from "@/features/ai-assistant/components/BookingSuccessPanel";
 import {
   VoiceAssistantContext,
@@ -119,14 +125,27 @@ export const VoiceAssistantProvider: React.FC<{ children: React.ReactNode }> = (
   // lời của agent, dù đến từ lượt gõ chữ (openWithPrefill/confirmBooking) hay lượt
   // nói, đều được đọc to như đang thật sự nghe tổng đài viên trả lời, trừ khi người
   // dùng tự tắt loa (isMuted).
-  const speakReply = useCallback(async (text: string, audioBase64?: string | null, audioMimeType?: string) => {
+  const speakReply = useCallback(async (
+    text: string,
+    audioBase64?: string | null,
+    audioMimeType?: string,
+    reviewContext?: { bookingConfirmed?: boolean; action?: string },
+  ) => {
     if (isMutedRef.current) return;
     setStatus("speaking");
     if (audioBase64) {
-      await playBase64Audio(audioBase64, audioMimeType ?? "audio/mpeg").catch(() => undefined);
-    } else {
-      await speakWithBrowser(text);
+      try {
+        await playBase64Audio(audioBase64, audioMimeType ?? "audio/mpeg");
+        return;
+      } catch {
+        setNotice("Audio phản hồi lỗi, hệ thống đang tổng hợp lại bằng giọng dự phòng.");
+      }
     }
+    const synthesized = await synthesizeSpeech(text, reviewContext);
+    if (synthesized.fallbackUsed) {
+      setNotice(`Đang sử dụng giọng dự phòng ${synthesized.voice}.`);
+    }
+    await playAudioBlob(synthesized.blob);
   }, []);
 
   const sendText = useCallback(
@@ -144,7 +163,10 @@ export const VoiceAssistantProvider: React.FC<{ children: React.ReactNode }> = (
         // `/messages` (gõ chữ) không trả audio_base64 (chỉ `/voice/turn` mới có, từ
         // OpenAI TTS thật) — dùng giọng đọc trình duyệt cho lượt gõ chữ, vẫn đọc to
         // như 1 cuộc gọi thật, không im lặng như chatbot nhắn tin nữa.
-        await speakReply(result.message);
+        await speakReply(result.message, null, undefined, {
+          bookingConfirmed: result.state?.booking_lifecycle_status === "SUCCESS",
+          action: result.action,
+        });
         setStatus("idle");
       } catch (error) {
         setStatus("error");
@@ -169,7 +191,10 @@ export const VoiceAssistantProvider: React.FC<{ children: React.ReactNode }> = (
         ]);
         applyTurnResult(result);
         handleEndOfTurnActions(result);
-        await speakReply(result.message, result.audio_base64, result.audio_mime_type);
+        await speakReply(result.message, result.audio_base64, result.audio_mime_type, {
+          bookingConfirmed: result.state?.booking_lifecycle_status === "SUCCESS",
+          action: result.action,
+        });
         setStatus("idle");
       } catch (error) {
         setStatus("error");
@@ -314,7 +339,14 @@ export const VoiceAssistantProvider: React.FC<{ children: React.ReactNode }> = (
   const closeHistory = useCallback(() => setIsHistoryOpen(false), []);
   const openTranscript = useCallback((id: string) => setTranscriptSessionId(id), []);
   const closeTranscript = useCallback(() => setTranscriptSessionId(null), []);
-  const toggleMuted = useCallback(() => setIsMuted((value) => !value), []);
+  const toggleMuted = useCallback(() => {
+    setIsMuted((value) => {
+      if (!value) stopVoicePlayback();
+      return !value;
+    });
+  }, []);
+
+  useEffect(() => () => stopVoicePlayback(), []);
   // Cho VoiceCallPanel báo lỗi ghi âm/micro qua đúng 1 kênh thông báo duy nhất
   // (`notice`) thay vì mỗi nơi tự vẽ 1 banner lỗi riêng.
   const reportError = useCallback((message: string) => {

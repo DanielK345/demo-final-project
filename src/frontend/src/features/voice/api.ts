@@ -2,14 +2,8 @@ import { API_BASE_URL, ApiError, extractErrorMessage } from "@/app/config/api";
 import { getAccessToken } from "@/features/auth/storage";
 import type { RideBooking, RideTurn } from "@/features/ride/api";
 
-// `/api/v1/voice/turn` và `/api/v1/sessions/{id}/messages` dùng chung
-// `SessionService._format_action_response()` ở backend (xem session_service.py) nên
-// state/booking trả về CÙNG hình dạng — tái dùng đúng type của RideTurn thay vì khai
-// báo lại (tránh lệch dần giữa 2 khai báo cho cùng 1 response thật).
 export interface VoiceTurnResponse {
   transcript: string;
-
-
   transcript_rewritten: boolean;
   transcript_rewrite_confidence?: number | null;
   transcript_rewrite_reason?: string | null;
@@ -22,6 +16,26 @@ export interface VoiceTurnResponse {
   audio_base64: string | null;
   audio_mime_type: string;
   voice_provider: string;
+  tts_provider?: string | null;
+  tts_voice?: string | null;
+  tts_fallback_used?: boolean;
+  tts_duration_ms?: number | null;
+  tts_review_decision?: string | null;
+  tts_review_reason_codes?: string[];
+}
+
+export interface SpeechReviewContext {
+  bookingConfirmed?: boolean;
+  action?: string;
+}
+
+export interface SynthesizedSpeech {
+  blob: Blob;
+  provider: string;
+  voice: string;
+  fallbackUsed: boolean;
+  durationMs: number;
+  reviewDecision: string;
 }
 
 function authHeader(): HeadersInit {
@@ -48,27 +62,101 @@ export async function sendVoiceTurn(sessionId: string, audio: Blob): Promise<Voi
   return response.json();
 }
 
-export function playBase64Audio(base64: string, mimeType: string): Promise<void> {
+export async function synthesizeSpeech(
+  text: string,
+  reviewContext: SpeechReviewContext = {},
+): Promise<SynthesizedSpeech> {
+  const response = await fetch(`${API_BASE_URL}/api/v1/voice/speak`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeader() },
+    body: JSON.stringify({
+      text,
+      booking_confirmed: reviewContext.bookingConfirmed ?? false,
+      action: reviewContext.action ?? null,
+    }),
+  });
+  if (!response.ok) {
+    const errorBody = await response.json().catch(() => null);
+    throw new ApiError(extractErrorMessage(errorBody, response.status), response.status);
+  }
+  const blob = await response.blob();
+  if (!blob.size || !blob.type.startsWith("audio/")) {
+    throw new Error("Máy chủ trả về âm thanh không hợp lệ");
+  }
+  return {
+    blob,
+    provider: response.headers.get("X-TTS-Provider") ?? "unknown",
+    voice: response.headers.get("X-TTS-Voice") ?? "unknown",
+    fallbackUsed: response.headers.get("X-TTS-Fallback") === "true",
+    durationMs: Number(response.headers.get("X-TTS-Duration-Ms") ?? 0),
+    reviewDecision: response.headers.get("X-TTS-Review") ?? "unknown",
+  };
+}
+
+let activeAudio: HTMLAudioElement | null = null;
+let activeObjectUrl: string | null = null;
+let resolveActivePlayback: (() => void) | null = null;
+
+function stopActiveAudio(): void {
+  if (activeAudio) {
+    activeAudio.pause();
+    activeAudio.src = "";
+    activeAudio = null;
+  }
+  if (activeObjectUrl) {
+    URL.revokeObjectURL(activeObjectUrl);
+    activeObjectUrl = null;
+  }
+  const resolve = resolveActivePlayback;
+  resolveActivePlayback = null;
+  resolve?.();
+}
+
+export function playAudioBlob(blob: Blob): Promise<void> {
+  if (!blob.size || !blob.type.startsWith("audio/")) {
+    return Promise.reject(new Error("Dữ liệu âm thanh không hợp lệ"));
+  }
+  stopActiveAudio();
+  const objectUrl = URL.createObjectURL(blob);
+  const audio = new Audio(objectUrl);
+  activeAudio = audio;
+  activeObjectUrl = objectUrl;
   return new Promise((resolve, reject) => {
-    const audio = new Audio(`data:${mimeType};base64,${base64}`);
-    audio.onended = () => resolve();
-    audio.onerror = () => reject(new Error("Không thể phát audio phản hồi"));
-    void audio.play().catch(reject);
+    resolveActivePlayback = resolve;
+    const cleanup = () => {
+      if (activeAudio === audio) activeAudio = null;
+      if (activeObjectUrl === objectUrl) activeObjectUrl = null;
+      if (resolveActivePlayback === resolve) resolveActivePlayback = null;
+      URL.revokeObjectURL(objectUrl);
+    };
+    audio.onended = () => {
+      cleanup();
+      resolve();
+    };
+    audio.onerror = () => {
+      cleanup();
+      reject(new Error("Không thể giải mã hoặc phát audio phản hồi"));
+    };
+    void audio.play().catch((error: unknown) => {
+      cleanup();
+      reject(error instanceof Error ? error : new Error("Trình duyệt đã chặn phát âm thanh"));
+    });
   });
 }
 
-// Trả về Promise hoàn tất khi trình duyệt đọc xong (hoặc ngay lập tức nếu trình
-// duyệt không hỗ trợ speechSynthesis) — để UI trạng thái "đang nói" (VoiceCallPanel)
-// biết chính xác khi nào nên quay lại "đang nghe" thay vì đoán 1 khoảng thời gian cố
-// định.
-export function speakWithBrowser(text: string): Promise<void> {
-  if (!("speechSynthesis" in window)) return Promise.resolve();
-  window.speechSynthesis.cancel();
-  return new Promise((resolve) => {
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = "vi-VN";
-    utterance.onend = () => resolve();
-    utterance.onerror = () => resolve();
-    window.speechSynthesis.speak(utterance);
-  });
+export function playBase64Audio(base64: string, mimeType: string): Promise<void> {
+  try {
+    if (!mimeType.startsWith("audio/")) throw new Error("MIME audio không hợp lệ");
+    const binary = window.atob(base64);
+    if (!binary.length) throw new Error("Audio phản hồi rỗng");
+    const bytes = new Uint8Array(binary.length);
+    for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
+    return playAudioBlob(new Blob([bytes], { type: mimeType }));
+  } catch (error) {
+    return Promise.reject(error instanceof Error ? error : new Error("Audio base64 không hợp lệ"));
+  }
+}
+
+export function stopVoicePlayback(): void {
+  stopActiveAudio();
 }

@@ -6,6 +6,13 @@ File này chỉ chứa những việc không thể hoàn tất bằng code trong
 credential, dữ liệu nghiệp vụ chính thức, hạ tầng vận hành hoặc phê duyệt của con người. Các lỗi
 code, test, UI, schema và luồng Agent không được đẩy vào đây.
 
+Nguồn điều phối: `docs/PROJECT_SOURCE_OF_TRUTH.md`. Để tránh làm sai dependency, owner nên đóng
+các nhóm theo thứ tự: **(1)** xoay secret + chọn owner/pháp lý, **(2)** production DB,
+**(3)** Maps và dữ liệu business, **(4)** booking/dispatch, **(5)** telephony/handoff,
+**(6)** ASR/TTS release gates, **(7)** payment/notification, **(8)** security/load/DR/go-live.
+Một mục chỉ được đóng khi có artifact verify, ngày chạy và người chịu trách nhiệm; có credential
+không đồng nghĩa tích hợp đã sẵn sàng production.
+
 ## 1. Chọn và cấp quyền cho Maps / geocoding / routing
 
 Cần chủ dự án quyết định một nhà cung cấp production và cấp credential hợp lệ:
@@ -90,50 +97,43 @@ TTS_API_KEY=
 Tiêu chí nghiệm thu bên ngoài: cuộc gọi thật vào/ra, barge-in, reconnect, transfer có context,
 không đọc PII nội bộ, đo được latency STT/Agent/TTS và ghi nhận consent.
 
-## 5. OpenAI production access
+## 5. LLM/OpenRouter production access
 
-Cần owner tài khoản OpenAI:
-
-- cấp project/service-account key qua secret manager, không gửi key trong chat hoặc commit;
-- xác nhận model ID được tài khoản cho phép và budget/rate limit;
-- phê duyệt retention/data controls phù hợp dữ liệu khách hàng;
-- tạo staging key tách khỏi production và cảnh báo chi phí.
+Pipeline LLM hiện dùng OpenRouter qua giao thức OpenAI-compatible, tách credential khỏi OpenAI Speech:
 
 ```env
-OPENAI_API_KEY=
-AGENT_LLM_MODEL=gpt-5.6-luna
+OPENROUTER_API_KEY=
+AGENT_LLM_MODEL=openai/gpt-5.6-luna-pro
+AGENT_LLM_BASE_URL=https://openrouter.ai/api/v1
 AGENT_LLM_ENABLED=true
+VOICE_TRANSCRIPT_REWRITE_MODEL=openai/gpt-5.6-luna-pro
+VOICE_TRANSCRIPT_REWRITE_BASE_URL=https://openrouter.ai/api/v1
 ```
 
+Trạng thái kiểm tra thật ngày 2026-08-16: credential OpenRouter hoạt động, model catalog xác nhận
+`openai/gpt-5.6-luna-pro` hỗ trợ Structured Outputs, và `scripts/live_voice_rewrite_check.py`
+đã pass 5/5 case thật. Request được giới hạn output token để tránh OpenRouter từ chối `402` do dự
+trù output tối đa.
 
-Trạng thái kiểm tra thật ngày 2026-08-16: lời gọi `gpt-5.6-luna` qua Responses API đã chạy từ
-pipeline mới nhưng OpenAI trả `AuthenticationError`. Owner cần thu hồi/thay key hiện tại, cấp key
-staging hợp lệ và bảo đảm project có quyền với cả `gpt-5.6-luna` và `gpt-4o-transcribe`. Sau khi
-cấp, bắt buộc chạy:
+Việc owner vẫn phải làm:
+
+- Thu hồi và tạo lại OpenRouter key đã từng được gửi trong hội thoại; cập nhật key mới chỉ qua secret
+  manager hoặc `.env` cục bộ, không commit.
+- Cấp budget/rate limit và cảnh báo chi phí cho staging/production.
+- Phê duyệt retention/data controls cho transcript. Pipeline đặt `store=false`, mask số/email/ID và
+  không gửi lịch sử hội thoại; phần ngôn ngữ và địa danh còn lại vẫn phải gửi để sửa lỗi STT.
+- Duy trì credential riêng cho Speech-to-Text/Text-to-Speech. `OPENROUTER_API_KEY` không được dùng
+  thay `OPENAI_API_KEY`; WebSocket ASR có thể dùng `GROQ_API_KEY`.
+- Cấp OpenAI Speech key hợp lệ nếu dùng `/voice/turn` với `gpt-4o-transcribe`, hoặc cấu hình speech
+  provider production khác đã được phê duyệt.
+
+Sau khi xoay key, bắt buộc chạy lại gate thật:
 
 ```powershell
 .\.venv\Scripts\python.exe scripts/live_voice_rewrite_check.py
 ```
 
-Gate phải pass thật; không thay lỗi credential/model/network bằng mock. Đồng thời cần phê duyệt
-budget, rate limit và data control cho transcript rewrite (`store=false`, PII dạng số/email/ID đã
-được mask; địa danh và phần ngôn ngữ còn lại vẫn được gửi để model có thể sửa chính tả).
-
-Các biến production liên quan:
-
-```env
-VOICE_STT_MODEL=gpt-4o-transcribe
-VOICE_TRANSCRIPT_REWRITE_ENABLED=true
-VOICE_TRANSCRIPT_REWRITE_MODEL=gpt-5.6-luna
-VOICE_TRANSCRIPT_REWRITE_TIMEOUT_SECONDS=5
-VOICE_TRANSCRIPT_REWRITE_REASONING_EFFORT=none
-VOICE_TRANSCRIPT_REWRITE_MINIMUM_CONFIDENCE=0.85
-```
-Tên model phải được kiểm tra lại trên tài liệu OpenAI chính thức tại thời điểm deploy; không suy ra
-quyền truy cập chỉ vì model xuất hiện trong catalog.
-
 ## 6. Payment và notification thật
-
 Chỉ triển khai giao dịch/hoàn tiền/gửi SMS-email production sau khi có:
 
 - merchant sandbox + production của VNPay/MoMo/Stripe hoặc provider được chọn;
@@ -167,3 +167,64 @@ Con người có thẩm quyền phải phê duyệt:
 
 Tiêu chí nghiệm thu bên ngoài: có người chịu trách nhiệm, ngày phê duyệt, SLA và diễn tập handoff
 khẩn cấp trước go-live.
+## 8. ZipFormer ASR — việc bắt buộc cần con người/hạ tầng
+
+### 8.1 Phê duyệt giấy phép trước commercial production
+
+1. **Việc làm:** Legal/Product owner xác nhận quyền dùng `hynt/Zipformer-30M-RNNT-6000h` hoặc chọn model thay thế.
+2. **Tại sao:** model card hiện ghi `CC-BY-NC-ND-4.0`, không được tự coi là phù hợp dịch vụ thương mại.
+3. **Ở đâu:** hồ sơ third-party software/model và quyết định go-live của dự án.
+4. **Thao tác:** lưu văn bản phê duyệt cùng model ID, revision và phạm vi sử dụng; nếu không được duyệt, thay artifact/config rồi chạy lại toàn bộ gate ASR.
+5. **Expected:** có owner, ngày phê duyệt và bằng chứng quyền sử dụng.
+6. **Verify:** audit release artifact khớp model/revision/license đã duyệt.
+7. **Risk:** vi phạm giấy phép và phải dừng dịch vụ.
+
+### 8.2 Xác minh Docker bằng daemon có quyền hoạt động
+
+1. **Việc làm:** build và chạy container thật trên máy có Docker daemon.
+2. **Tại sao:** máy hiện tại có Docker CLI nhưng `com.docker.service` dừng; tài khoản phiên này không có quyền start service, nên chưa thể trung thực đánh dấu Docker build/run pass.
+3. **Ở đâu:** Docker Desktop hoặc CI runner của dự án.
+4. **Command:** `docker build -t alosm-zipformer .`; sau đó `docker run --rm -p 8000:8000 --env-file .env alosm-zipformer`.
+5. **Expected:** build tải artifact đúng SHA-256; container chạy non-root; `/health/ready` trả 200 và upload WAV trả transcript thật.
+6. **Verify:** `curl.exe http://localhost:8000/health/ready` và lệnh upload trong `docs/voice-ai/zipformer-asr.md`.
+7. **Risk:** lỗi package/platform hoặc model path chỉ xuất hiện khi deploy.
+
+### 8.3 Nghiệm thu trên audio cuộc gọi và phần cứng production
+
+1. **Việc làm:** cung cấp corpus cuộc gọi tiếng Việt đã consent/ẩn danh và CPU/RAM mục tiêu; đo WER/CER theo miền, vùng giọng, nhiễu và tải dài hạn.
+2. **Tại sao:** WAV đi kèm model chứng minh pipeline chạy thật nhưng không đại diện điện thoại 8 kHz, tiếng ồn, địa chỉ/POI và giọng vùng miền của khách hàng.
+3. **Ở đâu:** môi trường staging với telephony codec thật và dashboard metrics.
+4. **Command:** chạy `scripts/benchmark_zipformer.py` trên SKU production; bổ sung evaluator WER/CER sau khi corpus được cấp hợp pháp.
+5. **Expected:** SLO latency/error/memory, WER/CER và tuning worker/thread được owner ký duyệt.
+6. **Verify:** soak test không tăng RSS không kiểm soát, error rate <1%, RTF theo gate và báo cáo slice chất lượng.
+7. **Risk:** transcript địa chỉ sai, handoff sai, quá tải RAM/CPU hoặc chất lượng giảm ngoài tập mẫu.
+## 9. TTS output — kiểm duyệt bắt buộc còn cần con người/hạ tầng
+
+### 9.1 Human listening review tiếng Việt
+
+1. **Việc làm:** ít nhất hai reviewer tiếng Việt nghe corpus trong `scripts/live_tts_output_check.py` và bộ câu nghiệp vụ đã consent; chấm HoaiMy/NamMinh về tự nhiên, rõ, nhịp nghỉ, địa chỉ, số tiền, phủ định và persona thương hiệu.
+2. **Tại sao:** TTS→ZipFormer, CER/WER và audio metrics không thay thế khả năng nghe cảm nhận bằng tai người.
+3. **Ở đâu:** staging Voice UI trên Chrome/Edge và thiết bị/loa/tai nghe đại diện người dùng.
+4. **Thao tác:** chạy `scripts/live_tts_output_check.py`, mở audio qua chính `/api/v1/voice/speak`; ghi `case_id`, reviewer, voice, điểm, lỗi và quyết định.
+5. **Expected:** hai reviewer ký duyệt, không có lỗi đổi nghĩa/phủ định/giá/địa chỉ và có voice/persona được Product phê duyệt.
+6. **Verify:** biên bản review gắn model/provider version và ngày chạy; case fail có regression fixture sau khi được phép lưu.
+7. **Risk:** audio đạt chỉ số kỹ thuật nhưng vẫn nghe máy, sai nhịp hoặc phát âm thương hiệu không phù hợp.
+
+### 9.2 Provider TTS có SLA cho production
+
+1. **Việc làm:** Platform/Procurement chọn và cấp credential cho provider Speech chính thức có SLA, quota, DPA và quyền thương mại; giữ Edge-TTS làm fallback/dev nếu policy cho phép.
+2. **Tại sao:** Edge-TTS là online best-effort và live audit đã quan sát `NoAudioReceived`/timeout theo câu ở cả HoaiMy lẫn NamMinh.
+3. **Ở đâu:** secret manager, billing account và hồ sơ third-party vendor của production.
+4. **Thao tác:** tích hợp provider qua contract `TTSProvider`, không bypass `TTSOrchestrator`; chạy lại cùng live report, load/soak và failover drill.
+5. **Expected:** SLO, quota/cost alert, retry policy và data retention được phê duyệt.
+6. **Verify:** canary thực tế, dashboard error/fallback/p95 và diễn tập provider outage.
+7. **Risk:** cả hai Edge voice cùng lỗi khiến TTS trả 503 dù backend/ASR/Agent còn khỏe.
+
+### 9.3 Device/browser playback matrix
+
+1. **Việc làm:** QA kiểm tra autoplay, mute/unmute, Bluetooth, đổi output device, background tab và cuộc gọi liên tiếp trên browser/mobile mục tiêu.
+2. **Tại sao:** AI agent không thể tự cấp quyền media hoặc xác nhận âm thanh phát qua thiết bị vật lý của người dùng.
+3. **Ở đâu:** staging HTTPS trên Chrome/Edge và thiết bị nằm trong support matrix.
+4. **Expected:** không nói đè, không Promise treo, lỗi phát được hiển thị và audio dừng khi mute/unmount.
+5. **Verify:** test record có browser/version/device và video/log network-console.
+6. **Risk:** server audio đúng nhưng người dùng nghe im lặng hoặc audio cũ phát đè lượt mới.

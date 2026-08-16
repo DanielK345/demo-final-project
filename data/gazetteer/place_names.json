@@ -1,5 +1,5 @@
 {
-  "_comment": "SEED DATA — vài chục địa danh TP.HCM phổ biến để pipeline chạy demo được. CHƯA phải danh sách thật của AloSM, xem docs/mustdo_voice.md. Đội vận hành cần bổ sung/thay thế bằng danh sách địa danh thật (điểm đón/đến hay dùng, trụ sở, khu vực phủ sóng dịch vụ) trước khi dùng cho demo/production.",
+  "_comment": "SEED DATA — vài chục địa danh TP.HCM phổ biến để pipeline chạy demo được. CHƯA phải danh sách thật của AloSM, xem mustdo.md. Đội vận hành cần bổ sung/thay thế bằng danh sách địa danh thật (điểm đón/đến hay dùng, trụ sở, khu vực phủ sóng dịch vụ) trước khi dùng cho demo/production.",
   "place_names": [
     "Vincom Đồng Khởi",
     "Landmark 81",

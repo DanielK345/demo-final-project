@@ -4,6 +4,36 @@ Cập nhật: **2026-08-16**. Phạm vi: Core Agent, Voice AI, booking, map/flee
 promotion, RAG, handoff và evaluation. Đây là bản đối chiếu trực tiếp với code hiện tại; không coi
 dữ liệu deterministic/demo là dữ liệu thật.
 
+Tài liệu tổng điều phối nằm tại `docs/PROJECT_SOURCE_OF_TRUTH.md`; catalog máy đọc được nằm tại
+`data/catalog.json`. Khi trạng thái trong tài liệu cũ mâu thuẫn, code/test hiện hành và hai nguồn này
+được ưu tiên.
+
+## 0. Quản trị và chuỗi phụ thuộc dữ liệu
+
+Mỗi record production phải truy được chuỗi `owner -> source/provider -> schema -> version ->
+effective time/TTL -> runtime consumer -> evidence`. Trạng thái chỉ dùng taxonomy `IMPLEMENTED`,
+`LIVE_VALIDATED`, `DEMO`, `STAGING_ONLY`, `EXTERNAL_BLOCKED`, `RELEASE_GATED`, `HISTORICAL`.
+
+Thứ tự phụ thuộc chuẩn:
+
+```text
+Identity/consent
+  -> Session + AgentState
+  -> Place resolution
+  -> Route snapshot
+  -> Fleet + vehicle catalog
+  -> Quote + promotion eligibility
+  -> Explicit confirmation
+  -> Idempotent booking
+  -> Trip/dispatch
+  -> TTS-confirmed output hoặc Handoff
+  -> Audit/evaluation/retention
+```
+
+Không triển khai lớp sau bằng dữ liệu tự suy diễn khi lớp trước chưa có provenance. Đặc biệt:
+frontend không tự tính quote/voucher; Agent không tạo place/fare/ETA/booking ID; TTS không được nói
+booking thành công trước backend state; eval artifact không tự trở thành business truth.
+
 ## 1. Kết luận nhanh
 
 | Miền dữ liệu | Hiện trạng trong repo | Mức sẵn sàng | Owner cần cung cấp |
@@ -273,3 +303,17 @@ Một nguồn dữ liệu chỉ được coi là production-ready khi có owner,
 version/effective date, credential qua secret manager, license được duyệt, cache/TTL, timeout/retry,
 fallback, privacy/retention, monitoring/cost alert, golden tests và quy trình rollback. Nếu thiếu một
 trong các mục này, trạng thái phải là `DEMO`, `PROTOTYPE` hoặc `STAGING_ONLY`, không ghi “đã thật”.
+## 10. Dữ liệu nghiệm thu ZipFormer ASR
+
+Artifact WAV đi kèm model chỉ là gate kỹ thuật, không phải corpus nghiệp vụ. Trước pilot cần dataset audio cuộc gọi
+đã consent và ẩn danh, giữ liên kết giữa:
+
+- `audio_id`, codec/sample rate/channel, thời lượng, SNR/noise bucket và thiết bị/telephony provider;
+- vùng giọng/ngôn ngữ, transcript nguyên văn do người gán nhãn, guideline version và annotator agreement;
+- raw ASR, confidence model-derived, transcript sau LLM rewrite, intent/entity/place resolution và handoff reason;
+- model ID/revision, runtime/config, request latency, queue wait, RTF và outcome cuối.
+
+Báo cáo phải có WER/CER tổng và theo slice: Bắc/Trung/Nam, địa chỉ/POI/tên riêng/số điện thoại, không dấu,
+code-switching, nhiễu, mất gói và audio 8 kHz được resample. Tách train/tuning/eval theo người gọi để tránh
+rò dữ liệu; không lưu raw audio/transcript vượt retention đã duyệt. Owner tối thiểu: Voice ML, QA, Privacy/Legal
+và Support Ops. Không được dùng transcript do chính model sinh làm ground-truth.

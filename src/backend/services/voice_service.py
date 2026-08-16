@@ -14,6 +14,7 @@ from src.voice.asr.biasing import correct_place_names
 from src.voice.text.gazetteer import Gazetteer
 from src.voice.text.normalizer import normalize_transcript
 from src.voice.text.rewrite_contract import TranscriptRewriter, TranscriptRewriteResult
+from src.voice.tts.orchestrator import get_tts_orchestrator
 
 
 class VoiceService:
@@ -62,14 +63,12 @@ class VoiceService:
         )
         reply_text = str(agent_result["message"])
 
-        audio_base64 = None
-        audio_mime_type = "audio/mpeg"
-        if provider_name == "openai":
-            try:
-                audio_reply = await voice_client.synthesize(reply_text)
-                audio_base64 = base64.b64encode(audio_reply).decode("ascii")
-            except VoiceProviderError:
-                audio_base64 = None
+        booking_confirmed = (agent_result.get("state") or {}).get("booking_lifecycle_status") == "SUCCESS"
+        tts_result = await get_tts_orchestrator().synthesize(
+            reply_text,
+            review_context={"booking_confirmed": booking_confirmed, "action": agent_result.get("action")},
+        )
+        audio_base64 = base64.b64encode(tts_result.audio).decode("ascii")
 
         return {
             "transcript": transcript,
@@ -83,8 +82,14 @@ class VoiceService:
             "state": agent_result.get("state", {}),
             "booking": agent_result.get("booking"),
             "audio_base64": audio_base64,
-            "audio_mime_type": audio_mime_type,
+            "audio_mime_type": tts_result.mime_type,
             "voice_provider": provider_name,
+            "tts_provider": tts_result.provider,
+            "tts_voice": tts_result.voice,
+            "tts_fallback_used": tts_result.fallback_used,
+            "tts_duration_ms": tts_result.duration_ms,
+            "tts_review_decision": tts_result.review_decision,
+            "tts_review_reason_codes": tts_result.review_reason_codes,
         }
 
     async def _rewrite(

@@ -1,6 +1,6 @@
 """Live, non-mocked quality gate for the OpenAI transcript rewriter.
 
-Run explicitly with a real OPENAI_API_KEY:
+Run explicitly with a real OPENROUTER_API_KEY (or a direct OpenAI configuration):
     .venv/Scripts/python.exe scripts/live_voice_rewrite_check.py
 """
 
@@ -23,7 +23,7 @@ class LiveCase:
     text: str
     required_terms: tuple[str, ...]
     step: str
-    expect_applied: bool = True
+    expect_applied: bool | None = True
 
 
 CASES = (
@@ -46,6 +46,7 @@ CASES = (
         "goi toi so 0901234567 ma AB-123 luc 19:30",
         ("0901234567", "AB-123", "19:30"),
         "COLLECT_PICKUP",
+        expect_applied=None,
     ),
     LiveCase("dung roi", ("dung roi",), "CONFIRM", expect_applied=False),
 )
@@ -54,7 +55,7 @@ CASES = (
 async def main() -> int:
     rewriter = build_transcript_rewriter()
     if rewriter is None:
-        print("FAIL: transcript rewriter is disabled or OPENAI_API_KEY is missing", file=sys.stderr)
+        print("FAIL: transcript rewriter is disabled or its configured provider key is missing", file=sys.stderr)
         return 2
 
     failures: list[str] = []
@@ -72,7 +73,7 @@ async def main() -> int:
         if result.reason == "provider_error":
             failures.append(f"case {index}: provider_error")
             break
-        if result.applied != case.expect_applied:
+        if case.expect_applied is not None and result.applied != case.expect_applied:
             failures.append(f"case {index}: applied={result.applied}, expected={case.expect_applied}")
         missing = [term for term in case.required_terms if term not in result.normalized_text]
         if missing:

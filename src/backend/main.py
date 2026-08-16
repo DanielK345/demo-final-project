@@ -13,13 +13,15 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-# --- Voice AI (additive — xem docs/voice-ai/prompt_voice_integration_real_be_fe.md) ---
+# --- Voice AI (additive — xem docs/voice-ai/voice-runtime-architecture.md) ---
 # import router riêng vào đây, không đụng src/backend/api/routes/__init__.py hay
 # bất kỳ route nào đã có.
 from src.backend.api.routes import health_router, router  # noqa: E402
+from src.backend.api.routes.asr import router as asr_router  # noqa: E402
 from src.backend.api.routes.voice import prewarm_tts_cache  # noqa: E402
 from src.backend.api.routes.voice import router as voice_router  # noqa: E402
 from src.backend.config import get_settings  # noqa: E402
+from src.voice.asr.zipformer.service import get_zipformer_service  # noqa: E402
 from src.voice.config import get_voice_settings  # noqa: E402
 
 # pytest set biến này cho mọi test đang chạy — dùng để tắt prewarm mạng thật trong
@@ -32,14 +34,17 @@ async def lifespan(app: FastAPI):
     settings = get_settings()
     print(f"Starting {settings.app_name} in {settings.app_env} mode")
     voice_settings = get_voice_settings()
+    zipformer = get_zipformer_service()
+    await zipformer.start()
     if voice_settings.voice_enabled and not _RUNNING_UNDER_PYTEST:
         # QUAN TRỌNG: chạy nền (không await/không chặn startup). Prewarm gọi Edge-TTS
         # thật 3 lần tuần tự — đã tự đo mất ~15-18s. `await` trực tiếp ở đây từng khiến
         # uvicorn không bind/accept connection nào suốt khoảng thời gian đó (server có
         # vẻ "sập" từ ngoài nhìn vào, browser báo "Failed to fetch") — phát hiện thật
-        # khi debug live server, xem docs/voice-ai/mustdo_voice.md.
+        # khi debug live server, xem mustdo.md.
         asyncio.create_task(prewarm_tts_cache())
     yield
+    await zipformer.stop()
     print("Shutting down...")
 
 
@@ -57,10 +62,18 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=[
+        "X-TTS-Provider",
+        "X-TTS-Voice",
+        "X-TTS-Fallback",
+        "X-TTS-Duration-Ms",
+        "X-TTS-Review",
+    ],
 )
 
 app.include_router(router, prefix="/api/v1")
 app.include_router(health_router)
+app.include_router(asr_router)
 
 # --- Voice AI (additive) ---
 voice_settings = get_voice_settings()

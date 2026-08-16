@@ -35,6 +35,7 @@ Hard invariants:
 - Preserve the speech act and certainty: a question stays a question; a denial stays a denial; uncertainty stays uncertain.
 - At a confirmation step, do not repair a phrase into an affirmative, negative, cancellation, or change command. Only punctuation/casing changes are safe there.
 - Canonical terms are hints, not facts. Use one only when the transcript already provides close phonetic or lexical evidence.
+- A unique canonical place may be restored from a close phonetic rendering, including Vietnamese number words spoken as part of its name (for example "lam mac tam mot" -> "Landmark 81"). This is a transcription repair, not inference. If more than one canonical term is plausible, require clarification.
 - Do not summarize, answer the customer, execute a request, or add commentary.
 
 Output contract:
@@ -149,7 +150,7 @@ class OpenAITranscriptRewriter:
             "canonical_terms": self.glossary,
         }
         kwargs: dict[str, Any] = {}
-        if self.model.startswith("gpt-5"):
+        if self.model.rsplit("/", maxsplit=1)[-1].startswith("gpt-5"):
             kwargs["reasoning"] = {"effort": self.reasoning_effort}
         if session_id:
             kwargs["safety_identifier"] = hashlib.sha256(session_id.encode()).hexdigest()[:32]
@@ -161,6 +162,7 @@ class OpenAITranscriptRewriter:
                 instructions=TRANSCRIPT_REWRITE_PROMPT,
                 input=json.dumps(payload, ensure_ascii=False, separators=(",", ":")),
                 text_format=_RewriteOutput,
+                max_output_tokens=250,
                 timeout=self.timeout_seconds,
                 store=False,
                 **kwargs,
@@ -240,11 +242,12 @@ def build_transcript_rewriter(
     gazetteer: Gazetteer | None = None,
 ) -> OpenAITranscriptRewriter | None:
     config = settings or get_settings()
-    if not config.voice_transcript_rewrite_enabled or not config.openai_api_key:
+    api_key = config.llm_api_key_for(config.voice_transcript_rewrite_base_url)
+    if not config.voice_transcript_rewrite_enabled or not api_key:
         return None
     places = (gazetteer or Gazetteer.load()).entries
     return OpenAITranscriptRewriter(
-        api_key=config.openai_api_key,
+        api_key=api_key,
         model=config.voice_transcript_rewrite_model,
         timeout_seconds=config.voice_transcript_rewrite_timeout_seconds,
         reasoning_effort=config.voice_transcript_rewrite_reasoning_effort,

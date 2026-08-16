@@ -106,6 +106,7 @@ class OpenAIConversationModel:
                 tools=list(tools),
                 tool_choice="auto",
                 parallel_tool_calls=False,
+                max_completion_tokens=600,
                 timeout=self.timeout_seconds,
                 **kwargs,
             )
@@ -140,7 +141,7 @@ def build_conversation_model() -> ConversationModel:
     if not settings.agent_llm_enabled:
         raise ValueError("model-driven agent requires AGENT_LLM_ENABLED=true")
     return OpenAIConversationModel(
-        api_key=settings.openai_api_key,
+        api_key=settings.llm_api_key_for(settings.agent_llm_base_url),
         model=settings.agent_llm_model,
         timeout_seconds=settings.agent_llm_timeout_seconds,
         reasoning_effort=settings.agent_llm_reasoning_effort,

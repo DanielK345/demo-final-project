@@ -1,7 +1,7 @@
 """Test `EdgeTTSProvider` — không gọi Edge-TTS thật (inject `communicate_factory`
 giả, đúng nguyên tắc test-double). Đã tự verify tay bằng script riêng (không
 commit vào test suite) rằng provider gọi được Edge-TTS thật trong môi trường
-phát triển — xem `docs/voice-ai/mustdo_voice.md`."""
+phát triển — xem `mustdo.md`."""
 
 import pytest
 

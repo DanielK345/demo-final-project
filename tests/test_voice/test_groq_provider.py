@@ -1,5 +1,5 @@
 """Test `GroqASRProvider` — không gọi Groq thật (dùng `httpx.MockTransport`,
-đúng nguyên tắc test-double). Xem `docs/voice-ai/mustdo_voice.md` cho việc test tay
+đúng nguyên tắc test-double). Xem `mustdo.md` cho việc test tay
 với `GROQ_API_KEY` thật — bao gồm 1 bug thật đã phát hiện: Whisper "bịa" câu
 hoàn chỉnh với confidence cao khi audio gần như im lặng (test regression cho
 case này nằm trong `test_transcribe_forces_zero_confidence_for_known_hallucination`
@@ -139,7 +139,7 @@ async def test_transcribe_forces_zero_confidence_for_known_hallucination():
     """Regression cho bug thật: audio gần như im lặng khiến Whisper bịa ra câu hoàn
     chỉnh với no_speech_prob=0/avg_logprob cao (tức estimate_confidence() sẽ tính ra
     CAO) — payload dưới đây tái hiện đúng response thật đã quan sát được khi test tay
-    với GROQ_API_KEY thật (xem docs/voice-ai/mustdo_voice.md)."""
+    với GROQ_API_KEY thật (xem mustdo.md)."""
 
     def handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(

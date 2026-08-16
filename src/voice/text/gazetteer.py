@@ -1,4 +1,4 @@
-"""Gazetteer địa danh dùng chung — Phần 4 (`docs/voice-ai/voice_ai_overview.md` §4).
+"""Gazetteer địa danh dùng chung — Phần 4 (`docs/voice-ai/voice-runtime-architecture.md` §4).
 
 Dùng ở 2 nơi: `asr/biasing.py` (fuzzy correction transcript + prompt hint cho
 Groq, `asr/groq_provider.py`) và `tts/pronunciation.py` (Phần 6, chưa
@@ -7,7 +7,7 @@ này khi Phần 6 làm).
 
 `data/gazetteer/place_names.json` trong repo là **dữ liệu seed** (khoảng 20
 địa danh TP.HCM phổ biến, lấy làm ví dụ) — **chưa phải danh sách thật của
-AloSM**. Xem `docs/voice-ai/mustdo_voice.md` — đội vận hành cần cung cấp danh sách
+AloSM**. Xem `mustdo.md` — đội vận hành cần cung cấp danh sách
 đầy đủ trước khi dùng cho demo/production thật.
 """
 

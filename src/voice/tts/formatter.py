@@ -1,4 +1,4 @@
-"""Spoken-language formatter cho TTS — Phần 6 (`docs/voice-ai/voice_ai_overview.md` §5/§6, Ref `S1-7`).
+"""Spoken-language formatter cho TTS — Phần 6 (`docs/voice-ai/voice-runtime-architecture.md` §5/§6, Ref `S1-7`).
 
 Chiều **ngược lại** với `text/normalizer.py` (Phần 4): Core Agent trả response
 text có thể chứa số dạng chữ số (giá cước, ETA, khoảng cách — vd `"20.000
@@ -26,6 +26,7 @@ _SCALE_WORDS = ["", "nghìn", "triệu", "tỷ"]
 
 _INTEGER_RE = re.compile(r"(?<![\d,])\d{1,3}(?:\.\d{3})*(?![\d.,])")
 _DECIMAL_RE = re.compile(r"\b(\d+),(\d+)\b")
+_TIME_RE = re.compile(r"(?<!\d)([01]?\d|2[0-3]):([0-5]\d)(?!\d)")
 
 
 def _read_three_digits(n: int, *, is_leading_group: bool) -> str:
@@ -102,11 +103,22 @@ def format_for_speech(text: str) -> str:
     if not text:
         return text
 
+    def _replace_time(match: re.Match[str]) -> str:
+        hours = int(match.group(1))
+        minutes = int(match.group(2))
+        hour_words = number_to_vietnamese_words(hours)
+        if minutes == 0:
+            return f"{hour_words} giờ"
+        minute_words = number_to_vietnamese_words(minutes)
+        return f"{hour_words} giờ {minute_words} phút"
+
+    result = _TIME_RE.sub(_replace_time, text)
+
     def _replace_decimal(match: re.Match[str]) -> str:
         integer_part, decimal_part = match.group(1), match.group(2)
         return f"{number_to_vietnamese_words(int(integer_part))} phẩy {_read_decimal_digits(decimal_part)}"
 
-    result = _DECIMAL_RE.sub(_replace_decimal, text)
+    result = _DECIMAL_RE.sub(_replace_decimal, result)
 
     def _replace_integer(match: re.Match[str]) -> str:
         value = int(match.group(0).replace(".", ""))
@@ -118,7 +130,7 @@ def format_for_speech(text: str) -> str:
 
 # ---------------------------------------------------------------------------
 # Dọn ký tự hay bị TTS đọc thành chữ theo nghĩa đen — phát hiện qua phản hồi
-# thật khi nghe app (xem docs/voice-ai/mustdo_voice.md): dấu ngoặc kép dùng để nhấn
+# thật khi nghe app (xem mustdo.md): dấu ngoặc kép dùng để nhấn
 # mạnh 1 từ trong câu backend (vd `"Đúng"`, `“Thôi”`) và dấu gạch chéo ghép 2
 # cách xưng hô (`Anh/chị`) đều KHÔNG phải dấu câu bình thường mà TTS quen xử
 # lý im lặng — Edge-TTS đọc luôn ký tự đó ra thành lời thay vì bỏ qua.
