@@ -2,6 +2,7 @@ import React from "react";
 import { History, RotateCcw, X } from "lucide-react";
 import { useVoiceAssistant } from "@/features/ai-assistant/context/useVoiceAssistant";
 import { VoiceCallPanel } from "@/features/ai-assistant/components/VoiceCallPanel";
+import { ConversationWindow } from "@/features/ai-assistant/components/ConversationWindow";
 import { BookingConfirmationModal } from "@/features/ai-assistant/components/BookingConfirmationModal";
 import { BookingSuccessModal } from "@/features/ai-assistant/components/BookingSuccessModal";
 import { HistoryPanel } from "@/features/history/components/HistoryPanel";
@@ -63,6 +64,7 @@ export const VoiceAssistantPopup: React.FC = () => {
         <VoiceCallPanel />
         <BookingConfirmationModal />
         <BookingSuccessModal />
+        <ConversationWindow />
       </div>
 
       <HistoryPanel isOpen={isHistoryOpen} onClose={closeHistory} onSelectSession={openTranscript} />

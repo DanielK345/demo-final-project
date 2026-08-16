@@ -1,10 +1,9 @@
-import React, { type FormEvent, useEffect, useState } from "react";
-import { Mic, MicOff, PhoneOff, RotateCcw, Send, Volume2, VolumeX } from "lucide-react";
+import React, { useEffect, useState } from "react";
+import { MessageCircle, Mic, MicOff, PhoneOff, RotateCcw, Volume2, VolumeX } from "lucide-react";
 import { useVoiceAssistant } from "@/features/ai-assistant/context/useVoiceAssistant";
 import type { AssistantStatus } from "@/features/ai-assistant/context/voice-assistant-context";
 import { useVoiceActivityRecorder } from "@/features/voice/useVoiceActivityRecorder";
 import { AIStatusIndicator } from "@/features/ai-assistant/components/AIStatusIndicator";
-import { VoiceTranscript } from "@/features/ai-assistant/components/VoiceTranscript";
 import { BookingProgressStrip } from "@/features/ai-assistant/components/BookingProgressStrip";
 import { RideBookingExperience } from "@/features/ai-assistant/components/RideBookingExperience";
 
@@ -28,9 +27,8 @@ export const VoiceCallPanel: React.FC = () => {
     handleVoiceRecorded,
     messages,
     bookingProgress,
-    draft,
-    setDraft,
     sendText,
+    openConversation,
     isMuted,
     toggleMuted,
     reportError,
@@ -63,14 +61,6 @@ export const VoiceCallPanel: React.FC = () => {
   const displayStatus: AssistantStatus = !sessionId ? "connecting" : isSpeechDetected ? "listening" : status;
   const isActive = displayStatus === "listening" || displayStatus === "speaking";
   const latestUserMessage = [...messages].reverse().find((message) => message.role === "user")?.text;
-
-  const submitDraft = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const value = draft.trim();
-    if (!value) return;
-    setDraft("");
-    void sendText(value);
-  };
 
   return (
     <div className="flex h-full min-h-0 flex-col items-center overflow-hidden px-4 py-5 text-center sm:px-6">
@@ -126,30 +116,6 @@ export const VoiceCallPanel: React.FC = () => {
       )}
       </div>
 
-      {draft && (
-        <form onSubmit={submitDraft} className="mb-3 w-full rounded-2xl border border-[#00C9B7]/30 bg-[#E9FBF8] p-3 text-left dark:bg-[#00C9B7]/10">
-          <label htmlFor="assistant-draft" className="mb-1.5 block text-xs font-bold text-[#008F88]">
-            Gợi ý lệnh — sửa trước khi gửi
-          </label>
-          <div className="flex gap-2">
-            <input
-              id="assistant-draft"
-              value={draft}
-              onChange={(event) => setDraft(event.target.value)}
-              className="min-w-0 flex-1 rounded-xl border border-white bg-white px-3 py-2 text-sm text-slate-800 outline-none focus:border-[#00C9B7] dark:border-white/10 dark:bg-white/10 dark:text-white"
-            />
-            <button
-              type="submit"
-              disabled={status === "processing" || !draft.trim()}
-              aria-label="Gửi câu lệnh đã xác nhận"
-              className="grid h-10 w-10 place-items-center rounded-xl bg-[#00C9B7] text-white disabled:opacity-40"
-            >
-              <Send className="h-4 w-4" />
-            </button>
-          </div>
-        </form>
-      )}
-
       <div className="w-full shrink-0">
         <BookingProgressStrip progress={bookingProgress} />
       </div>
@@ -161,7 +127,14 @@ export const VoiceCallPanel: React.FC = () => {
           voiceCommand={latestUserMessage}
         />
       </div>
-      <VoiceTranscript messages={messages} />
+      <button
+        type="button"
+        onClick={openConversation}
+        className="mt-3 inline-flex shrink-0 items-center gap-2 rounded-xl border border-[#00C9B7]/25 bg-[#E9FBF8] px-4 py-2.5 text-sm font-semibold text-[#008F88] transition hover:bg-[#D7F7F2] dark:bg-[#00C9B7]/10 dark:text-[#5BE0D3] dark:hover:bg-[#00C9B7]/20"
+      >
+        <MessageCircle className="h-4 w-4" />
+        Xem cuộc trò chuyện{messages.length > 1 ? ` (${messages.length})` : ""}
+      </button>
 
       {sessionEnded ? (
         <button

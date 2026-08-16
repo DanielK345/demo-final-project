@@ -23,11 +23,14 @@ export type Message = {
 };
 
 export interface VoiceAssistantValue {
-  // Popup — LUÔN là màn hình gọi thoại (không còn chế độ nhắn tin/chat riêng, đúng
-  // yêu cầu "gọi điện với AI Agentic chứ không phải nhắn tin chatbot").
+  // Popup cuộc gọi và cửa sổ hội thoại chữ dùng chung một phiên, nên nội dung nói và
+  // gõ luôn xuất hiện trong cùng một lịch sử.
   isOpen: boolean;
   open: () => void;
   close: () => void;
+  isConversationOpen: boolean;
+  openConversation: () => void;
+  closeConversation: () => void;
   // Mở popup và điền bản nháp có thể sửa; không tự gửi CTA thành lời của khách.
   openWithPrefill: (prefill: string) => void;
   draft: string;

@@ -34,6 +34,7 @@ export const VoiceAssistantProvider: React.FC<{ children: React.ReactNode }> = (
   const navigate = useNavigate();
 
   const [isOpen, setIsOpen] = useState(false);
+  const [isConversationOpen, setIsConversationOpen] = useState(false);
   const [status, setStatus] = useState<AssistantStatus>("connecting");
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [sessionEnded, setSessionEnded] = useState(false);
@@ -62,6 +63,7 @@ export const VoiceAssistantProvider: React.FC<{ children: React.ReactNode }> = (
 
   const resetConversationUi = useCallback(() => {
     setMessages([{ id: "welcome", role: "assistant", text: buildWelcomeMessage(getUserName()) }]);
+    setDraft("");
     setBookingProgress(null);
     setLifecycleStatus(null);
     setCompletedBooking(null);
@@ -274,10 +276,16 @@ export const VoiceAssistantProvider: React.FC<{ children: React.ReactNode }> = (
   }, [navigate]);
 
   const open = useCallback(() => setIsOpen(true), []);
-  const close = useCallback(() => setIsOpen(false), []);
+  const close = useCallback(() => {
+    setIsConversationOpen(false);
+    setIsOpen(false);
+  }, []);
+  const openConversation = useCallback(() => setIsConversationOpen(true), []);
+  const closeConversation = useCallback(() => setIsConversationOpen(false), []);
 
   const openWithPrefill = useCallback((prefill: string) => {
     setDraft(prefill);
+    setIsConversationOpen(true);
     setIsOpen(true);
   }, []);
 
@@ -319,10 +327,15 @@ export const VoiceAssistantProvider: React.FC<{ children: React.ReactNode }> = (
   }, [sessionId]);
 
   const newSession = useCallback(async () => {
+    // `agent_state` (bao gồm conversation_history) chỉ thuộc về một session ở
+    // backend. Kết thúc session hiện tại rồi tạo ID mới là reset memory thật, không
+    // chỉ là xóa bubble ở UI.
     if (sessionId) {
       await endRideSession(sessionId).catch(() => undefined);
     }
     try {
+      stopVoicePlayback();
+      setStatus("connecting");
       const user = await getCurrentUser();
       const session = await createRideSession();
       saveAuthSession({
@@ -336,6 +349,11 @@ export const VoiceAssistantProvider: React.FC<{ children: React.ReactNode }> = (
       resetConversationUi();
     } catch (error) {
       if (redirectToLoginIfUnauthorized(error, navigate)) return;
+      setSessionId(null);
+      setSessionEnded(true);
+      setShowConfirmationModal(false);
+      setShowSuccessModal(false);
+      setStatus("error");
       setNotice(error instanceof Error ? error.message : "Không thể tạo phiên mới.");
     }
   }, [sessionId, navigate, resetConversationUi]);
@@ -364,6 +382,9 @@ export const VoiceAssistantProvider: React.FC<{ children: React.ReactNode }> = (
       isOpen,
       open,
       close,
+      isConversationOpen,
+      openConversation,
+      closeConversation,
       openWithPrefill,
       draft,
       setDraft,
@@ -400,6 +421,9 @@ export const VoiceAssistantProvider: React.FC<{ children: React.ReactNode }> = (
       isOpen,
       open,
       close,
+      isConversationOpen,
+      openConversation,
+      closeConversation,
       openWithPrefill,
       draft,
       setDraft,
