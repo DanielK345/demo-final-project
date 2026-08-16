@@ -13,12 +13,18 @@ pip install -r requirements.txt
 cp .env.example .env
 ```
 
-Mặc định (không sửa `.env`) vẫn chạy được: ASR dùng `FakeASRProvider` (transcript giả),
-TTS dùng `EdgeTTSProvider` thật (miễn phí). Muốn ASR thật:
+Runtime không tạo transcript giả. Cấu hình provider thật trước khi thử voice:
 
 ```env
-GROQ_API_KEY=sk-...   # free tại console.groq.com
+OPENAI_API_KEY=...                    # /voice/turn, transcript rewrite và OpenAI TTS
+GROQ_API_KEY=...                      # /voice/stream Groq ASR
+VOICE_STT_MODEL=gpt-4o-transcribe
+VOICE_TRANSCRIPT_REWRITE_ENABLED=true
+VOICE_TRANSCRIPT_REWRITE_MODEL=gpt-5.6-luna
 ```
+
+Thiếu `GROQ_API_KEY`, WebSocket ASR trả lỗi cấu hình rõ ràng. Thiếu hoặc sai
+`OPENAI_API_KEY`, `/voice/turn`/live rewrite gate fail thật; không fallback sang fake provider.
 
 ## 2. Chạy server
 
@@ -49,5 +55,11 @@ pytest tests/ -v          # toàn repo — phải xanh hết, kể cả test cũ
 ruff check src/ tests/
 ```
 
-Test Voice **không gọi Groq/Edge-TTS thật** dù `.env` có `GROQ_API_KEY` thật (guard
-bằng biến `PYTEST_CURRENT_TEST` — xem `src/backend/api/routes/voice.py`).
+Các unit/regression test kiểm tra state và guardrail độc lập. Bài full WebSocket chỉ chạy khi
+`VOICE_LIVE_PCM16_FIXTURE` trỏ tới PCM16 16 kHz có giọng nói thật và consent. Kiểm tra LLM thật:
+
+```powershell
+.\.venv\Scripts\python.exe scripts/live_voice_rewrite_check.py
+```
+
+Provider/authentication failure làm live gate fail; không được đổi thành pass bằng mock.

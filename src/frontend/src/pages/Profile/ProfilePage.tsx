@@ -43,7 +43,7 @@ export const ProfilePage: React.FC = () => {
     : "?";
 
   return (
-    <div className="max-w-[1024px] mx-auto space-y-8 pb-16">
+    <div className="max-w-[1024px] mx-auto space-y-7 pb-16">
       {/* Page Header */}
       <header className="mb-2">
         <h1 className="text-3xl md:text-4xl font-extrabold text-[#191C1E] dark:text-white tracking-tight">
@@ -61,10 +61,10 @@ export const ProfilePage: React.FC = () => {
       {/* Bento Grid Layout for Account Info */}
       <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
         {/* Profile Header Card (8 cols on desktop) */}
-        <div className="md:col-span-12 lg:col-span-8 bg-white rounded-2xl p-6 md:p-8 shadow-[0px_4px_20px_rgba(16,18,19,0.05)] border border-slate-200/80 flex flex-col md:flex-row items-center md:items-start gap-6 relative overflow-hidden group dark:bg-[#12161A] dark:border-white/10">
-          <div className="absolute -top-24 -right-24 w-64 h-64 bg-[#00A651]/5 rounded-full blur-3xl group-hover:bg-[#00A651]/10 transition-colors duration-500 pointer-events-none" />
+        <div className="md:col-span-12 lg:col-span-8 mobility-card bg-white rounded-[28px] p-6 md:p-8  flex flex-col md:flex-row items-center md:items-start gap-6 relative overflow-hidden group dark:bg-[#12161A] dark:border-white/10">
+          <div className="absolute -top-24 -right-24 w-64 h-64 bg-[#00C9B7]/5 rounded-full blur-3xl group-hover:bg-[#00C9B7]/10 transition-colors duration-500 pointer-events-none" />
 
-          <div className="relative w-24 h-24 md:w-32 md:h-32 rounded-full border-4 border-white shadow-sm shrink-0 z-10 bg-[#00A651]/15 text-[#04763B] dark:text-[#00A651] flex items-center justify-center text-3xl font-extrabold dark:border-white/10">
+          <div className="relative w-24 h-24 md:w-32 md:h-32 rounded-full border-4 border-white shadow-sm shrink-0 z-10 bg-[#00C9B7]/15 text-[#008F88] dark:text-[#00C9B7] flex items-center justify-center text-3xl font-extrabold dark:border-white/10">
             {initials}
           </div>
 
@@ -72,7 +72,7 @@ export const ProfilePage: React.FC = () => {
             <h2 className="text-2xl font-extrabold text-[#191C1E] dark:text-white mb-1">
               {user?.full_name || "Đang tải..."}
             </h2>
-            <div className="inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full bg-[#04763B] text-white text-xs font-semibold shadow-xs mb-4">
+            <div className="inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full bg-[#008F88] text-white text-xs font-semibold shadow-xs mb-4">
               <Star className="w-4 h-4 fill-current text-amber-300" />
               <span>{user?.role === "CUSTOMER" ? "Khách hàng" : user?.role || ""}</span>
             </div>
@@ -80,7 +80,7 @@ export const ProfilePage: React.FC = () => {
         </div>
 
         {/* Account Information Card (4 cols on desktop) */}
-        <div className="md:col-span-12 lg:col-span-4 bg-white rounded-2xl p-6 shadow-[0px_4px_20px_rgba(16,18,19,0.05)] border border-slate-200/80 flex flex-col justify-between hover:shadow-md transition-shadow dark:bg-[#12161A] dark:border-white/10">
+        <div className="md:col-span-12 lg:col-span-4 mobility-card bg-white rounded-[28px] p-6  flex flex-col justify-between hover:shadow-md transition-shadow dark:bg-[#12161A] dark:border-white/10">
           <div>
             <h3 className="text-lg font-bold text-[#191C1E] dark:text-white mb-4 flex items-center gap-2">
               <BadgeCheck className="w-5 h-5 text-slate-500 dark:text-slate-400" />
@@ -108,7 +108,7 @@ export const ProfilePage: React.FC = () => {
 
         {/* Payment Methods Section (8 cols on desktop) — chưa tích hợp cổng thanh toán
             thật (xem mustdo.md mục 2), không hiển thị số dư/thẻ giả */}
-        <div className="md:col-span-12 lg:col-span-8 bg-white rounded-2xl p-6 md:p-8 shadow-[0px_4px_20px_rgba(16,18,19,0.05)] border border-slate-200/80 dark:bg-[#12161A] dark:border-white/10">
+        <div className="md:col-span-12 lg:col-span-8 mobility-card bg-white rounded-[28px] p-6 md:p-8  dark:bg-[#12161A] dark:border-white/10">
           <div className="flex justify-between items-end mb-6">
             <h3 className="text-lg font-bold text-[#191C1E] dark:text-white flex items-center gap-2">
               <CreditCard className="w-5 h-5 text-slate-500 dark:text-slate-400" />
@@ -132,7 +132,7 @@ export const ProfilePage: React.FC = () => {
         </div>
 
         {/* Rewards / Coupons Section (4 cols on desktop) */}
-        <div className="md:col-span-12 lg:col-span-4 bg-white rounded-2xl p-6 shadow-[0px_4px_20px_rgba(16,18,19,0.05)] border border-slate-200/80 flex flex-col h-full dark:bg-[#12161A] dark:border-white/10">
+        <div className="md:col-span-12 lg:col-span-4 mobility-card bg-white rounded-[28px] p-6  flex flex-col h-full dark:bg-[#12161A] dark:border-white/10">
           <h3 className="text-lg font-bold text-[#191C1E] dark:text-white mb-4 flex items-center gap-2">
             <Ticket className="w-5 h-5 text-slate-500 dark:text-slate-400" />
             <span>Ưu đãi của tôi</span>

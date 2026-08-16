@@ -251,3 +251,40 @@ Khi Backend hoàn thành triển khai endpoint nào, Frontend Developer chỉ c�
 | **Booking & Modal** | [BookingPage.tsx](file:///c:/Users/Admin/Desktop/P-160/frontend/src/pages/Booking/BookingPage.tsx)       | [booking/mockData.ts](file:///c:/Users/Admin/Desktop/P-160/frontend/src/features/booking/mockData.ts)   |
 | **Trip History**    | [ActivityPage.tsx](file:///c:/Users/Admin/Desktop/P-160/frontend/src/pages/Activity/ActivityPage.tsx)    | [activity/mockData.ts](file:///c:/Users/Admin/Desktop/P-160/frontend/src/features/activity/mockData.ts) |
 | **Live Tracking**   | [TrackingPage.tsx](file:///c:/Users/Admin/Desktop/P-160/frontend/src/pages/Tracking/TrackingPage.tsx)    | [tracking/types.ts](file:///c:/Users/Admin/Desktop/P-160/frontend/src/features/tracking/types.ts)       |
+## Cập nhật contract 2026-08-16
+
+### CTA/prefill
+
+CTA marketing hoặc shortcut chỉ được phép mở popup và điền draft có thể sửa. Không gọi
+`sendRideMessage` cho đến khi người dùng bấm gửi hoặc tự nói. Việc click chọn candidate/vehicle là
+một lựa chọn chủ động và có thể gửi semantic utterance, nhưng không được bypass Core Agent.
+
+### Human handoff
+
+`HANDOFF` trả `state.handoff_id` khi Backend đã lưu case. Context nội bộ trong Agent state gồm:
+
+```json
+{
+  "reason_code": "EMERGENCY",
+  "priority": 100,
+  "severity": "CRITICAL",
+  "queue": "SAFETY_OPERATOR",
+  "summary": "redacted summary",
+  "pending_tool": null,
+  "requires_immediate_transfer": true
+}
+```
+
+Operator API:
+
+- `POST /api/v1/handoffs`: tạo case có cấu trúc.
+- `GET /api/v1/handoffs?status=pending`: danh sách thật, xếp priority giảm dần.
+- `POST /api/v1/handoffs/{id}/accept?operator_id=...`: accept case; ID không tồn tại trả 404.
+
+Backend không được trả placeholder/random case trong list. Khi có nhiều instance, repository
+process-local phải được thay bằng Postgres/queue dùng migration `0002_handoff_operations`.
+
+### Dữ liệu demo
+
+Frontend phải gắn nhãn rõ marker fleet, ETA và voucher minh họa. Chỉ hiển thị “đã áp voucher” hoặc
+“xe đang ở gần” khi response đến từ provider/backend thật và có timestamp/data-quality phù hợp.

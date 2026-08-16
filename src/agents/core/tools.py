@@ -116,7 +116,18 @@ SERVICE_TOOLS = [
     tool_definition(
         "handoff",
         "Chuyển người thật khi khách yêu cầu, có tình huống khẩn cấp hoặc không thể xử lý an toàn.",
-        {"reason": {"type": "string"}},
+        {
+            "reason": {"type": "string"},
+            "reason_code": {
+                "type": "string",
+                "enum": [
+                    "USER_REQUEST", "EMERGENCY", "SAFETY_RISK", "COMPLAINT",
+                    "PAYMENT_DISPUTE", "LOST_ITEM", "LOW_STT_CONFIDENCE",
+                    "RETRY_LIMIT", "CRITICAL_TOOL_ERROR", "SIDE_EFFECT_RECONCILIATION",
+                    "MODEL_UNAVAILABLE", "POLICY_BLOCK", "UNABLE_TO_CONTINUE",
+                ],
+            },
+        },
         ["reason"],
     ),
 ]

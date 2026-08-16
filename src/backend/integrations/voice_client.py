@@ -5,7 +5,7 @@ import io
 from typing import Literal
 
 import httpx
-from openai import AsyncOpenAI
+from openai import AsyncOpenAI, OpenAIError
 
 from src.config import Settings, get_settings
 
@@ -41,15 +41,20 @@ class OpenAIVoiceClient:
         self.settings = config
         self.client = AsyncOpenAI(api_key=config.openai_api_key)
 
-    async def transcribe(self, audio_bytes: bytes, *, mime_type: str) -> str:
+    async def transcribe(self, audio_bytes: bytes, *, mime_type: str, prompt_hint: str = "") -> str:
         del mime_type
         audio_file = io.BytesIO(audio_bytes)
         audio_file.name = "recording.webm"
-        response = await self.client.audio.transcriptions.create(
-            model=self.settings.voice_stt_model,
-            file=audio_file,
-            language="vi",
-        )
+        try:
+            response = await self.client.audio.transcriptions.create(
+                model=self.settings.voice_stt_model,
+                file=audio_file,
+                language="vi",
+                prompt=prompt_hint or None,
+                timeout=self.settings.voice_timeout_seconds,
+            )
+        except OpenAIError as exc:
+            raise VoiceProviderError("OpenAI transcription failed") from exc
         text = response.text.strip()
         if not text:
             raise VoiceProviderError("Không nhận diện được giọng nói")
@@ -59,12 +64,16 @@ class OpenAIVoiceClient:
         cleaned = text.strip()
         if not cleaned:
             raise VoiceProviderError("Không có nội dung để đọc")
-        response = await self.client.audio.speech.create(
-            model=self.settings.voice_tts_model,
-            voice=self.settings.voice_tts_voice,
-            input=cleaned,
-            response_format="mp3",
-        )
+        try:
+            response = await self.client.audio.speech.create(
+                model=self.settings.voice_tts_model,
+                voice=self.settings.voice_tts_voice,
+                input=cleaned,
+                response_format="mp3",
+                timeout=self.settings.voice_timeout_seconds,
+            )
+        except OpenAIError as exc:
+            raise VoiceProviderError("OpenAI speech synthesis failed") from exc
         return response.content
 
 
@@ -76,7 +85,14 @@ class GeminiVoiceClient:
         self.settings = config
         self.api_key = config.google_api_key
 
-    async def transcribe(self, audio_bytes: bytes, *, mime_type: str) -> str:
+    async def transcribe(self, audio_bytes: bytes, *, mime_type: str, prompt_hint: str = "") -> str:
+        instruction = (
+            "Transcribe this Vietnamese ride-hailing speech verbatim to plain text. "
+            "Preserve numbers, negation, confirmation, addresses, and uncertainty. "
+            "Return only the transcript without commentary."
+        )
+        if prompt_hint:
+            instruction += f" Expected terminology: {prompt_hint}"
         payload = {
             "contents": [
                 {
@@ -87,12 +103,7 @@ class GeminiVoiceClient:
                                 "data": base64.b64encode(audio_bytes).decode("ascii"),
                             }
                         },
-                        {
-                            "text": (
-                                "Transcribe this Vietnamese speech to plain text. "
-                                "Return only the transcript without commentary."
-                            )
-                        },
+                        {"text": instruction},
                     ]
                 }
             ]

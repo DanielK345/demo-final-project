@@ -8,7 +8,12 @@ import type { RideBooking, RideTurn } from "@/features/ride/api";
 // báo lại (tránh lệch dần giữa 2 khai báo cho cùng 1 response thật).
 export interface VoiceTurnResponse {
   transcript: string;
-  stt_confidence: number;
+
+
+  transcript_rewritten: boolean;
+  transcript_rewrite_confidence?: number | null;
+  transcript_rewrite_reason?: string | null;
+  stt_confidence: number | null;
   message_id: string;
   action: "ASK_USER" | "RESPOND" | "HANDOFF" | "END_SESSION";
   message: string;

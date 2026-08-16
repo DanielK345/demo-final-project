@@ -1,5 +1,5 @@
-from src.voice.schemas import ASRResult
 from src.voice.asr.confidence import ConfidenceGate
+from src.voice.schemas import ASRResult
 
 
 def _gate() -> ConfidenceGate:

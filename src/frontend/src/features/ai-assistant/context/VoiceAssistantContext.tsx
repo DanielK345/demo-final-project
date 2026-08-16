@@ -35,6 +35,7 @@ export const VoiceAssistantProvider: React.FC<{ children: React.ReactNode }> = (
     { id: "welcome", role: "assistant", text: buildWelcomeMessage(getUserName()) },
   ]);
   const [notice, setNotice] = useState<string | null>(null);
+  const [draft, setDraft] = useState("");
   const [bookingProgress, setBookingProgress] = useState<BookingProgress | null>(null);
   const [lifecycleStatus, setLifecycleStatus] = useState<BookingLifecycleStatus | null>(null);
   const [completedBooking, setCompletedBooking] = useState<CompletedBooking | null>(null);
@@ -245,13 +246,10 @@ export const VoiceAssistantProvider: React.FC<{ children: React.ReactNode }> = (
   const open = useCallback(() => setIsOpen(true), []);
   const close = useCallback(() => setIsOpen(false), []);
 
-  const openWithPrefill = useCallback(
-    (prefill: string) => {
-      setIsOpen(true);
-      void sendText(prefill);
-    },
-    [sendText],
-  );
+  const openWithPrefill = useCallback((prefill: string) => {
+    setDraft(prefill);
+    setIsOpen(true);
+  }, []);
 
   const confirmBooking = useCallback(async () => {
     // Gửi đúng 1 lượt hội thoại thật ("Xác nhận đặt xe" khớp _CONFIRM_TERMS ở
@@ -330,6 +328,8 @@ export const VoiceAssistantProvider: React.FC<{ children: React.ReactNode }> = (
       open,
       close,
       openWithPrefill,
+      draft,
+      setDraft,
       status,
       messages,
       notice,
@@ -364,6 +364,8 @@ export const VoiceAssistantProvider: React.FC<{ children: React.ReactNode }> = (
       open,
       close,
       openWithPrefill,
+      draft,
+      setDraft,
       status,
       messages,
       notice,

@@ -1,19 +1,23 @@
 import React, { useEffect, useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
-import {
-  Sparkles,
-  ArrowRight,
-  Car,
-  Bike,
-  PlaneTakeoff,
-  Briefcase,
-  RotateCcw,
-  MoreHorizontal,
-} from "lucide-react";
+import { ArrowRight, Bell, Bike, BriefcaseBusiness, CalendarClock, Car, ChevronRight, Gift, MapPin, Package, Plane, Search, ShieldCheck, Sparkles } from "lucide-react";
 import { getUserName } from "@/features/auth/storage";
 import { listBookings, locationLabel, type BookingSummary } from "@/features/activity/api";
 import { redirectToLoginIfUnauthorized } from "@/features/auth/sessionGuard";
 import { useVoiceAssistant } from "@/features/ai-assistant/context/useVoiceAssistant";
+
+const quickServices = [
+  { label: "Xe máy", icon: Bike, prompt: "Tôi muốn đặt xe máy.", tone: "from-cyan-100 to-teal-50" },
+  { label: "Hẹn giờ", icon: CalendarClock, prompt: "Tôi muốn hẹn giờ đặt xe.", tone: "from-sky-100 to-cyan-50" },
+  { label: "Liên tỉnh", icon: MapPin, prompt: "Tôi muốn đặt xe đi liên tỉnh.", tone: "from-emerald-100 to-cyan-50" },
+  { label: "Giao hàng", icon: Package, prompt: "Tôi muốn đặt dịch vụ giao hàng.", tone: "from-amber-100 to-cyan-50" },
+  { label: "Sân bay", icon: Plane, prompt: "Tôi muốn đặt xe đi sân bay.", tone: "from-blue-100 to-cyan-50" },
+  { label: "Doanh nghiệp", icon: BriefcaseBusiness, prompt: "Tôi cần dịch vụ xe doanh nghiệp.", tone: "from-slate-100 to-cyan-50" },
+  { label: "An toàn", icon: ShieldCheck, prompt: "Cho tôi biết về an toàn chuyến đi.", tone: "from-teal-100 to-cyan-50" },
+  { label: "Ưu đãi", icon: Gift, prompt: "Tôi muốn xem ưu đãi đặt xe.", tone: "from-yellow-100 to-cyan-50" },
+];
+
+const heroImage = "https://lh3.googleusercontent.com/aida-public/AB6AXuDz__xU-VKyGvWrkMn6EuJ7j_L7aaVl3Ophlb-0dJM7tNhsDU9oVMOFtKU8tqDydyYMKhcg-rllg1Pk7VRhGAx6lMEU8gAq7ejasrB6RGO8b31U6Z6RM8jnBhbIuOBQrAydBBLWmBc7bHvxORcHrSnj6s99C7qpemBbFyxNiKDBRGhf_Gp1GjHusOvf-2loVNBIcTbKD0UaVymNzeRbziJ6J49JyPncxbTsPnhpkNHaU-Dn6Su7z-Yz";
 
 export const HomePage: React.FC = () => {
   const navigate = useNavigate();
@@ -23,294 +27,28 @@ export const HomePage: React.FC = () => {
 
   useEffect(() => {
     let cancelled = false;
-    listBookings()
-      .then((data) => {
-        if (!cancelled) setRecentBookings(data.slice(0, 2));
-      })
-      .catch((cause) => {
-        if (cancelled) return;
-        redirectToLoginIfUnauthorized(cause, navigate);
-        // Danh sách chuyến gần đây không phải nội dung thiết yếu của trang chủ — lỗi
-        // tải được bỏ qua lặng lẽ ở đây (không chặn phần còn lại của trang), khác với
-        // ActivityPage nơi đây LÀ nội dung chính, phải báo lỗi rõ ràng.
-      });
-    return () => {
-      cancelled = true;
-    };
+    listBookings().then((data) => !cancelled && setRecentBookings(data.slice(0, 2))).catch((cause) => {
+      if (!cancelled) redirectToLoginIfUnauthorized(cause, navigate);
+    });
+    return () => { cancelled = true; };
   }, [navigate]);
 
-  // Mọi nút đặt xe trên trang chủ giờ nối thẳng vào Agentic AI Assistant (đúng yêu
-  // cầu: không tự bấm chọn dịch vụ/điền form nữa) — mở popup nổi + gửi luôn câu mô tả
-  // chuyến đi, agent tiếp quản hỏi xác nhận + đặt xe. Không còn điều hướng sang trang
-  // riêng (xem VoiceAssistantContext.openWithPrefill).
-  const goToAssistant = (prefill: string) => {
-    openWithPrefill(prefill);
-  };
-
-  const heroEvBg =
-    "https://lh3.googleusercontent.com/aida-public/AB6AXuDz__xU-VKyGvWrkMn6EuJ7j_L7aaVl3Ophlb-0dJM7tNhsDU9oVMOFtKU8tqDydyYMKhcg-rllg1Pk7VRhGAx6lMEU8gAq7ejasrB6RGO8b31U6Z6RM8jnBhbIuOBQrAydBBLWmBc7bHvxORcHrSnj6s99C7qpemBbFyxNiKDBRGhf_Gp1GjHusOvf-2loVNBIcTbKD0UaVymNzeRbziJ6J49JyPncxbTsPnhpkNHaU-Dn6Su7z-Yz";
-
-  const taxiImg =
-    "https://lh3.googleusercontent.com/aida-public/AB6AXuDj_WooqtDLqEavzUHrfPdQxg5VQa531E5qcJpzikUOAHnA8nfJova0M0BJAZcyrAFmL_NtO05s9X1gfol0tgIQ1CtzNRIBgLOd1KqvvAWI6Tm5ZA12Nzd4wHFUOkgUY4muFpJ2yLefMaZvKfckfQf5hmwB4JZq-XaqWAM94ENRyW2zj72ntwojdxQxzXSbhHnwwDhZ28PxV75hVdnQfAnU_kD2po3CyLAoeNn7b6S7160sp2Yq7Xa1";
-
-  const bikeImg =
-    "https://lh3.googleusercontent.com/aida-public/AB6AXuDSszSjnPB--yu-oslQ7gLZOyO7UOBtifob125by_K-J0ONF57P4mlOdXWmpw8G-T-TT6ulAJLzPxpOKCuRRASP2rLM5BFzFA3UxA3H-6mSKWrZmyrUPt2yIV2Dgav_vVxx3Jt_6rt9qGoYQYUMC9w8qr8WUbpzariYcvX2oXANH2aAD4hdGdknYMmcKTCc0T17CJr0wogzHoUvW6O6hvduXl2SSq9yTyCFWIZoCvtEPzNkVSfX_m5W";
-
-  const airportImg =
-    "https://lh3.googleusercontent.com/aida-public/AB6AXuCjds2Uo7OpAZHXPuhSj9tfjmgtVcIpAG-eHlw__25tw6BgeffZGPaE5eZVrXQI7VSTw56eFijlrKt_56LmTaTVid5YKmAAl4me7LkONv61jy8ZsnKlGDKwrTGyhuM7vn52K3oVXUzyqCl86JBQwU2QuhIuhfMfpQrKrttBAU1bgSRD_fXGS5hfaLshNy0JoxhDGRn4SiPlOsx5vfP9O11s3bljyzsJVkSu3XNoeDBtqXw02hHhy3iG";
-
   return (
-    <div className="space-y-8 pb-12">
-      {/* Header Section (Personalization & Greeting) */}
-      <section className="flex justify-between items-end">
-        <div>
-          <h1 className="text-3xl md:text-4xl font-extrabold text-[#191C1E] dark:text-white tracking-tight">
-            Chào {userName},
-          </h1>
-          <p className="text-base md:text-lg text-slate-500 dark:text-slate-400 mt-2">
-            Bạn muốn đi đâu hôm nay?
-          </p>
-        </div>
+    <div className="mx-auto max-w-6xl space-y-7 pb-10">
+      <header className="flex items-center justify-between pt-1">
+        <div><p className="text-xs font-bold uppercase tracking-[.18em] text-[#008F88]">AloSM mobility</p><h1 className="mt-1 text-2xl sm:text-3xl font-extrabold tracking-tight text-[#173132] dark:text-white">Chào {userName || "bạn"} 👋</h1></div>
+        <button type="button" className="mobility-card grid h-12 w-12 place-items-center text-slate-600 dark:text-slate-200" aria-label="Thông báo"><Bell className="h-5 w-5" /></button>
+      </header>
 
-        {/* AI Assistant Prompt Card (Right side, Desktop) — mở popup nổi thay vì điều
-            hướng sang trang riêng (mục 2-3). */}
-        <button
-          type="button"
-          onClick={open}
-          className="hidden lg:flex items-center gap-4 bg-white p-4 rounded-2xl shadow-[0px_4px_20px_rgba(16,18,19,0.05)] border border-slate-200/80 cursor-pointer group hover:shadow-md transition-all dark:bg-[#12161A] dark:border-white/10"
-        >
-          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#00A651] to-[#04763B] flex items-center justify-center text-white shadow-md shadow-[#00A651]/30 group-hover:scale-105 transition-transform">
-            <Sparkles className="w-5 h-5" />
-          </div>
-          <div className="text-left">
-            <p className="text-xs font-bold text-[#191C1E] dark:text-white">Hỏi trợ lý AI</p>
-            <p className="text-[11px] text-slate-400 dark:text-slate-500 font-medium font-mono">"Đặt xe ra sân bay"</p>
-          </div>
-        </button>
-      </section>
+      <button type="button" onClick={open} className="mobility-input flex w-full items-center gap-4 px-5 py-5 text-left transition hover:-translate-y-0.5 hover:shadow-xl"><Search className="h-6 w-6 shrink-0 text-[#173132] dark:text-slate-100" /><span className="flex-1 text-lg font-semibold text-slate-400">Bạn muốn đi đâu?</span><span className="grid h-10 w-10 place-items-center rounded-2xl bg-[#00C9B7] text-white"><Sparkles className="h-5 w-5" /></span></button>
 
-      {/* Hero Carousel Banner */}
-      <section className="relative w-full h-[300px] md:h-[400px] rounded-2xl overflow-hidden group cursor-pointer shadow-md">
-        <div
-          className="absolute inset-0 bg-cover bg-center w-full h-full transition-transform duration-700 group-hover:scale-105"
-          style={{ backgroundImage: `url('${heroEvBg}')` }}
-        />
-        <div className="absolute inset-0 bg-gradient-to-t from-[#101213]/90 via-[#101213]/40 to-transparent" />
+      <section className="soft-cyan-panel overflow-hidden rounded-[32px] p-5 sm:p-7 shadow-[0_16px_50px_rgba(0,143,136,.10)]"><div className="grid gap-5 md:grid-cols-[1.1fr_.9fr] md:items-center"><div><span className="inline-flex items-center gap-2 rounded-full bg-white/80 px-3 py-1.5 text-xs font-bold text-[#008F88]"><Sparkles className="h-4 w-4" /> AI đặt xe thông minh</span><h2 className="mt-4 text-2xl sm:text-4xl font-extrabold leading-tight text-[#173132]">Sáng bánh mật,<br />đặt xe đi cho lẹ nhé!</h2><div className="mt-5 flex flex-wrap gap-2">{["Đặt xe đi làm", "Đặt xe ra sân bay"].map((label) => <button key={label} type="button" onClick={() => openWithPrefill(label)} className="mobility-chip px-4 py-2 text-xs font-bold text-[#315052]">{label}</button>)}</div></div><div className="relative min-h-48 overflow-hidden rounded-[26px] bg-[#00C9B7]"><img src={heroImage} alt="Xe điện AloSM" className="absolute inset-0 h-full w-full object-cover" /><div className="absolute inset-0 bg-gradient-to-t from-[#073B3A]/60 to-transparent" /><button type="button" onClick={() => openWithPrefill("Tôi muốn đặt ô tô 4 chỗ.")} className="absolute bottom-4 left-4 right-4 flex items-center justify-between rounded-2xl bg-white/92 px-4 py-3 text-sm font-extrabold text-[#173132] backdrop-blur">Đặt ô tô ngay <ArrowRight className="h-4 w-4 text-[#00C9B7]" /></button></div></div></section>
 
-        <div className="absolute bottom-0 left-0 p-6 md:p-10 w-full md:w-2/3">
-          <span className="inline-block px-3 py-1 mb-4 rounded bg-[#00A651]/20 text-[#00A651] text-xs font-semibold backdrop-blur-md border border-[#00A651]/30">
-            Ưu đãi độc quyền
-          </span>
-          <h2 className="text-2xl md:text-4xl font-extrabold text-white mb-2 leading-tight">
-            Trải nghiệm AloSM Plus
-          </h2>
-          <p className="text-sm md:text-base text-slate-200 mb-6">
-            Giảm 20% cho chuyến đi đầu tiên với xe 7 chỗ rộng rãi, tiện nghi.
-          </p>
-          <button
-            type="button"
-            onClick={() =>
-              goToAssistant(
-                "Tôi muốn đặt xe AloSM Plus loại ô tô 7 chỗ để nhận ưu đãi giảm 20% cho chuyến đầu tiên.",
-              )
-            }
-            className="inline-flex items-center gap-2 bg-[#00A651] hover:bg-[#04763B] text-white font-bold text-xs px-6 py-3 rounded-[12px] transition-colors shadow-lg shadow-[#00A651]/20 cursor-pointer"
-          >
-            <Sparkles className="w-4 h-4" />
-            AI đặt xe ngay
-          </button>
-        </div>
-      </section>
+      <section><div className="mb-4 flex items-center justify-between"><h2 className="text-xl sm:text-2xl font-extrabold text-[#173132] dark:text-white">Dịch vụ của bạn</h2><NavLink to="/booking" className="flex items-center text-xs font-bold text-[#008F88]">Xem tất cả <ChevronRight className="h-4 w-4" /></NavLink></div><div className="grid grid-cols-4 gap-3 sm:grid-cols-8">{quickServices.map(({ label, icon: Icon, prompt, tone }) => <button key={label} type="button" onClick={() => openWithPrefill(prompt)} className="group flex flex-col items-center gap-2 text-center"><span className={`grid aspect-square w-full max-w-[82px] place-items-center rounded-[24px] bg-gradient-to-br ${tone} border border-white shadow-[0_8px_24px_rgba(0,143,136,.08)] transition group-hover:-translate-y-1`}><Icon className="h-7 w-7 text-[#00B9AE]" /></span><span className="text-[11px] font-semibold text-slate-700 dark:text-slate-300">{label}</span></button>)}</div></section>
 
-      {/* Service Discovery (Bento Grid) */}
-      <section>
-        <h3 className="text-2xl font-extrabold text-[#191C1E] dark:text-white mb-6">Dịch vụ nổi bật</h3>
+      <section className="grid gap-4 md:grid-cols-2"><button type="button" onClick={() => openWithPrefill("Tôi muốn đặt xe máy.")} className="mobility-card flex min-h-44 items-center justify-between overflow-hidden p-6 text-left"><div><span className="text-xs font-bold text-[#008F88]">DI CHUYỂN LINH HOẠT</span><h3 className="mt-2 text-2xl font-extrabold text-[#173132] dark:text-white">Đặt xe máy</h3><p className="mt-2 max-w-xs text-sm text-slate-500">Nhanh chóng, tiện lợi và thân thiện với môi trường.</p></div><span className="grid h-24 w-24 shrink-0 place-items-center rounded-[30px] bg-gradient-to-br from-cyan-100 to-teal-50"><Bike className="h-12 w-12 text-[#00B9AE]" /></span></button><button type="button" onClick={() => openWithPrefill("Tôi muốn đặt ô tô.")} className="mobility-card flex min-h-44 items-center justify-between overflow-hidden p-6 text-left"><div><span className="text-xs font-bold text-[#008F88]">ÊM ÁI MỖI CHUYẾN</span><h3 className="mt-2 text-2xl font-extrabold text-[#173132] dark:text-white">Đặt ô tô</h3><p className="mt-2 max-w-xs text-sm text-slate-500">Không gian thoải mái, tài xế chuyên nghiệp.</p></div><span className="grid h-24 w-24 shrink-0 place-items-center rounded-[30px] bg-gradient-to-br from-sky-100 to-cyan-50"><Car className="h-12 w-12 text-[#36BDE3]" /></span></button></section>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {/* Card 1: AloSM Taxi */}
-          <button
-            type="button"
-            onClick={() => goToAssistant("Tôi muốn đặt xe AloSM Taxi loại ô tô 4 chỗ.")}
-            className="text-left bg-white rounded-2xl border border-slate-200/80 shadow-[0px_4px_20px_rgba(16,18,19,0.05)] overflow-hidden flex flex-col group cursor-pointer hover:shadow-md transition-shadow dark:bg-[#12161A] dark:border-white/10"
-          >
-            <div className="h-48 relative overflow-hidden bg-slate-100 dark:bg-white/5">
-              <div
-                className="absolute inset-0 bg-cover bg-center transition-transform duration-500 group-hover:scale-105"
-                style={{ backgroundImage: `url('${taxiImg}')` }}
-              />
-              <div className="absolute inset-0 bg-gradient-to-t from-[#101213]/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-            </div>
-            <div className="p-6 flex-1 flex flex-col justify-between">
-              <div>
-                <div className="flex justify-between items-start mb-2">
-                  <h4 className="text-lg font-bold text-[#191C1E] dark:text-white">AloSM Taxi</h4>
-                  <Car className="w-5 h-5 text-[#00A651]" />
-                </div>
-                <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
-                  Di chuyển hàng ngày nhanh chóng, êm ái và không phát thải.
-                </p>
-              </div>
-
-              <div className="mt-6 flex items-center text-[#04763B] dark:text-[#00A651] text-xs font-bold group-hover:translate-x-1 transition-transform">
-                <Sparkles className="w-3.5 h-3.5 mr-1.5" />
-                <span>AI đặt xe ngay</span>
-                <ArrowRight className="w-4 h-4 ml-1" />
-              </div>
-            </div>
-          </button>
-
-          {/* Card 2: AloSM Bike */}
-          <button
-            type="button"
-            onClick={() => goToAssistant("Tôi muốn đặt xe AloSM Bike loại xe máy.")}
-            className="text-left bg-white rounded-2xl border border-slate-200/80 shadow-[0px_4px_20px_rgba(16,18,19,0.05)] overflow-hidden flex flex-col group cursor-pointer hover:shadow-md transition-shadow dark:bg-[#12161A] dark:border-white/10"
-          >
-            <div className="h-48 relative overflow-hidden bg-slate-100 dark:bg-white/5">
-              <div
-                className="absolute inset-0 bg-cover bg-center transition-transform duration-500 group-hover:scale-105"
-                style={{ backgroundImage: `url('${bikeImg}')` }}
-              />
-              <div className="absolute inset-0 bg-gradient-to-t from-[#101213]/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-            </div>
-            <div className="p-6 flex-1 flex flex-col justify-between">
-              <div>
-                <div className="flex justify-between items-start mb-2">
-                  <h4 className="text-lg font-bold text-[#191C1E] dark:text-white">AloSM Bike</h4>
-                  <Bike className="w-5 h-5 text-[#00A651]" />
-                </div>
-                <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
-                  Xe máy công nghệ, len lỏi nội thành — tới nơi nhanh nhất giờ cao điểm.
-                </p>
-              </div>
-
-              <div className="mt-6 flex items-center text-[#04763B] dark:text-[#00A651] text-xs font-bold group-hover:translate-x-1 transition-transform">
-                <Sparkles className="w-3.5 h-3.5 mr-1.5" />
-                <span>AI đặt xe ngay</span>
-                <ArrowRight className="w-4 h-4 ml-1" />
-              </div>
-            </div>
-          </button>
-
-          {/* Card 3: AloSM Sân bay */}
-          <button
-            type="button"
-            onClick={() => goToAssistant("Tôi muốn đặt xe AloSM Sân bay, đưa đón sân bay đúng giờ.")}
-            className="text-left bg-white rounded-2xl border border-slate-200/80 shadow-[0px_4px_20px_rgba(16,18,19,0.05)] overflow-hidden flex flex-col group cursor-pointer hover:shadow-md transition-shadow dark:bg-[#12161A] dark:border-white/10"
-          >
-            <div className="h-48 relative overflow-hidden bg-slate-100 dark:bg-white/5">
-              <div
-                className="absolute inset-0 bg-cover bg-center transition-transform duration-500 group-hover:scale-105"
-                style={{ backgroundImage: `url('${airportImg}')` }}
-              />
-              <div className="absolute inset-0 bg-gradient-to-t from-[#101213]/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-            </div>
-            <div className="p-6 flex-1 flex flex-col justify-between">
-              <div>
-                <div className="flex justify-between items-start mb-2">
-                  <h4 className="text-lg font-bold text-[#191C1E] dark:text-white">AloSM Sân bay</h4>
-                  <PlaneTakeoff className="w-5 h-5 text-[#00A651]" />
-                </div>
-                <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
-                  Đưa đón sân bay đúng giờ, xe rộng rãi cho nhiều hành lý.
-                </p>
-              </div>
-
-              <div className="mt-6 flex items-center text-[#04763B] dark:text-[#00A651] text-xs font-bold group-hover:translate-x-1 transition-transform">
-                <Sparkles className="w-3.5 h-3.5 mr-1.5" />
-                <span>AI đặt xe ngay</span>
-                <ArrowRight className="w-4 h-4 ml-1" />
-              </div>
-            </div>
-          </button>
-        </div>
-      </section>
-
-      {/* Secondary Promo & Recent Activity Section */}
-      <section className="grid grid-cols-1 lg:grid-cols-12 gap-6 pt-4">
-        {/* Promo Banner (Spans 8 cols) */}
-        <div className="lg:col-span-8 rounded-2xl overflow-hidden relative bg-gradient-to-br from-[#00A651] to-[#04763B] text-white p-8 md:p-12 flex flex-col justify-center items-start shadow-lg shadow-[#00A651]/10">
-          {/* Abstract Glow Decor */}
-          <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/4 pointer-events-none" />
-
-          <div className="relative z-10 w-full md:w-3/4">
-            <h3 className="text-2xl md:text-3xl font-extrabold text-white mb-4">
-              Di chuyển liên tỉnh dễ dàng
-            </h3>
-            <p className="text-sm text-white/90 mb-8 leading-relaxed">
-              Trải nghiệm hành trình dài thoải mái, an toàn với chi phí tối ưu cùng dàn xe điện thế hệ mới.
-            </p>
-            <button
-              type="button"
-              className="border-2 border-white text-white hover:bg-white hover:text-[#04763B] font-bold text-xs px-6 py-3 rounded-[12px] transition-colors cursor-pointer"
-            >
-              Khám phá bảng giá
-            </button>
-          </div>
-        </div>
-
-        {/* Recent Activity (Spans 4 cols) */}
-        <div className="lg:col-span-4 rounded-2xl bg-white p-6 border border-slate-200/80 shadow-[0px_4px_20px_rgba(16,18,19,0.05)] flex flex-col justify-between dark:bg-[#12161A] dark:border-white/10">
-          <div>
-            <div className="flex justify-between items-center mb-6">
-              <h4 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
-                Chuyến đi gần đây
-              </h4>
-              <button
-                type="button"
-                className="text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300 transition-colors p-1 rounded cursor-pointer"
-              >
-                <MoreHorizontal className="w-5 h-5" />
-              </button>
-            </div>
-
-            {recentBookings.length === 0 ? (
-              <p className="text-xs text-slate-400 dark:text-slate-500 py-4 text-center">Chưa có chuyến đi nào gần đây.</p>
-            ) : (
-              <div className="flex flex-col gap-4">
-                {recentBookings.map((booking) => (
-                  <div
-                    key={booking.booking_id}
-                    className="flex items-center gap-4 p-3 rounded-xl hover:bg-slate-50 dark:hover:bg-white/5 transition-colors cursor-pointer"
-                  >
-                    <div className="w-10 h-10 rounded-xl bg-slate-100 dark:bg-white/10 flex items-center justify-center text-slate-600 dark:text-slate-300 shrink-0">
-                      <Briefcase className="w-5 h-5" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs font-bold text-[#191C1E] dark:text-white truncate">
-                        {locationLabel(booking.destination, "Chưa rõ điểm đến")}
-                      </p>
-                      <p className="text-[10px] text-slate-400 dark:text-slate-500 truncate">
-                        {locationLabel(booking.pickup, "Chưa rõ điểm đón")}
-                      </p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        goToAssistant(
-                          `Tôi muốn đặt lại chuyến từ ${locationLabel(booking.pickup, "điểm đón cũ")} đến ${locationLabel(booking.destination, "điểm đến cũ")}.`,
-                        )
-                      }
-                      title="AI đặt lại chuyến này"
-                      className="text-[#00A651] hover:bg-[#00A651]/10 p-2 rounded-full transition-colors cursor-pointer"
-                    >
-                      <RotateCcw className="w-4 h-4" />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          <NavLink to="/activity" className="block mt-6">
-            <button
-              type="button"
-              className="w-full py-3 text-center text-[#04763B] dark:text-[#00A651] font-bold text-xs hover:bg-slate-50 dark:hover:bg-white/5 rounded-xl transition-colors border border-slate-200 dark:border-white/10 cursor-pointer"
-            >
-              Xem tất cả lịch sử
-            </button>
-          </NavLink>
-        </div>
-      </section>
+      <section className="mobility-card p-5 sm:p-6"><div className="flex items-center justify-between"><div><p className="text-xs font-bold uppercase tracking-wider text-slate-400">Chuyến gần đây</p><h2 className="mt-1 text-xl font-extrabold text-[#173132] dark:text-white">Đi lại chỉ với một chạm</h2></div><NavLink to="/activity" className="grid h-10 w-10 place-items-center rounded-full bg-[#E7FBF9] text-[#008F88]"><ArrowRight className="h-5 w-5" /></NavLink></div><div className="mt-5 grid gap-3 md:grid-cols-2">{recentBookings.length ? recentBookings.map((booking) => <button key={booking.booking_id} type="button" onClick={() => openWithPrefill(`Đặt lại chuyến đến ${locationLabel(booking.destination, "điểm đến cũ")}.`)} className="flex items-center gap-4 rounded-2xl bg-[#F6FAFA] p-4 text-left dark:bg-white/5"><span className="grid h-11 w-11 place-items-center rounded-2xl bg-white text-[#00C9B7] shadow-sm dark:bg-white/10"><MapPin className="h-5 w-5" /></span><span className="min-w-0 flex-1"><strong className="block truncate text-sm text-[#173132] dark:text-white">{locationLabel(booking.destination, "Điểm đến")}</strong><small className="block truncate text-slate-400">{locationLabel(booking.pickup, "Điểm đón")}</small></span><ChevronRight className="h-4 w-4 text-slate-400" /></button>) : <p className="col-span-2 rounded-2xl bg-[#F6FAFA] p-5 text-center text-sm text-slate-400 dark:bg-white/5">Chưa có chuyến gần đây. Hãy bắt đầu chuyến đầu tiên!</p>}</div></section>
     </div>
   );
 };

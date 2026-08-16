@@ -26,10 +26,15 @@ class FAQState(BaseModel):
 
 
 class HandoffState(BaseModel):
+    reason_code: str = "UNABLE_TO_CONTINUE"
     reason: str
+    priority: int = Field(default=50, ge=0, le=100)
+    severity: str = "NORMAL"
+    queue: str = "GENERAL_OPERATOR"
     source_workflow: str | None = None
     summary: str
     pending_tool: str | None = None
+    requires_immediate_transfer: bool = False
 
 
 @dataclass

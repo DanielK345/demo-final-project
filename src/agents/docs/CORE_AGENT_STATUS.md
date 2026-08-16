@@ -12,7 +12,7 @@ lịch sử triển khai.
 | F2 State & Memory | Implemented | AgentState + typed TurnSession/history |
 | F3 Ride Booking | Implemented | booking capability, confirmation, correction, cancellation |
 | F4 Trip Lookup | Implemented | typed lookup state + single/multi-match reducer |
-| F5 Human Handoff | Implemented | structured reason/source/safe history context |
+| F5 Human Handoff | Implemented | deterministic safety policy, typed reason/priority/severity/queue, redacted context |
 | F6 Tool Lifecycle | Implemented | typed params/results, correlation, deadline và idempotency contracts |
 | F7 FAQ + grounded RAG | Implemented | score/freshness filter, citation và grounding tests |
 | F8 Guardrails & Eval | Implemented | cross-cutting guardrails, scripted-model conversation evals |
@@ -43,9 +43,7 @@ Core Agent được coi là done khi:
 4. Real-provider smoke tests vẫn là opt-in; phải chạy trong release environment
    khi phát hành cấu hình model production.
 
-Current verification: agent/backend/example/API scope `146 passed, 1 skipped`;
-riêng regression
-cho model retry/location/handoff và model-driven baseline đều đã chạy offline.
+Current verification ngày 2026-08-16: toàn bộ Agent/Backend/API/Voice scope `281 passed, 2 skipped`; frontend lint và production build đều pass. Một skip là fixture audio thật chưa được cấp; live Transcript Rewriter hiện fail đúng với `AuthenticationError` và được theo dõi trong `mustdo.md`.
 Real-provider tests vẫn opt-in và yêu cầu key tương ứng.
 
 ## Ngoài phạm vi Core Agent
@@ -53,7 +51,7 @@ Real-provider tests vẫn opt-in và yêu cầu key tương ứng.
 - Maps/Booking/Trip/Handoff executors và network retry thực tế;
 - PostgreSQL/Redis persistence, authentication, encryption, retention;
 - production knowledge ingestion/vector store;
-- FastAPI integration endpoints;
+- production-grade persistent handoff executor/operator routing beyond the current authenticated API;
 - STT/TTS, WebRTC/WebSocket, acoustic barge-in và telephony transfer;
 - frontend call UI, audio E2E và production observability infrastructure.
 

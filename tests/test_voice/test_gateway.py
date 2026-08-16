@@ -1,10 +1,10 @@
 import numpy as np
 import pytest
 
-from src.voice.schemas import ASRResult, TurnStage, WSEventType, WSServerEvent
 from src.voice.audio.vad import EnergyVAD
 from src.voice.config import VoiceSettings
 from src.voice.gateway import GatewaySessionNotFoundError, VoiceGateway
+from src.voice.schemas import ASRResult, TurnStage, WSEventType, WSServerEvent
 from src.voice.session_bridge import SessionTurnResult
 from tests.test_voice.fake_providers import (
     FailingASRProvider,

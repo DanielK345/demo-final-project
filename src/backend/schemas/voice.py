@@ -3,7 +3,11 @@ from pydantic import BaseModel, Field
 
 class VoiceTurnResponseDTO(BaseModel):
     transcript: str
-    stt_confidence: float = Field(ge=0, le=1)
+
+    transcript_rewritten: bool = False
+    transcript_rewrite_confidence: float | None = Field(default=None, ge=0, le=1)
+    transcript_rewrite_reason: str | None = None
+    stt_confidence: float | None = Field(default=None, ge=0, le=1)
     message_id: str
     action: str
     message: str

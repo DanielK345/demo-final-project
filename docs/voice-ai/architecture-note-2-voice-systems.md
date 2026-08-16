@@ -8,11 +8,13 @@ agent phiên sau) hiểu nhầm 1 trong 2 là "code chết".
 | | `POST /api/v1/voice/turn` | `WS /api/v1/voice/stream` + `POST /api/v1/voice/speak` |
 |---|---|---|
 | Tác giả | DanielK345 (`test_speech_model`) | Voice AI (session trước) |
-| Provider | OpenAI Whisper/TTS hoặc Gemini STT (`VOICE_PROVIDER`) | Groq Whisper + Edge-TTS |
+| Provider | OpenAI `gpt-4o-transcribe`/TTS hoặc Gemini STT | Groq Whisper + Edge-TTS |
 | Cơ chế | 1 lần gọi: upload cả đoạn ghi âm → nhận transcript + text + audio (base64) | Streaming thời gian thực qua WebSocket, audio gửi từng chunk |
 | Frontend đang gọi? | **CÓ** — `AssistantPage.tsx` → `features/voice/api.ts::sendVoiceTurn()`, đây là nút micro thật trên web hiện tại | **KHÔNG** — không còn chỗ nào trong `src/frontend/src` gọi `/stream` hay `/speak` nữa |
 | Code Backend | `src/backend/services/voice_service.py`, `src/backend/integrations/voice_client.py`, `src/backend/schemas/voice.py` | `src/voice/` (toàn bộ package: gateway, ASR/TTS provider, VAD, normalizer, gazetteer...) |
 | Test | `tests/test_api/test_voice_routes.py` | `tests/test_voice/*` |
+
+Cả hai đường hiện dùng chung post-ASR policy: gazetteer/normalizer, PII masking, OpenAI Structured Outputs và semantic guard trong `transcript_rewriter.py`. Không đường production nào tạo transcript giả.
 
 Cả 2 route cùng sống trong `src/backend/api/routes/voice.py` (không đè nhau, khác
 path) sau khi phát hiện gỡ `/turn` làm micro trên web lỗi 404 thật.

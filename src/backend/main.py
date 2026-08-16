@@ -16,11 +16,11 @@ if str(PROJECT_ROOT) not in sys.path:
 # --- Voice AI (additive — xem docs/voice-ai/prompt_voice_integration_real_be_fe.md) ---
 # import router riêng vào đây, không đụng src/backend/api/routes/__init__.py hay
 # bất kỳ route nào đã có.
-from src.backend.api.routes import health_router, router
-from src.backend.api.routes.voice import prewarm_tts_cache
-from src.backend.api.routes.voice import router as voice_router
-from src.backend.config import get_settings
-from src.voice.config import get_voice_settings
+from src.backend.api.routes import health_router, router  # noqa: E402
+from src.backend.api.routes.voice import prewarm_tts_cache  # noqa: E402
+from src.backend.api.routes.voice import router as voice_router  # noqa: E402
+from src.backend.config import get_settings  # noqa: E402
+from src.voice.config import get_voice_settings  # noqa: E402
 
 # pytest set biến này cho mọi test đang chạy — dùng để tắt prewarm mạng thật trong
 # CI/test (không dựa vào settings.app_env vì .env mặc định là "development").

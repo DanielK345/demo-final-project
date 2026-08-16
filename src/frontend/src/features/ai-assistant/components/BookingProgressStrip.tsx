@@ -38,7 +38,7 @@ export const BookingProgressStrip: React.FC<Props> = ({ progress }) => {
           title={label}
           className={`shrink-0 inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-semibold max-w-[140px] ${
             label
-              ? "bg-[#00A651]/10 text-[#04763B] dark:text-[#00A651]"
+              ? "bg-[#00C9B7]/10 text-[#008F88] dark:text-[#00C9B7]"
               : active
                 ? "bg-amber-50 text-amber-700 dark:bg-amber-500/10 dark:text-amber-300"
                 : "bg-slate-100 text-slate-400 dark:bg-white/5 dark:text-slate-500"

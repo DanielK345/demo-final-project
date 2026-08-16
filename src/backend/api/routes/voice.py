@@ -36,7 +36,6 @@ nhau nữa vì khác path): `/turn` (OpenAI/Gemini, DanielK345, frontend đang g
 from __future__ import annotations
 
 import logging
-import os
 
 from fastapi import (
     APIRouter,
@@ -55,12 +54,15 @@ from pydantic import BaseModel, Field
 from src.backend.api.routes.sessions import _require_session_access
 from src.backend.integrations.voice_client import VoiceProviderError
 from src.backend.schemas.voice import VoiceTurnResponseDTO
+from src.backend.services.transcript_rewriter import build_transcript_rewriter
 from src.backend.services.voice_service import VoiceService
-from src.voice.schemas import ClientControlType, WSClientControl, WSEventType, WSServerEvent
+from src.config import get_settings as get_app_settings
 from src.voice.asr.biasing import correct_place_names
 from src.voice.asr.groq_provider import GroqASRProvider
+from src.voice.asr.unavailable_provider import UnavailableASRProvider
 from src.voice.config import VoiceSettings, get_voice_settings
 from src.voice.gateway import GatewaySessionNotFoundError, VoiceGateway
+from src.voice.schemas import ClientControlType, WSClientControl, WSEventType, WSServerEvent
 from src.voice.session_bridge import SessionBridge
 from src.voice.text.gazetteer import Gazetteer
 from src.voice.text.normalizer import normalize_transcript
@@ -68,26 +70,18 @@ from src.voice.tts.cache import CachingTTSProvider
 from src.voice.tts.edge_tts_provider import EdgeTTSProvider
 from src.voice.tts.formatter import format_for_speech, sanitize_for_speech
 from src.voice.tts.pronunciation import apply_pronunciation_overrides
-from tests.test_voice.fake_providers import FakeASRProvider
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
 DEFAULT_CLIENT_SAMPLE_RATE = 48000
 
-# pytest set biến này cho mọi test đang chạy — dùng để KHÔNG BAO GIỜ gọi Groq/Edge-TTS
-# thật trong test dù `.env` có `GROQ_API_KEY` thật (đúng nguyên tắc test-double). Nếu
-# chỉ check `settings.groq_api_key` thôi thì máy dev nào có key thật trong `.env` sẽ
-# âm thầm gọi API thật mỗi lần chạy `pytest` — đã tự phát hiện việc này khi viết test.
-_RUNNING_UNDER_PYTEST = "PYTEST_CURRENT_TEST" in os.environ
-
 
 def build_gateway(settings: VoiceSettings | None = None) -> VoiceGateway:
     """Factory — dựng 1 `VoiceGateway`.
 
-    ASR: `GroqASRProvider` thật khi `GROQ_API_KEY` có giá trị VÀ không chạy dưới
-    pytest, ngược lại `FakeASRProvider` (pipeline vẫn chạy được không cần key, dùng
-    cho demo/dev/CI). TTS: `EdgeTTSProvider` thật (miễn phí, không cần key), bọc
+    ASR: `GroqASRProvider` thật khi `GROQ_API_KEY` có giá trị; ngược lại
+    `UnavailableASRProvider` trả lỗi cấu hình rõ ràng, không giả lập transcript. TTS: `EdgeTTSProvider` thật (miễn phí, không cần key), bọc
     `CachingTTSProvider`. Dialogue: `SessionBridge` gọi thẳng `SessionService` thật
     của Backend — KHÔNG tạo dialogue engine riêng (xem `session_bridge.py`).
     """
@@ -97,12 +91,11 @@ def build_gateway(settings: VoiceSettings | None = None) -> VoiceGateway:
     if not len(gazetteer):
         logger.info("Gazetteer rỗng (data/gazetteer/place_names.json không có/không đọc được).")
 
-    if settings.groq_api_key and not _RUNNING_UNDER_PYTEST:
+    if settings.groq_api_key:
         asr = GroqASRProvider(settings.groq_api_key, model=settings.voice_asr_model)
     else:
-        if not _RUNNING_UNDER_PYTEST:
-            logger.warning("GROQ_API_KEY chưa cấu hình — Voice Gateway đang dùng FakeASR.")
-        asr = FakeASRProvider()
+        logger.error("GROQ_API_KEY chưa cấu hình — WebSocket ASR sẽ trả lỗi cấu hình.")
+        asr = UnavailableASRProvider()
 
     tts = CachingTTSProvider(EdgeTTSProvider(default_voice=settings.voice_tts_voice, rate=settings.voice_tts_rate))
 
@@ -113,6 +106,7 @@ def build_gateway(settings: VoiceSettings | None = None) -> VoiceGateway:
         session_bridge=SessionBridge(),
         gazetteer=gazetteer,
         text_corrector=(lambda text: correct_place_names(text, gazetteer)) if len(gazetteer) else None,
+        transcript_rewriter=build_transcript_rewriter(get_app_settings(), gazetteer),
         normalizer=normalize_transcript,
         # format_for_speech: số -> chữ đọc tự nhiên. sanitize_for_speech: bỏ dấu ngoặc
         # kép/gạch chéo hay bị Edge-TTS đọc thành lời theo nghĩa đen (phát hiện thật
@@ -138,7 +132,10 @@ async def voice_health() -> dict:
     return {
         "status": "ok" if settings.voice_enabled else "disabled",
         "vad_backend": settings.voice_vad_backend,
-        "asr_provider": "groq" if settings.groq_api_key else "fake",
+        "asr_provider": "groq" if settings.groq_api_key else "unavailable",
+        "transcript_rewrite": "configured"
+        if get_app_settings().voice_transcript_rewrite_enabled and get_app_settings().openai_api_key
+        else "disabled_or_unconfigured",
     }
 
 
@@ -241,7 +238,9 @@ async def voice_stream(websocket: WebSocket) -> None:
                     await _send_events(websocket, events)
                 elif control.type == ClientControlType.END_CALL:
                     if session_id:
-                        events = await gateway.end_session(session_id, reason=control.payload.get("reason", "USER_ENDED"))
+                        events = await gateway.end_session(
+                            session_id, reason=control.payload.get("reason", "USER_ENDED")
+                        )
                         await _send_events(websocket, events)
                     break
                 elif control.type == ClientControlType.PING:

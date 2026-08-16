@@ -99,7 +99,7 @@ export const TrackingPage: React.FC = () => {
         <button
           type="button"
           onClick={openAssistant}
-          className="mt-2 inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-[#00A651] text-white font-bold text-sm hover:bg-[#04763B] transition-colors"
+          className="mt-2 inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-[#00C9B7] text-white font-bold text-sm hover:bg-[#008F88] transition-colors"
         >
           <Sparkles className="w-4 h-4" />
           AI đặt xe ngay
@@ -128,8 +128,8 @@ export const TrackingPage: React.FC = () => {
           </p>
         </div>
 
-        <div className="flex items-center gap-2 bg-[#00A651]/10 text-[#04763B] dark:text-[#00A651] px-3.5 py-1.5 rounded-full border border-[#00A651]/30 text-xs font-semibold">
-          <Navigation className="w-4 h-4 text-[#00A651] animate-spin-slow" />
+        <div className="flex items-center gap-2 bg-[#00C9B7]/10 text-[#008F88] dark:text-[#00C9B7] px-3.5 py-1.5 rounded-full border border-[#00C9B7]/30 text-xs font-semibold">
+          <Navigation className="w-4 h-4 text-[#00C9B7] animate-spin-slow" />
           <span>Cập nhật mỗi {POLL_INTERVAL_MS / 1000}s</span>
         </div>
       </div>
@@ -150,16 +150,16 @@ export const TrackingPage: React.FC = () => {
             <div className="px-2.5 py-1 bg-[#191C1E] text-white text-[10px] font-bold rounded-lg shadow-md mb-1">
               Điểm đón
             </div>
-            <div className="w-4 h-4 bg-[#00A651] rounded-full border-2 border-white shadow-lg animate-ping" />
+            <div className="w-4 h-4 bg-[#00C9B7] rounded-full border-2 border-white shadow-lg animate-ping" />
           </div>
           <div
             className="absolute -translate-x-1/2 -translate-y-1/2 flex flex-col items-center"
             style={{ left: `${DESTINATION_POINT.left}%`, top: `${DESTINATION_POINT.top}%` }}
           >
-            <div className="px-2.5 py-1 bg-[#04763B] text-white text-[10px] font-bold rounded-lg shadow-md mb-1">
+            <div className="px-2.5 py-1 bg-[#008F88] text-white text-[10px] font-bold rounded-lg shadow-md mb-1">
               Điểm đến
             </div>
-            <div className="w-4 h-4 bg-white rounded-full border-2 border-[#04763B] shadow-lg" />
+            <div className="w-4 h-4 bg-white rounded-full border-2 border-[#008F88] shadow-lg" />
           </div>
           {trip?.driver &&
             (() => {
@@ -170,10 +170,10 @@ export const TrackingPage: React.FC = () => {
                   className="absolute -translate-x-1/2 -translate-y-1/2 flex flex-col items-center transition-[left,top] duration-[1400ms] ease-in-out"
                   style={{ left: `${point.left}%`, top: `${point.top}%` }}
                 >
-                  <div className="px-2.5 py-1 bg-[#04763B] text-white text-[10px] font-bold rounded-lg shadow-md mb-1 flex items-center gap-1">
+                  <div className="px-2.5 py-1 bg-[#008F88] text-white text-[10px] font-bold rounded-lg shadow-md mb-1 flex items-center gap-1">
                     <span>Tài xế ({trip.eta})</span>
                   </div>
-                  <div className="w-8 h-8 rounded-full bg-white shadow-xl flex items-center justify-center text-[#04763B] border-2 border-[#00A651]">
+                  <div className="w-8 h-8 rounded-full bg-white shadow-xl flex items-center justify-center text-[#008F88] border-2 border-[#00C9B7]">
                     <Navigation className="w-4 h-4 transform rotate-45" />
                   </div>
                 </div>

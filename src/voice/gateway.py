@@ -24,6 +24,8 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+from src.voice.audio.codec import PCM16Resampler, utterance_rms
+from src.voice.audio.vad import EndpointScorer, VADProvider, build_vad_provider
 from src.voice.schemas import (
     ASRResult,
     HandoffReason,
@@ -31,9 +33,8 @@ from src.voice.schemas import (
     WSEventType,
     WSServerEvent,
 )
-from src.voice.audio.codec import PCM16Resampler, utterance_rms
-from src.voice.audio.vad import EndpointScorer, VADProvider, build_vad_provider
 from src.voice.session_bridge import SessionBridge, SessionTurnResult
+from src.voice.text.rewrite_contract import TranscriptRewriter, TranscriptRewriteResult
 
 if TYPE_CHECKING:
     from src.voice.asr.base import ASRProvider
@@ -73,6 +74,7 @@ class VoiceGateway:
         vad_factory: Callable[[], VADProvider] | None = None,
         gazetteer: Gazetteer | None = None,
         text_corrector: Callable[[str], str] | None = None,
+        transcript_rewriter: TranscriptRewriter | None = None,
         normalizer: Callable[[str], str] | None = None,
         tts_formatter: Callable[[str], str] | None = None,
         tts_pronunciation: Callable[[str], str] | None = None,
@@ -89,6 +91,7 @@ class VoiceGateway:
         )
         self.gazetteer = gazetteer
         self.text_corrector = text_corrector
+        self.transcript_rewriter = transcript_rewriter
         self.normalizer = normalizer
         self.tts_formatter = tts_formatter
         self.tts_pronunciation = tts_pronunciation
@@ -159,13 +162,6 @@ class VoiceGateway:
         outputs: list[GatewayOutput] = [self._status_event(session_id, conn.stage)]
 
         asr_result = await self._transcribe(session_id, pcm16_audio, outputs)
-        outputs.append(
-            self._event(
-                session_id,
-                WSEventType.TRANSCRIPT,
-                {"text": asr_result.text, "confidence": asr_result.confidence, "is_final": asr_result.is_final},
-            )
-        )
 
         if not asr_result.text.strip():
             # Không có gì để gửi lên SessionService (message min_length=1) — tự
@@ -183,15 +179,46 @@ class VoiceGateway:
             outputs.extend(await self._reprompt(conn, REPROMPT_MESSAGE))
             return outputs
 
+        current = await self.session_bridge.get_session(session_id)
+        rewrite = TranscriptRewriteResult(
+            raw_text=normalized_text,
+            normalized_text=normalized_text,
+            reason="disabled_or_low_asr_confidence",
+        )
+        if self.transcript_rewriter and asr_result.confidence >= 0.45:
+            rewrite = await self.transcript_rewriter.rewrite(
+                normalized_text,
+                session_context=current,
+                session_id=session_id,
+            )
+            normalized_text = rewrite.normalized_text
+
+        outputs.append(
+            self._event(
+                session_id,
+                WSEventType.TRANSCRIPT,
+                {
+                    "text": normalized_text,
+                    "confidence": asr_result.confidence,
+                    "is_final": asr_result.is_final,
+                    "rewrite_applied": rewrite.applied,
+                    "rewrite_confidence": rewrite.confidence,
+                    "rewrite_reason": rewrite.reason,
+                },
+            )
+        )
+
         # BR-001 — lớp thận trọng THÊM riêng của Voice khi đang ở bước xác nhận đặt
         # xe: KHÔNG gửi lên SessionService nếu confidence thấp hơn ngưỡng riêng của
         # Voice (mặc định 0.80, cao hơn ngưỡng phẳng 0.55 của SessionService) — vì
         # xác nhận sai ở bước này tạo booking ngoài ý muốn. Các bước khác tin tưởng
         # hoàn toàn ngưỡng 0.55 của SessionService, không tự áp thêm ngưỡng.
-        current = await self.session_bridge.get_session(session_id)
         is_confirmation_step = bool(current and current.get("current_step") == "CONFIRM")
-        if is_confirmation_step and asr_result.confidence < self.settings.voice_booking_confirmation_confidence_threshold:
-            outputs.extend(await self._reprompt(conn, "Xin lỗi, bạn xác nhận là \"đúng\" hay \"thôi\" ạ?"))
+        if (
+            is_confirmation_step
+            and asr_result.confidence < self.settings.voice_booking_confirmation_confidence_threshold
+        ):
+            outputs.extend(await self._reprompt(conn, 'Xin lỗi, bạn xác nhận là "đúng" hay "thôi" ạ?'))
             return outputs
 
         turn = await self.session_bridge.send_message(session_id, normalized_text, asr_result.confidence)

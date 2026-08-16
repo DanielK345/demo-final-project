@@ -49,11 +49,20 @@ class Settings(BaseSettings):
         validation_alias=AliasChoices("GOOGLE_API_KEY", "GEMINI_API_KEY"),
     )
     voice_provider: Literal["auto", "openai", "gemini"] = "auto"
-    voice_stt_model: str = "whisper-1"
+    voice_stt_model: str = "gpt-4o-transcribe"
     voice_tts_model: str = "tts-1"
     voice_tts_voice: str = "nova"
     voice_gemini_model: str = "gemini-2.0-flash"
     voice_timeout_seconds: float = Field(default=30.0, gt=0)
+
+    # Post-ASR Vietnamese correction. Only the current transcript is sent and
+    # phone/email/ID/number values are replaced with immutable placeholders.
+    voice_transcript_rewrite_enabled: bool = True
+    voice_transcript_rewrite_model: str = "gpt-5.6-luna"
+    voice_transcript_rewrite_base_url: str | None = None
+    voice_transcript_rewrite_timeout_seconds: float = Field(default=5.0, gt=0)
+    voice_transcript_rewrite_reasoning_effort: Literal["none", "low", "medium"] = "none"
+    voice_transcript_rewrite_minimum_confidence: float = Field(default=0.85, ge=0.0, le=1.0)
 
     # Database — DATABASE_URL dùng cho app runtime (Supabase Transaction Pooler,
     # cổng 6543, driver async asyncpg khi deploy thật — xem docs/database_supabase.md).

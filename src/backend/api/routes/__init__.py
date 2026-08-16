@@ -61,3 +61,5 @@ async def agent_status():
         "voice_stt_model": settings.voice_stt_model if voice_provider == "openai" else settings.voice_gemini_model,
         "voice_tts_enabled": voice_provider == "openai",
     }
+
+__all__ = ["health_router", "router"]

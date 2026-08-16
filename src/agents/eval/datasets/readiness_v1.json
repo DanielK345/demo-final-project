@@ -200,6 +200,36 @@
           "forbidden_message_terms": ["system prompt", "malicious-document"]
         }
       ]
+    },
+    {
+      "name": "emergency is handed off immediately",
+      "session_id": "eval-handoff-emergency",
+      "expect_completion": true,
+      "turns": [{"transcript": "Toi dang bi de doa va can ho tro khan cap", "expected_action_type": "HANDOFF", "expected_workflow": "HUMAN_HANDOFF"}]
+    },
+    {
+      "name": "driver safety risk is handed off immediately",
+      "session_id": "eval-handoff-safety",
+      "expect_completion": true,
+      "turns": [{"transcript": "Tai xe lai xe nguy hiem, hay noi tong dai vien ngay", "expected_action_type": "HANDOFF", "expected_workflow": "HUMAN_HANDOFF"}]
+    },
+    {
+      "name": "payment dispute is handed off to operations",
+      "session_id": "eval-handoff-payment",
+      "expect_completion": true,
+      "turns": [{"transcript": "Toi bi tru tien sai va muon khieu nai giao dich", "expected_action_type": "HANDOFF", "expected_workflow": "HUMAN_HANDOFF"}]
+    },
+    {
+      "name": "lost item is handed off with protected context",
+      "session_id": "eval-handoff-lost-item",
+      "expect_completion": true,
+      "turns": [{"transcript": "Toi de quen dien thoai tren xe", "expected_action_type": "HANDOFF", "expected_workflow": "HUMAN_HANDOFF"}]
+    },
+    {
+      "name": "service complaint is handed off to customer care",
+      "session_id": "eval-handoff-complaint",
+      "expect_completion": true,
+      "turns": [{"transcript": "Toi muon khieu nai chat luong dich vu", "expected_action_type": "HANDOFF", "expected_workflow": "HUMAN_HANDOFF"}]
     }
   ]
 }

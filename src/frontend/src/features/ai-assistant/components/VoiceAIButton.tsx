@@ -18,8 +18,8 @@ export const VoiceAIButton: React.FC = () => {
       aria-expanded={isOpen}
       className={`fixed z-40 flex items-center justify-center rounded-full shadow-xl transition-all duration-300 cursor-pointer
         bottom-24 right-5 w-14 h-14 md:bottom-8 md:right-8 md:w-16 md:h-16
-        ${isOpen ? "bg-rose-500 hover:bg-rose-600" : "bg-gradient-to-br from-[#00A651] to-[#04763B] hover:scale-105 active:scale-95"}
-        ${!isOpen && status === "listening" ? "animate-pulse ring-4 ring-[#00A651]/30" : ""}`}
+        ${isOpen ? "bg-rose-500 hover:bg-rose-600" : "bg-gradient-to-br from-[#00C9B7] to-[#008F88] hover:scale-105 active:scale-95"}
+        ${!isOpen && status === "listening" ? "animate-pulse ring-4 ring-[#00C9B7]/30" : ""}`}
     >
       {isOpen ? (
         <PhoneOff className="w-6 h-6 text-white" />
@@ -27,7 +27,7 @@ export const VoiceAIButton: React.FC = () => {
         <Phone className="w-6 h-6 md:w-7 md:h-7 text-white" />
       )}
       {!isOpen && (
-        <span className="absolute inset-0 rounded-full bg-[#00A651]/40 animate-ping [animation-duration:2.5s] pointer-events-none" />
+        <span className="absolute inset-0 rounded-full bg-[#00C9B7]/40 animate-ping [animation-duration:2.5s] pointer-events-none" />
       )}
     </button>
   );
