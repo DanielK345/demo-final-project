@@ -15,14 +15,14 @@ export const LoginPage: React.FC = () => {
       <div
         className="absolute inset-0 z-0 opacity-40 pointer-events-none"
         style={{
-          backgroundImage: `radial-gradient(rgba(0, 209, 193, 0.2) 1px, transparent 1px)`,
+          backgroundImage: `radial-gradient(rgba(0, 166, 81, 0.2) 1px, transparent 1px)`,
           backgroundSize: "24px 24px",
         }}
       />
 
       {/* Decorative Blur Spots */}
-      <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] rounded-full bg-[#00D1C1]/10 blur-[100px] pointer-events-none" />
-      <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] rounded-full bg-[#006a62]/10 blur-[100px] pointer-events-none" />
+      <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] rounded-full bg-[#00A651]/10 blur-[100px] pointer-events-none" />
+      <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] rounded-full bg-[#04763B]/10 blur-[100px] pointer-events-none" />
 
       {/* Centered Login Form Card */}
       <div className="relative z-10 w-full max-w-md space-y-4">

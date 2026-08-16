@@ -62,9 +62,9 @@ export const ProfilePage: React.FC = () => {
       <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
         {/* Profile Header Card (8 cols on desktop) */}
         <div className="md:col-span-12 lg:col-span-8 bg-white rounded-2xl p-6 md:p-8 shadow-[0px_4px_20px_rgba(16,18,19,0.05)] border border-slate-200/80 flex flex-col md:flex-row items-center md:items-start gap-6 relative overflow-hidden group dark:bg-[#12161A] dark:border-white/10">
-          <div className="absolute -top-24 -right-24 w-64 h-64 bg-[#00D1C1]/5 rounded-full blur-3xl group-hover:bg-[#00D1C1]/10 transition-colors duration-500 pointer-events-none" />
+          <div className="absolute -top-24 -right-24 w-64 h-64 bg-[#00A651]/5 rounded-full blur-3xl group-hover:bg-[#00A651]/10 transition-colors duration-500 pointer-events-none" />
 
-          <div className="relative w-24 h-24 md:w-32 md:h-32 rounded-full border-4 border-white shadow-sm shrink-0 z-10 bg-[#00D1C1]/15 text-[#006a62] dark:text-[#00D1C1] flex items-center justify-center text-3xl font-extrabold dark:border-white/10">
+          <div className="relative w-24 h-24 md:w-32 md:h-32 rounded-full border-4 border-white shadow-sm shrink-0 z-10 bg-[#00A651]/15 text-[#04763B] dark:text-[#00A651] flex items-center justify-center text-3xl font-extrabold dark:border-white/10">
             {initials}
           </div>
 
@@ -72,7 +72,7 @@ export const ProfilePage: React.FC = () => {
             <h2 className="text-2xl font-extrabold text-[#191C1E] dark:text-white mb-1">
               {user?.full_name || "Đang tải..."}
             </h2>
-            <div className="inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full bg-[#006a62] text-white text-xs font-semibold shadow-xs mb-4">
+            <div className="inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full bg-[#04763B] text-white text-xs font-semibold shadow-xs mb-4">
               <Star className="w-4 h-4 fill-current text-amber-300" />
               <span>{user?.role === "CUSTOMER" ? "Khách hàng" : user?.role || ""}</span>
             </div>

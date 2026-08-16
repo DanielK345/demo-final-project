@@ -24,8 +24,8 @@ export const MobileNav: React.FC = () => {
               cn(
                 "flex flex-col items-center gap-1 text-xs font-semibold transition-colors",
                 isActive
-                  ? "text-[#00D1C1]"
-                  : "text-slate-500 hover:text-[#006a62] dark:text-slate-400 dark:hover:text-[#00D1C1]"
+                  ? "text-[#00A651]"
+                  : "text-slate-500 hover:text-[#04763B] dark:text-slate-400 dark:hover:text-[#00A651]"
               )
             }
           >

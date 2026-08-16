@@ -17,6 +17,14 @@ export interface VoiceTurnResponse {
   audio_base64: string | null;
   audio_mime_type: string;
   voice_provider: string;
+  transcript_rewrite: TranscriptRewriteTrace;
+}
+
+export interface TranscriptRewriteTrace {
+  provider: string;
+  called: boolean;
+  applied: boolean;
+  status: string;
 }
 
 function authHeader(): HeadersInit {

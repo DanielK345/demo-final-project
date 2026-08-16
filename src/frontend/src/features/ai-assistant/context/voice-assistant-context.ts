@@ -1,6 +1,7 @@
 import { createContext } from "react";
 import type { BookingLifecycleStatus, BookingProgress } from "@/features/ride/api";
 import type { CompletedBooking } from "@/features/ai-assistant/components/BookingSuccessPanel";
+import type { TranscriptRewriteTrace } from "@/features/voice/api";
 
 // Tách riêng khỏi VoiceAssistantContext.tsx: file đó chỉ nên export component
 // (Fast Refresh của Vite yêu cầu file component không lẫn export khác — oxlint
@@ -14,7 +15,12 @@ import type { CompletedBooking } from "@/features/ai-assistant/components/Bookin
 // completedBooking/lifecycleStatus + BookingSuccessModal, đã có UI riêng).
 export type AssistantStatus = "connecting" | "idle" | "listening" | "processing" | "speaking" | "error";
 
-export type Message = { id: string; role: "user" | "assistant"; text: string };
+export type Message = {
+  id: string;
+  role: "user" | "assistant";
+  text: string;
+  transcriptRewrite?: TranscriptRewriteTrace;
+};
 
 export interface VoiceAssistantValue {
   // Popup — LUÔN là màn hình gọi thoại (không còn chế độ nhắn tin/chat riêng, đúng

@@ -63,7 +63,11 @@ SERVICE_TOOLS = [
         {"option_id": {"type": "string"}},
         ["option_id"],
     ),
-    tool_definition("estimate_fare", "Yêu cầu backend báo giá khi xe chưa có estimate hợp lệ.", {}),
+    tool_definition(
+        "estimate_fare",
+        "Yêu cầu backend báo giá ngay khi đã có hai địa điểm và loại xe; số hành khách/hành lý không bắt buộc.",
+        {},
+    ),
     tool_definition(
         "request_booking_confirmation",
         "Tạo câu tóm tắt deterministic và chuyển state sang chờ khách xác nhận.",

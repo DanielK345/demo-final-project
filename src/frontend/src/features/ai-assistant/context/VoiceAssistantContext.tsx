@@ -163,7 +163,12 @@ export const VoiceAssistantProvider: React.FC<{ children: React.ReactNode }> = (
         const result = await sendVoiceTurn(sessionId, audio);
         setMessages((items) => [
           ...items,
-          { id: `user-${Date.now()}`, role: "user", text: result.transcript },
+          {
+            id: `user-${Date.now()}`,
+            role: "user",
+            text: result.transcript,
+            transcriptRewrite: result.transcript_rewrite,
+          },
           { id: result.message_id, role: "assistant", text: result.message },
         ]);
         applyTurnResult(result);

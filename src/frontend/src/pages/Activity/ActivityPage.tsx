@@ -28,7 +28,7 @@ export const ActivityPage: React.FC = () => {
               onClick={() => setFilter(chip.id)}
               className={`shrink-0 px-5 py-2 rounded-full text-xs font-semibold transition-all duration-200 cursor-pointer ${
                 isActive
-                  ? "bg-[#00D1C1] text-white shadow-xs"
+                  ? "bg-[#00A651] text-white shadow-xs"
                   : "bg-slate-200/80 text-slate-700 hover:bg-slate-300 dark:bg-white/10 dark:text-slate-300 dark:hover:bg-white/20"
               }`}
             >

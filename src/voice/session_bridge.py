@@ -71,7 +71,9 @@ class SessionBridge:
         `state`/`booking`) không đổi, chỉ cần `await` thêm — xem
         `src/backend/services/session_service.py::process_message`."""
         try:
-            result = await self._service.process_message(session_id, text, stt_confidence)
+            result = await self._service.process_message(
+                session_id, text, stt_confidence, source="VOICE"
+            )
         except (KeyError, ValueError):
             return None
         return SessionTurnResult(

@@ -69,6 +69,8 @@ _KNOWN_HALLUCINATION_PHRASES = {
     "cảm ơn các bạn đã theo dõi",
     "đăng ký kênh để không bỏ lỡ những video hấp dẫn",
     "hãy subscribe cho kênh để không bỏ lỡ những video hấp dẫn",
+    "hẹn gặp lại các bạn trong những video tiếp theo nhé",
+    "hẹn gặp lại các bạn trong những video tiếp theo",
 }
 
 
@@ -129,9 +131,13 @@ class GroqASRProvider:
         duration_ms = int((time.monotonic() - start) * 1000)
 
         text = (payload.get("text") or "").strip()
-        confidence = 0.0 if is_known_hallucination(text) else estimate_confidence(payload)
+        is_hallucination = is_known_hallucination(text)
+        confidence = 0.0 if is_hallucination else estimate_confidence(payload)
         return ASRResult(
-            text=text,
+            # Empty text routes the gateway to its reprompt branch. Merely
+            # lowering confidence would incorrectly send the hallucination to
+            # the Agent and can trigger a human handoff.
+            text="" if is_hallucination else text,
             confidence=confidence,
             duration_ms=duration_ms,
             language=language,

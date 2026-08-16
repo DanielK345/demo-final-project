@@ -9,12 +9,13 @@
   :root {
     --font-sans: 'Montserrat', 'Inter', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
 
-    /* Kinetic Teal AloSM Palette */
-    --color-kinetic-teal: #00D1C1;
-    --color-brand-primary: #00D1C1;
-    --color-brand-primary-hover: #006a62;
-    --color-brand-accent: #00D1C1;
-    --color-brand-light: rgba(0, 209, 193, 0.1);
+    /* AloSM Green Mobility Palette — tham khảo tinh thần thiết kế "di chuyển xanh"
+       của GreenSM (màu xanh lá sống động, không sao chép mã màu/asset/logo của họ). */
+    --color-brand-green: #00A651;
+    --color-brand-primary: #00A651;
+    --color-brand-primary-hover: #04763B;
+    --color-brand-accent: #00A651;
+    --color-brand-light: rgba(0, 166, 81, 0.1);
 
     --color-bg: #F8F9FB;
     --color-card: #FFFFFF;

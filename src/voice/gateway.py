@@ -45,7 +45,7 @@ logger = logging.getLogger(__name__)
 
 GatewayOutput = WSServerEvent | bytes
 
-REPROMPT_MESSAGE = "Xin lỗi, tôi chưa nghe rõ. Bạn có thể nói lại được không?"
+REPROMPT_MESSAGE = "Tôi không nghe rõ yêu cầu của bạn, vui lòng nói rõ lại."
 
 
 class GatewaySessionNotFoundError(Exception):

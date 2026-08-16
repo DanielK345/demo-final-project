@@ -66,7 +66,7 @@ export const BookingPage: React.FC = () => {
                     const Icon = feat.icon;
                     return (
                       <li key={idx} className="flex items-center text-xs font-semibold text-slate-600 dark:text-slate-300">
-                        <Icon className="w-4 h-4 text-[#006a62] dark:text-[#00D1C1] mr-2" />
+                        <Icon className="w-4 h-4 text-[#04763B] dark:text-[#00A651] mr-2" />
                         <span>{feat.label}</span>
                       </li>
                     );
@@ -85,7 +85,7 @@ export const BookingPage: React.FC = () => {
                     onClick={() =>
                       goToAssistant(`Tôi muốn đặt xe ${service.name} loại ${VEHICLE_LABEL[service.id]}.`)
                     }
-                    className="inline-flex items-center gap-1.5 bg-[#00D1C1] hover:bg-[#006a62] text-white font-bold text-xs px-6 py-2.5 rounded-[12px] transition-colors shadow-xs cursor-pointer"
+                    className="inline-flex items-center gap-1.5 bg-[#00A651] hover:bg-[#04763B] text-white font-bold text-xs px-6 py-2.5 rounded-[12px] transition-colors shadow-xs cursor-pointer"
                   >
                     <Sparkles className="w-3.5 h-3.5" />
                     AI đặt xe ngay
@@ -109,14 +109,14 @@ export const BookingPage: React.FC = () => {
           </p>
           <button
             type="button"
-            className="border-2 border-[#006a62] text-[#006a62] hover:bg-[#006a62] hover:text-white font-bold text-xs px-6 py-2.5 rounded-[12px] transition-colors cursor-pointer dark:border-[#00D1C1] dark:text-[#00D1C1] dark:hover:bg-[#00D1C1] dark:hover:text-[#0B0E11]"
+            className="border-2 border-[#04763B] text-[#04763B] hover:bg-[#04763B] hover:text-white font-bold text-xs px-6 py-2.5 rounded-[12px] transition-colors cursor-pointer dark:border-[#00A651] dark:text-[#00A651] dark:hover:bg-[#00A651] dark:hover:text-[#0B0E11]"
           >
             Tìm hiểu thêm
           </button>
         </div>
 
         <div className="md:w-1/3 flex justify-center">
-          <div className="w-40 h-40 bg-[#00D1C1]/20 rounded-full flex items-center justify-center text-[#006a62] dark:text-[#00D1C1]">
+          <div className="w-40 h-40 bg-[#00A651]/20 rounded-full flex items-center justify-center text-[#04763B] dark:text-[#00A651]">
             <Briefcase className="w-20 h-20" />
           </div>
         </div>

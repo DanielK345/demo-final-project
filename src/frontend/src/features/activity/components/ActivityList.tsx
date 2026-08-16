@@ -95,7 +95,7 @@ export const ActivityList: React.FC<ActivityListProps> = ({ activeFilter = "all"
         <button
           type="button"
           onClick={open}
-          className="inline-flex items-center gap-1.5 text-sm font-bold text-[#006a62] dark:text-[#00D1C1] hover:underline"
+          className="inline-flex items-center gap-1.5 text-sm font-bold text-[#04763B] dark:text-[#00A651] hover:underline"
         >
           <Sparkles className="w-4 h-4" />
           AI đặt xe ngay
@@ -115,13 +115,13 @@ export const ActivityList: React.FC<ActivityListProps> = ({ activeFilter = "all"
           >
             {/* Icon thay cho ảnh bản đồ giả — không có bản đồ tuyến đường thật */}
             <div className="w-full md:w-44 h-28 md:h-auto rounded-xl overflow-hidden bg-slate-100 shrink-0 relative border border-slate-200/60 flex items-center justify-center dark:bg-white/5 dark:border-white/10">
-              <Car className={`w-10 h-10 ${isCancelled ? "text-slate-300 dark:text-slate-600" : "text-[#00D1C1]"}`} />
+              <Car className={`w-10 h-10 ${isCancelled ? "text-slate-300 dark:text-slate-600" : "text-[#00A651]"}`} />
               <div className="absolute top-2 left-2">
                 <span
                   className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${
                     isCancelled
                       ? "bg-rose-100 text-rose-700 border border-rose-200 dark:bg-rose-500/10 dark:text-rose-300 dark:border-rose-500/30"
-                      : "bg-[#00D1C1]/20 text-[#006a62] border border-[#00D1C1]/30 dark:text-[#00D1C1]"
+                      : "bg-[#00A651]/20 text-[#04763B] border border-[#00A651]/30 dark:text-[#00A651]"
                   }`}
                 >
                   {statusLabel(booking.status)}
@@ -142,13 +142,13 @@ export const ActivityList: React.FC<ActivityListProps> = ({ activeFilter = "all"
                 <div className="space-y-2 relative pl-5">
                   <div className="absolute left-[5px] top-2 bottom-2 w-0.5 bg-slate-200 dark:bg-white/10 z-0" />
                   <div className="relative z-10 text-xs">
-                    <div className="absolute -left-[19px] top-1 w-2.5 h-2.5 rounded-full border-2 border-[#00D1C1] bg-white dark:bg-[#12161A]" />
+                    <div className="absolute -left-[19px] top-1 w-2.5 h-2.5 rounded-full border-2 border-[#00A651] bg-white dark:bg-[#12161A]" />
                     <p className="font-semibold text-[#191C1E] dark:text-slate-100 line-clamp-1">
                       {locationLabel(booking.pickup, "Chưa rõ điểm đón")}
                     </p>
                   </div>
                   <div className="relative z-10 text-xs pt-1">
-                    <div className="absolute -left-[19px] top-2 w-2.5 h-2.5 rounded-full bg-[#006a62] dark:bg-[#00D1C1]" />
+                    <div className="absolute -left-[19px] top-2 w-2.5 h-2.5 rounded-full bg-[#04763B] dark:bg-[#00A651]" />
                     <p className="font-semibold text-[#191C1E] dark:text-slate-100 line-clamp-1">
                       {locationLabel(booking.destination, "Chưa rõ điểm đến")}
                     </p>
@@ -176,7 +176,7 @@ export const ActivityList: React.FC<ActivityListProps> = ({ activeFilter = "all"
                   className={`px-4 py-2 rounded-xl font-bold text-xs flex items-center gap-1.5 transition-all duration-200 cursor-pointer ${
                     isCancelled
                       ? "bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-white/10 dark:text-slate-300 dark:hover:bg-white/20"
-                      : "bg-[#006a62] hover:bg-[#00D1C1] text-white shadow-xs"
+                      : "bg-[#04763B] hover:bg-[#00A651] text-white shadow-xs"
                   }`}
                 >
                   <RotateCcw className="w-3.5 h-3.5" />
