@@ -82,7 +82,7 @@ export const VoiceCallPanel: React.FC = () => {
   }
 
   return (
-    <div className="relative flex h-full min-h-0 flex-col items-center overflow-hidden px-4 py-5 pb-28 text-center sm:px-6">
+    <div className="flex h-full min-h-0 flex-col items-center overflow-y-auto px-4 py-5 text-center [scrollbar-gutter:stable] sm:px-6">
       <p className="shrink-0 text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">AloSM Voice</p>
       <p className="mt-1 shrink-0 text-sm font-mono text-slate-400 dark:text-slate-500">{formatDuration(elapsed)}</p>
 
@@ -124,6 +124,66 @@ export const VoiceCallPanel: React.FC = () => {
         </div>
       </div>
 
+      {/* Điều khiển cuộc gọi luôn nằm ngay dưới sound bubble và ở trong document
+          flow. Không dùng absolute/fixed để không thể đè lên thông tin chuyến. */}
+      <div className="mb-3 flex shrink-0 items-start justify-center gap-5 sm:gap-7">
+      {sessionEnded ? (
+        <button
+          type="button"
+          onClick={() => void newSession()}
+          className="inline-flex items-center gap-2 rounded-xl bg-[#00C9B7] px-5 py-2.5 text-sm font-semibold text-[#0B0E11] hover:opacity-90"
+        >
+          <RotateCcw className="h-4 w-4" />
+          Gọi lại
+        </button>
+      ) : (
+        <>
+          <button
+            type="button"
+            onClick={toggleMuted}
+            aria-label={isMuted ? "Bật loa" : "Tắt loa"}
+            title={isMuted ? "Bật loa" : "Tắt loa"}
+            className="group flex w-16 flex-col items-center gap-1.5 text-[10px] font-semibold text-slate-500 dark:text-slate-400"
+          >
+            <span className="grid h-12 w-12 place-items-center rounded-full bg-slate-100 text-slate-600 transition group-hover:bg-slate-200 dark:bg-white/10 dark:text-slate-300 dark:group-hover:bg-white/20">
+              {isMuted ? <VolumeX className="h-5 w-5" /> : <Volume2 className="h-5 w-5" />}
+            </span>
+            {isMuted ? "Bật loa" : "Tắt loa"}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setMicMuted((value) => !value)}
+            aria-label={micMuted ? "Bật micro" : "Tắt micro"}
+            title={micMuted ? "Bật micro" : "Tắt micro"}
+            className="group flex w-16 flex-col items-center gap-1.5 text-[10px] font-semibold text-slate-500 dark:text-slate-400"
+          >
+            <span className={`grid h-14 w-14 place-items-center rounded-full shadow-md transition ${
+              micMuted
+                ? "bg-slate-200 text-slate-500 dark:bg-white/10 dark:text-slate-400"
+                : "bg-[#00C9B7] text-white group-hover:bg-[#008F88]"
+            }`}>
+              {micMuted ? <MicOff className="h-6 w-6" /> : <Mic className="h-6 w-6" />}
+            </span>
+            {micMuted ? "Bật micro" : "Tắt micro"}
+          </button>
+
+          <button
+            type="button"
+            onClick={close}
+            aria-label="Kết thúc cuộc gọi"
+            title="Kết thúc cuộc gọi"
+            className="group flex w-16 flex-col items-center gap-1.5 text-[10px] font-semibold text-rose-500"
+          >
+            <span className="grid h-12 w-12 place-items-center rounded-full bg-rose-50 text-rose-600 transition group-hover:bg-rose-100 dark:bg-rose-500/10 dark:text-rose-400 dark:group-hover:bg-rose-500/20">
+              <PhoneOff className="h-5 w-5" />
+            </span>
+            Kết thúc
+          </button>
+        </>
+      )}
+      </div>
+
       <div className="shrink-0">
       {micMuted ? (
         <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-400 dark:text-slate-500">
@@ -154,57 +214,6 @@ export const VoiceCallPanel: React.FC = () => {
         <MessageCircle className="h-4 w-4" />
         Xem cuộc trò chuyện{messages.length > 1 ? ` (${messages.length})` : ""}
       </button>
-
-      <div className="absolute inset-x-0 bottom-5 z-10 flex w-full justify-center px-4">
-      {sessionEnded ? (
-        <button
-          type="button"
-          onClick={() => void newSession()}
-          className="inline-flex items-center gap-2 rounded-xl bg-[#00C9B7] px-5 py-2.5 text-sm font-semibold text-[#0B0E11] hover:opacity-90"
-        >
-          <RotateCcw className="w-4 h-4" />
-          Gọi lại
-        </button>
-      ) : (
-        <div className="flex items-center gap-6">
-          <button
-            type="button"
-            onClick={toggleMuted}
-            aria-label={isMuted ? "Bật loa" : "Tắt loa"}
-            title={isMuted ? "Bật loa" : "Tắt loa"}
-            className="w-11 h-11 rounded-full grid place-items-center bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-white/10 dark:text-slate-300 dark:hover:bg-white/20"
-          >
-            {isMuted ? <VolumeX className="w-5 h-5" /> : <Volume2 className="w-5 h-5" />}
-          </button>
-
-          {/* Không còn "bấm để nói" — nút này giờ là bật/tắt micro của chính mình (như
-              nút mute trên mọi app gọi điện thật), mặc định LUÔN bật để nghe liên tục. */}
-          <button
-            type="button"
-            onClick={() => setMicMuted((value) => !value)}
-            aria-label={micMuted ? "Bật micro" : "Tắt micro"}
-            title={micMuted ? "Bật micro" : "Tắt micro"}
-            className={`w-16 h-16 rounded-full grid place-items-center shadow-lg transition ${
-              micMuted
-                ? "bg-slate-200 text-slate-500 dark:bg-white/10 dark:text-slate-400"
-                : "bg-[#00C9B7] hover:bg-[#008F88] text-[#0B0E11] hover:text-white"
-            }`}
-          >
-            {micMuted ? <MicOff className="w-6 h-6" /> : <Mic className="w-6 h-6 text-white" />}
-          </button>
-
-          <button
-            type="button"
-            onClick={close}
-            aria-label="Kết thúc cuộc gọi"
-            title="Kết thúc cuộc gọi"
-            className="w-11 h-11 rounded-full grid place-items-center bg-rose-50 text-rose-600 hover:bg-rose-100 dark:bg-rose-500/10 dark:text-rose-400 dark:hover:bg-rose-500/20"
-          >
-            <PhoneOff className="w-5 h-5" />
-          </button>
-        </div>
-      )}
-      </div>
     </div>
   );
 };

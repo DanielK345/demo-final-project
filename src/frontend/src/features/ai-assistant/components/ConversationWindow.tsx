@@ -40,7 +40,7 @@ export const ConversationWindow: React.FC = () => {
       role="dialog"
       aria-modal="true"
       aria-label="Cuộc trò chuyện với trợ lý AloSM"
-      className="fixed inset-x-4 bottom-4 top-4 z-50 flex min-h-0 flex-col overflow-hidden rounded-[28px] border border-slate-200/80 bg-white shadow-2xl dark:border-white/10 dark:bg-[#12161A] xl:inset-x-auto xl:bottom-28 xl:right-[calc(2rem+680px+1rem)] xl:top-auto xl:h-[760px] xl:w-[460px] xl:max-w-[calc(100vw-46rem)]"
+      className="fixed inset-x-4 bottom-4 top-4 z-50 flex min-h-0 flex-col overflow-hidden rounded-[28px] border border-slate-200/80 bg-white shadow-2xl dark:border-white/10 dark:bg-[#12161A] xl:inset-x-auto xl:bottom-6 xl:right-[calc(2rem+720px+1rem)] xl:top-auto xl:h-[min(900px,calc(100vh-3rem))] xl:w-[460px] xl:max-w-[calc(100vw-48.5rem)]"
     >
       <header className="flex shrink-0 items-center gap-3 border-b border-slate-100 px-4 py-3 dark:border-white/10">
         <button
