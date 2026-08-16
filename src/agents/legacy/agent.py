@@ -15,6 +15,7 @@ from src.agents.core.guardrails import AgentGuardrails, GuardrailViolationError
 from src.agents.core.history import record_turn_history
 from src.agents.core.model import ConversationModel, build_conversation_model
 from src.agents.legacy.context import ConversationContextBuilder
+from src.agents.legacy.context_models import CandidateField, ConversationContext
 from src.agents.legacy.repair import ConversationRepairHandler, DialogueActDetector
 from src.agents.legacy.router import (
     AgentRouter,
@@ -24,11 +25,18 @@ from src.agents.legacy.router import (
 from src.agents.legacy.smalltalk import unsupported_utterance_response
 from src.agents.legacy.understanding.base import LanguageUnderstandingPort
 from src.agents.legacy.understanding.factory import build_understanding_service
+from src.agents.legacy.understanding.interpretation import TurnInterpretation
 from src.agents.legacy.understanding.models import (
+    BookingSelection,
+    BookingSelectionTarget,
     UnderstandingContext,
     UnderstandingIntent,
     UnderstandingResult,
 )
+from src.agents.legacy.understanding.rewrite_base import ContextualMessageRewriter
+from src.agents.legacy.understanding.rewrite_factory import build_contextual_rewriter
+from src.agents.legacy.understanding.rewrite_gate import ContextualRewriteGate
+from src.agents.legacy.understanding.rewrite_models import RewriteResult
 from src.agents.legacy.understanding.safety import enforce_raw_understanding_evidence
 from src.agents.legacy.workflows.base import BaseWorkflow
 from src.agents.legacy.workflows.booking import RideBookingWorkflow
@@ -53,6 +61,8 @@ class LegacyAgent:
         guardrails: AgentGuardrails | None = None,
         understanding_service: LanguageUnderstandingPort | None = None,
         context_builder: ConversationContextBuilder | None = None,
+        rewrite_gate: ContextualRewriteGate | None = None,
+        message_rewriter: ContextualMessageRewriter | None = None,
         dialogue_act_detector: DialogueActDetector | None = None,
         repair_handler: ConversationRepairHandler | None = None,
         conversation_model: ConversationModel | None = None,
@@ -65,6 +75,8 @@ class LegacyAgent:
                 workflows,
                 understanding_service,
                 context_builder,
+                rewrite_gate,
+                message_rewriter,
                 dialogue_act_detector,
                 repair_handler,
             )
@@ -86,6 +98,10 @@ class LegacyAgent:
             None if self.model_driven_agent is not None else build_understanding_service()
         )
         self.context_builder = context_builder or ConversationContextBuilder()
+        self.rewrite_gate = rewrite_gate or ContextualRewriteGate()
+        self.message_rewriter = message_rewriter or (
+            None if self.model_driven_agent is not None else build_contextual_rewriter()
+        )
         self.dialogue_act_detector = dialogue_act_detector or DialogueActDetector()
         self.repair_handler = repair_handler or ConversationRepairHandler()
         default_workflows = {
@@ -126,9 +142,18 @@ class LegacyAgent:
             if repair_action is not None:
                 return self._validate_action(agent_input, current_state, repair_action)
 
-        understanding = None
+        interpretation = None
         if not immediate_handoff:
-            understanding = await self._understand(agent_input, current_state)
+            interpretation = await self._understand(agent_input, current_state)
+        understanding = interpretation.understanding if interpretation else None
+        workflow_text = agent_input.transcript
+        if interpretation and not self._requires_raw_workflow_text(current_state):
+            workflow_text = interpretation.effective_text
+        workflow_input = (
+            agent_input.model_copy(update={"transcript": workflow_text}, deep=True)
+            if interpretation
+            else agent_input
+        )
 
         faq_interruption = None
         faq_requested_during_workflow = (
@@ -178,7 +203,7 @@ class LegacyAgent:
                 self.guardrails.safe_handoff(f"Workflow is not registered: {workflow_type}"),
             )
         action = await workflow.handle(
-            agent_input,
+            workflow_input,
             current_state,
             understanding,
         )
@@ -262,13 +287,24 @@ class LegacyAgent:
         self,
         agent_input: AgentInput,
         state: AgentState,
-    ) -> UnderstandingResult | None:
+    ) -> TurnInterpretation | None:
         if agent_input.tool_result is not None or not agent_input.transcript.strip():
             return None
         assert self.understanding_service is not None
+        assert self.message_rewriter is not None
         context = self.context_builder.build(agent_input, state)
+        decision = self.rewrite_gate.evaluate(agent_input.transcript, context)
+        rewrite = (
+            await self.message_rewriter.rewrite(
+                agent_input.transcript,
+                context,
+                decision,
+            )
+            if decision.should_rewrite
+            else RewriteResult.unchanged(agent_input.transcript)
+        )
         understanding = await self.understanding_service.understand(
-            agent_input.transcript,
+            rewrite.rewritten_text,
             UnderstandingContext(
                 session_id=state.session_id,
                 current_workflow=context.current_workflow,
@@ -278,14 +314,64 @@ class LegacyAgent:
                 available_candidates=context.available_candidates,
                 recent_messages=context.recent_messages,
                 conversation_summary=context.conversation_summary,
+                rewrite_applied=rewrite.changed,
+                rewrite_evidence=rewrite.resolved_references,
+                rewrite_ambiguities=rewrite.ambiguities,
             ),
+        )
+        understanding = self._apply_grounded_rewrite_selection(
+            understanding,
+            rewrite,
+            context,
         )
         understanding = enforce_raw_understanding_evidence(
             understanding,
             raw_transcript=agent_input.transcript,
         )
-        return understanding
+        return TurnInterpretation(
+            context=context,
+            rewrite_decision=decision,
+            rewrite_result=rewrite,
+            understanding=understanding,
+        )
 
+    @staticmethod
+    def _apply_grounded_rewrite_selection(
+        understanding: UnderstandingResult,
+        rewrite: RewriteResult,
+        context: ConversationContext,
+    ) -> UnderstandingResult:
+        if understanding.selection is not None or not rewrite.changed:
+            return understanding
+        resolved_values = {
+            reference.resolved_value.casefold().strip()
+            for reference in rewrite.resolved_references
+        }
+        matches = [
+            candidate
+            for candidate in context.available_candidates
+            if candidate.display_name.casefold().strip() in resolved_values
+        ]
+        if len(matches) != 1 or not 1 <= matches[0].index <= 9:
+            return understanding
+        target_by_field = {
+            CandidateField.PICKUP: BookingSelectionTarget.PICKUP,
+            CandidateField.DESTINATION: BookingSelectionTarget.DESTINATION,
+            CandidateField.VEHICLE: BookingSelectionTarget.VEHICLE,
+        }
+        return understanding.model_copy(
+            update={
+                "selection": BookingSelection(
+                    target=target_by_field[matches[0].field],
+                    index=matches[0].index,
+                )
+            },
+            deep=True,
+        )
+
+    @staticmethod
+    def _requires_raw_workflow_text(state: AgentState) -> bool:
+        return state.current_workflow is WorkflowType.RIDE_BOOKING and state.current_step == "CONFIRM"
     def _validate_action(
         self,
         agent_input: AgentInput,

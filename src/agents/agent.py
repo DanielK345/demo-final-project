@@ -29,6 +29,8 @@ class LLMAgent:
         workflows: Mapping[WorkflowType, Any] | None = None,
         understanding_service: Any = None,
         context_builder: Any = None,
+        rewrite_gate: Any = None,
+        message_rewriter: Any = None,
         dialogue_act_detector: Any = None,
         repair_handler: Any = None,
     ) -> None:
@@ -42,6 +44,8 @@ class LLMAgent:
             "workflows": workflows,
             "understanding_service": understanding_service,
             "context_builder": context_builder,
+            "rewrite_gate": rewrite_gate,
+            "message_rewriter": message_rewriter,
             "dialogue_act_detector": dialogue_act_detector,
             "repair_handler": repair_handler,
         }

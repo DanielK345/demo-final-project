@@ -65,6 +65,7 @@ class SessionService:
             "current_workflow": None,
             "current_step": None,
             "agent_state": None,
+            "turn_sequence": 0,
         }
         return {"session_id": session_id, "status": "ACTIVE", "channel": channel, "created_at": now}
 
@@ -115,6 +116,7 @@ class SessionService:
         user_id = session.get("user_id")
         agent_state = self._load_agent_state(session_id, session)
         action = await self._run_agent_turn(
+            session=session,
             session_id=session_id,
             agent_state=agent_state,
             transcript=message.strip(),
@@ -132,6 +134,7 @@ class SessionService:
                 agent_state=agent_state,
             )
             action = await self._run_agent_turn(
+                session=session,
                 session_id=session_id,
                 agent_state=agent_state,
                 transcript="",
@@ -153,9 +156,16 @@ class SessionService:
         )
         return response
 
+    @staticmethod
+    def _next_turn_id(session: dict[str, object]) -> str:
+        sequence = int(session.get("turn_sequence") or 0) + 1
+        session["turn_sequence"] = sequence
+        return f"turn-{sequence:03d}"
+
     async def _run_agent_turn(
         self,
         *,
+        session: dict[str, object],
         session_id: str,
         agent_state: AgentState,
         transcript: str,
