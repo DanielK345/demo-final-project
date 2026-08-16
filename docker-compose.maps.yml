@@ -1,0 +1,55 @@
+# docker-compose.maps.yml — Maps infrastructure services (§46)
+#
+# Provides Nominatim (geocoding) and OSRM (routing) for local development.
+# These are SEPARATE from the Supabase application database.
+#
+# Usage:
+#   docker compose -f docker-compose.maps.yml up -d
+#
+# Prerequisites:
+#   - vietnam-latest.osm.pbf downloaded to data/osm/raw/
+#   - OSRM graph built (scripts/maps/build_osrm.sh)
+#   - Nominatim imported (scripts/maps/import_nominatim.sh)
+#
+# NOTE: Do NOT use Supabase managed DB for Nominatim's internal search DB.
+
+services:
+  osrm:
+    image: ghcr.io/project-osrm/osrm-backend:v5.27.1
+    container_name: alosm-osrm
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./infra/maps/osrm/data:/data:ro
+    command: osrm-routed --algorithm mld /data/vietnam-latest.osrm
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/route/v1/driving/105.8542,21.0285;105.8543,21.0286"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  nominatim:
+    image: mediagis/nominatim:4.4
+    container_name: alosm-nominatim
+    ports:
+      - "8088:8080"
+    volumes:
+      - ./infra/maps/nominatim/data:/data
+      - nominatim-postgres:/var/lib/postgresql/14/main
+      - nominatim-flatnode:/nominatim/flatnode
+    environment:
+      PBF_PATH: /data/vietnam-latest.osm.pbf
+      REPLICATION_URL: https://download.geofabrik.de/asia/vietnam-updates
+      NOMINATIM_PASSWORD: nominatim_dev_password
+      IMPORT_STYLE: full
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/status?format=json"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+volumes:
+  nominatim-postgres:
+  nominatim-flatnode:

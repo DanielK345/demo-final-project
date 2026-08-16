@@ -7,5 +7,5 @@ class CallController:
         self.service = service or CallService()
 
     async def start_call(self, request: CreateCallDTO) -> CallResponseDTO:
-        payload = self.service.create_call(request.customer_phone)
+        payload = await self.service.create_call(request.customer_phone)
         return CallResponseDTO(**payload)

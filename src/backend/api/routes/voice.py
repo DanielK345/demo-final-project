@@ -177,7 +177,7 @@ async def voice_turn(
     (`features/voice/api.ts::sendVoiceTurn`) — khác `/stream` (WS streaming theo thời
     gian thực, Groq+Edge-TTS). Dùng OpenAI/Gemini (`src/backend/integrations/
     voice_client.py`), cấu hình qua `VOICE_PROVIDER`/`OPENAI_API_KEY`/`GEMINI_API_KEY`."""
-    _require_session_access(session_id, authorization)
+    await _require_session_access(session_id, authorization)
     audio_bytes = await audio.read()
     try:
         result = await _voice_turn_service.process_turn(

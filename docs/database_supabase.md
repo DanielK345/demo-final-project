@@ -1,262 +1,133 @@
-# Database cho Deploy — Supabase (Postgres)
+# PostgreSQL/Supabase persistence và quote integrity
 
-Tài liệu này gồm: (1) thiết kế schema, (2) kiến trúc kết nối (vì sao 2 loại connection
-string khác nhau), (3) hướng dẫn từng bước tạo project Supabase thật, (4) cách chạy
-migration, (5) trạng thái code hiện tại.
+Cập nhật: **2026-08-16** · nhánh `feature/voice-ai` · migration head `0004_maps_places_routes`.
 
-## 1. Vì sao Supabase Postgres, và nối bằng cách nào
+Đây là tài liệu nguồn chuẩn cho persistence. Các mô tả cũ nói runtime còn lưu hoàn toàn bằng RAM không còn đúng với môi trường development/production. `APP_ENV=test` vẫn giữ adapter bộ nhớ cũ cho các unit test lịch sử; bài nghiệm thu persistence mới dùng database thật, không mock repository hay transaction.
 
-Stack đã có sẵn `sqlalchemy`, `alembic`, `psycopg2-binary` trong `requirements.txt`
-trước khi tài liệu này được viết — Postgres rõ ràng là lựa chọn thiết kế từ đầu, chỉ
-chưa được nối dây. Supabase là Postgres managed, free tier đủ dùng cho giai đoạn
-capstone.
+## 1. Trạng thái hiện tại
 
-**Chi tiết Free Tier (08/2026):** 500 MB database, 5 GB egress, 2 project, tự **pause
-sau 7 ngày không có query nào chạm DB thật** (không tính việc mở dashboard) — khi bị
-pause, lần gọi API đầu tiên sau đó sẽ chờ ~60s để Supabase khởi động lại compute.
-([nguồn](https://www.itpathsolutions.com/supabase-free-tier-limits)) — cân nhắc nếu
-demo cho giảng viên sau một kỳ nghỉ dài, nên "đánh thức" DB trước (mở dashboard rồi
-gọi thử 1 API) chứ đừng demo trực tiếp ngay.
+| Hạng mục | Trạng thái |
+|---|---|
+| ORM và migration | Đã triển khai trong `src/backend/db/models.py` và `migrations/versions/9e9b6f420a9a_*.py` và `0004_maps_places_routes.py` |
+| Runtime repository | Đã nối Auth, token/2FA, Session, Settings, Conversation, Booking, Trip, Handoff và Call |
+| Quote integrity | Quote lưu DB, HMAC-SHA256, TTL, single-use, ownership check, idempotency và snapshot bất biến |
+| Pricing snapshot | Lưu catalog version/checksum, route, rate, surcharge, promotion và tổng tiền vào quote/booking |
+| PostgreSQL live | Kết nối đọc thành công; DB hiện còn ở `0002_handoff_operations` |
+| Migration live mới | Chưa áp dụng vì thao tác schema/RLS live cần phê duyệt mutation rõ ràng |
+| Test code | `501 passed, 2 skipped`; integration persistence SQLite thật pass |
+| Production gate | Vẫn fail-closed bằng `DURABLE_SERVICE_PERSISTENCE_REQUIRED` cho đến khi migration và script PostgreSQL live pass |
 
-### Hai loại connection string — dùng đúng chỗ, nếu không sẽ lỗi ngẫu nhiên
+Không được tuyên bố `PRODUCTION_READY` khi catalog giá còn `DEMO`, chưa có Maps/Promotion/Dispatch provider và chưa hoàn thành backup/restore/pentest.
 
-Supabase không cho app nối thẳng vào Postgres — mọi kết nối đi qua **Supavisor**
-(pooler), có 2 chế độ:
+## 2. Luồng dữ liệu chuẩn
 
-|            | Transaction Pooler (cổng 6543)                                                                                                                                                                      | Direct / Session (cổng 5432)                         |
-| ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------- |
-| Dùng cho  | App runtime (FastAPI, nhiều request ngắn/đồng thời)                                                                                                                                             | Alembic migration (DDL, chạy không thường xuyên) |
-| Ưu điểm | Chia sẻ connection giữa nhiều client, hiệu quả cao                                                                                                                                              | Giữ 1 connection riêng, ổn định cho DDL          |
-| Hạn chế  | **Không hỗ trợ prepared statement** — nếu không tắt statement cache ở driver, sẽ gặp lỗi `prepared statement "..." already exists` ngẫu nhiên khi có nhiều request cùng lúc | Không phù hợp cho traffic lớn/đồng thời        |
-
-Đây không phải lý thuyết suông — là lỗi thật nhiều người gặp khi ghép SQLAlchemy +
-asyncpg + Supavisor transaction mode
-([nguồn 1](https://supabase.com/docs/guides/troubleshooting/supavisor-and-connection-terminology-explained-9pr_ZO),
-[nguồn 2](https://github.com/supabase/supabase/issues/39227)). Code trong
-`src/backend/db/base.py` đã xử lý đúng: `statement_cache_size=0` +
-`prepared_statement_cache_size=0` trong `connect_args`, và `NullPool` (để Supavisor tự
-quản lý pool, app không chồng thêm 1 lớp pool nữa).
-
-→ **App dùng `DATABASE_URL` = Transaction Pooler URL (cổng 6543).**
-→ **Alembic dùng `DATABASE_URL_MIGRATIONS` = Direct Connection URL (cổng 5432).**
-Để trống `DATABASE_URL_MIGRATIONS` thì Alembic tự dùng lại `DATABASE_URL` (đủ cho
-local dev SQLite, không đủ tối ưu cho Postgres — nên set khi deploy thật).
-
-## 2. Schema (ERD)
-
-```mermaid
-erDiagram
-    users ||--o{ auth_tokens : "có nhiều token"
-    users ||--o{ ride_sessions : "có nhiều phiên"
-    ride_sessions ||--o{ bookings : "có thể tạo nhiều lần đặt"
-    bookings ||--o| trips : "1 booking = 1 trip mô phỏng"
-    ride_sessions ||--o{ handoffs : ""
-    ride_sessions ||--o{ calls : ""
-    ride_sessions ||--o{ conversation_events : ""
-
-    users {
-        string id PK
-        string full_name
-        string phone UK
-        string password_hash
-        string role
-        timestamptz created_at
-    }
-    auth_tokens {
-        string token PK
-        string user_id FK
-        string session_id "nullable, gắn sau khi tạo ride_session"
-        timestamptz issued_at
-        timestamptz expires_at
-    }
-    ride_sessions {
-        string id PK
-        string call_id
-        string user_id FK
-        string status
-        string channel
-        json pickup
-        json destination
-        string vehicle_type
-        string confirmation_status
-        int failed_count
-        string booking_id "soft-ref, không FK cứng — xem mục 3"
-        bool handoff_triggered
-        string current_step
-        timestamptz created_at
-        timestamptz ended_at
-    }
-    bookings {
-        string id PK
-        string session_id FK
-        string idempotency_key UK
-        json pickup
-        json destination
-        string status
-        int estimated_fare
-        string currency
-        int eta_minutes
-        timestamptz created_at
-    }
-    trips {
-        string id PK
-        string booking_id FK, UK
-        string status
-        int eta_minutes
-        timestamptz updated_at
-    }
-    handoffs {
-        string id PK
-        string session_id FK
-        string reason
-        string summary
-        string status
-    }
-    calls {
-        string id PK
-        string session_id FK
-        string customer_phone_hash
-        string status
-    }
-    conversation_events {
-        int id PK
-        string session_id FK
-        string event_type
-        json event_metadata
-        timestamptz created_at
-    }
+```text
+Place/Route provider
+  -> PricingService + immutable pricing_catalog_versions
+  -> fare_quotes (TTL + context_hash + HMAC signature + snapshots)
+  -> explicit confirmation
+  -> transaction SELECT ... FOR UPDATE
+  -> bookings + consumed quote + idempotency_records + outbox_events
+  -> trips / handoff / conversation history
 ```
 
-**Quyết định thiết kế đáng chú ý:**
+Nguyên tắc bắt buộc:
 
-- **ID vẫn là string tự sinh** (`usr_xxxxxxxx`, `sess_xxxxxxxx`...) thay vì Postgres
-  `UUID` type — khớp 100% với format `uuid4().hex[:N]` toàn bộ service hiện tại đang
-  dùng, để API response không đổi field/format khi nối DB thật vào sau này.
-- **`ride_sessions.booking_id` KHÔNG có foreign key cứng** (chỉ là string thường) —
-  vì 2 bảng phụ thuộc vòng lẫn nhau (`ride_sessions.booking_id` ↔
-  `bookings.session_id`): session tạo trước (chưa có booking), booking tạo sau (khi
-  khách xác nhận, luôn tham chiếu 1 session đã tồn tại), rồi mới quay lại set
-  `booking_id` lên session. Ràng buộc FK 2 chiều ở đây tốn công migrate hơn lợi ích
-  thực tế đem lại.
-- **`trips` tách khỏi `bookings`** dù hiện là quan hệ 1-1 — vì `TripStatusDTO` hiện
-  có field khác `BookingResponseDTO` (không có `currency`/`estimated_fare`) và về mặt
-  nghiệp vụ, trip là quá trình *sau* khi có booking, tách bảng giúp mở rộng sau này
-  (nhiều trip thất bại/retry cho 1 booking) không cần migrate lại.
-- **`conversation_events`** — chưa service nào ghi vào (schema có nhưng logic chưa
-  dùng), thêm sẵn để khi cần audit/debug hội thoại thì chỉ cần viết code ghi log, không
-  phải chạy thêm 1 migration nữa.
+- Client chỉ gửi `quote_id`; không được gửi hoặc quyết định giá.
+- Booking dùng đúng `user_id`, `session_id`, route và vehicle đã ký.
+- Quote hết hạn, đã dùng, bị sửa hoặc khác owner đều bị từ chối.
+- Retry cùng `Idempotency-Key` không tạo booking thứ hai.
+- Booking giữ bản chụp giá/route/promotion để lịch sử không đổi khi catalog mới được phát hành.
+- Tiền dùng integer VND; timestamp dùng UTC; JSON dùng JSONB trên PostgreSQL.
+- Lệnh gọi LLM/provider chạy ngoài transaction; transaction chỉ bao quanh thao tác DB ngắn.
 
-## 3. Code đã có sẵn (verify được ngay, không cần Supabase)
+## 3. Bảng chính
 
-| File                                                                                     | Vai trò                                                                                                                                                               |
-| ---------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `src/backend/db/base.py`                                                               | Engine/session async,`to_async_url`/`to_sync_url` (tự chuyển `postgresql://` ↔ `postgresql+asyncpg://`/`+psycopg2://`), `get_db()` (FastAPI dependency) |
-| `src/backend/db/models.py`                                                             | 8 ORM model khớp schema ở mục 2                                                                                                                                     |
-| `alembic.ini` + `migrations/env.py` + `migrations/versions/0001_initial_schema.py` | Migration đầu tiên, tạo đủ 8 bảng                                                                                                                               |
+- Identity: `users`, `policy_acceptances`, `auth_tokens`, `auth_challenges`, `user_settings`.
+- Conversation: `ride_sessions`, `conversation_messages`, `conversation_events`.
+- Operations: `handoffs`, `calls`, `trips`.
+- Quote/booking: `pricing_catalog_versions`, `fare_quotes`, `bookings`.
+- Reliability: `idempotency_records`, `outbox_events`.
+- Maps: `places`, `route_snapshots` (head `0004_maps_places_routes`).
 
-**Đã verify thật** (không phải suy đoán):
+`pricing_catalog_versions` là append-only theo `(version, region)`. Cùng version/region nhưng checksum khác bị từ chối. `fare_quotes` là single-use; `bookings.quote_id` unique. `idempotency_records` chặn retry side effect; `outbox_events` chuẩn bị cho worker phát sự kiện đáng tin cậy.
 
-- `alembic upgrade head` chạy thành công, tạo đủ bảng trên SQLite local.
-- `alembic check` — **"No new upgrade operations detected"**: `models.py` và migration khớp tuyệt đối, không lệch schema.
-- Insert + query round-trip qua async engine thật (`AsyncSession`, không mock) cho `User`/`RideSession`/`AuthToken` — chạy đúng, default field (`current_step="START"`, `vehicle_type="4_SEAT"`...) áp dụng đúng.
-
-Toàn bộ verify trên dùng SQLite (`aiosqlite`) — không cần tài khoản Supabase để chạy
-`pytest`/dev local, giữ đúng nguyên tắc "test không gọi network thật" đã áp dụng cho
-Voice AI (`tests/test_voice/fake_providers.py`). Khi deploy, chỉ cần đổi `DATABASE_URL`
-sang connection string Supabase thật — không cần sửa code.
-
-**Chưa làm (việc tiếp theo, không nằm trong phần "database" mà là "nối service vào
-DB"):** `AuthService`/`SessionService`/`BookingService`/... hiện vẫn đang lưu bằng
-dict RAM, CHƯA gọi tới `src/backend/db/*`. Lý do tạm dừng ở đây: `src/backend/services/ auth_service.py` và `src/backend/api/routes/sessions.py` đang có thay đổi khác diễn ra
-đồng thời (thêm token-session binding) — nối DB vào ngay lúc này dễ đụng/ghi đè công
-việc đó. Sẽ làm ngay sau khi việc kia ổn định — xem phần hỏi riêng ở cuối tin nhắn.
-
-## 4. Hướng dẫn tạo Supabase project — từng bước
-
-### Bước 1 — Tạo tài khoản & project
-
-1. Vào https://supabase.com → **Start your project** → đăng nhập bằng GitHub (khuyên
-   dùng, để sau này quản lý theo tổ chức team dễ hơn nếu cần).
-2. **New organization** (nếu chưa có) → đặt tên bất kỳ, chọn **Free** plan.
-3. **New project**:
-   - **Name**: `alosm-voice` (hoặc tên bạn muốn).
-   - **Database Password**: bấm **Generate a password** → **lưu lại ngay** (chỉ hiện 1
-     lần, mất thì phải reset). Đây chính là phần điền vào `[PASSWORD]` ở connection
-     string bước sau.
-   - **Region**: chọn gần người dùng thật nhất — dự án này target VN nên chọn
-     `Southeast Asia (Singapore)`.
-   - **Pricing Plan**: Free.
-4. Bấm **Create new project** — chờ ~2 phút để Supabase khởi tạo.
-
-### Bước 2 — Lấy 2 connection string
-
-1. Trong project vừa tạo, bấm nút **Connect** (góc trên, cạnh tên project).
-2. Tab **App Frameworks** hoặc mục **Connection String** — sẽ thấy các lựa chọn:
-   - **Transaction pooler** (cổng `6543`) → copy string này cho `DATABASE_URL`.
-   - **Direct connection** hoặc **Session pooler** (cổng `5432`) → copy cho
-     `DATABASE_URL_MIGRATIONS`.
-3. Cả 2 string có dạng:
-   ```
-   postgresql://postgres.xxxxxxxxxxxx:[YOUR-PASSWORD]@aws-0-ap-southeast-1.pooler.supabase.com:6543/postgres
-   ```
-
-   Thay `[YOUR-PASSWORD]` bằng mật khẩu đã lưu ở Bước 1.
-
-### Bước 3 — Điền vào `.env`
-
-Thêm 2 dòng sau vào `.env` (file thật, không commit — đã có trong `.gitignore`):
+## 4. Connection đúng mục đích
 
 ```env
-DATABASE_URL=postgresql://postgres.xxxx:MẬT_KHẨU@aws-0-ap-southeast-1.pooler.supabase.com:6543/postgres
-DATABASE_URL_MIGRATIONS=postgresql://postgres.xxxx:MẬT_KHẨU@aws-0-ap-southeast-1.pooler.supabase.com:5432/postgres
+# Runtime FastAPI: Supavisor transaction pooler, thường cổng 6543
+DATABASE_URL=postgresql://...
+
+# Alembic: direct/session connection, thường cổng 5432
+DATABASE_URL_MIGRATIONS=postgresql://...
+
+# Hai secret độc lập, tối thiểu 32 ký tự; không commit
+QUOTE_SIGNING_KEY=...
+FIELD_ENCRYPTION_KEY=...
 ```
 
-(2 dòng mẫu tương ứng đã thêm vào `.env.example` — không có mật khẩu thật, an toàn để
-commit.)
+Runtime asyncpg đã tắt prepared-statement cache để tương thích transaction pooler. Alembic dùng psycopg2 và URL migration riêng. Không dùng owner/direct credential của migration làm credential runtime production lâu dài.
 
-### Bước 4 — Chạy migration lên Supabase thật
+## 5. Quy trình migration live an toàn
 
-```bash
-python -m alembic upgrade head
-```
+1. Chụp backup/snapshot hoặc xác nhận PITR đang hoạt động.
+2. Dừng deploy ghi dữ liệu hoặc bật maintenance window.
+3. Xác nhận `.env` trỏ đúng environment; tuyệt đối không in URL/password:
 
-Vào tab **Table Editor** trên dashboard Supabase, xác nhận thấy đủ 8 bảng: `users`,
-`auth_tokens`, `ride_sessions`, `bookings`, `trips`, `handoffs`, `calls`,
-`conversation_events`.
+   ```powershell
+   .\.venv\Scripts\python.exe -m alembic heads
+   .\.venv\Scripts\python.exe -m alembic current
+   ```
 
-### Bước 5 — Kiểm tra kết nối từ app
+   Expected trước migration: head `0004_maps_places_routes`, current `0002_handoff_operations`.
 
-```bash
-python -c "
-import asyncio
-from src.backend.db.base import get_session_factory
-from sqlalchemy import text
+4. Review SQL/migration và cấp phê duyệt mutation database live.
+5. Áp dụng:
 
-async def check():
-    async with get_session_factory()() as db:
-        result = await db.execute(text('SELECT 1'))
-        print('Kết nối Supabase OK:', result.scalar())
+   ```powershell
+   .\.venv\Scripts\python.exe -m alembic upgrade head
+   .\.venv\Scripts\python.exe -m alembic current
+   .\.venv\Scripts\python.exe -m alembic check
+   ```
 
-asyncio.run(check())
-"
-```
+   Expected: current `0004_maps_places_routes (head)` và `No new upgrade operations detected`.
 
-In ra `Kết nối Supabase OK: 1` nghĩa là app đã nối được tới Supabase thật qua
-Transaction Pooler.
+6. Chạy nghiệm thu PostgreSQL thật:
 
-### (Tuỳ chọn) Row Level Security
+   ```powershell
+   .\.venv\Scripts\python.exe scripts\verify_postgres_persistence.py
+   ```
 
-Supabase bật RLS mặc định cho bảng tạo qua dashboard, nhưng bảng tạo qua Alembic (như
-ở đây) **không tự động bật RLS**. Vì app luôn nối bằng 1 connection string chung (dùng
-chung 1 "service" identity, không phải qua Supabase Auth JWT của từng end-user), RLS
-không áp dụng được theo đúng mô hình Supabase thiết kế (RLS dựa vào `auth.uid()` từ
-JWT của Supabase Auth, mà project này tự làm auth riêng — xem `auth_service.py`) — có
-thể bỏ qua an toàn ở giai đoạn này. Nếu sau này chuyển sang dùng Supabase Auth thay vì
-tự viết `AuthService`, RLS mới thực sự cần thiết.
+   Expected: `POSTGRES_PERSISTENCE_ACCEPTANCE=PASS`, quote tamper rejection, concurrent idempotency, restart readback và RLS đều pass. Script chỉ xóa đúng record có ID nó vừa tạo; immutable pricing catalog verification được giữ lại.
 
-## 5. Sources
+7. Chạy Supabase Database Advisors trong Dashboard: **Database → Advisors → Security** và **Performance**. Không được bỏ qua lỗi RLS, exposed table, missing FK index hoặc duplicate index.
+8. Chạy smoke API hai process/instance cùng database, retry cùng idempotency key và xác nhận chỉ một booking.
+9. Sau khi evidence trên pass mới xóa code gate `DURABLE_SERVICE_PERSISTENCE_REQUIRED` và chạy lại toàn bộ release suite.
 
-- [Connect to your database | Supabase Docs](https://supabase.com/docs/guides/database/connecting-to-postgres)
-- [Supavisor and Connection Terminology Explained](https://supabase.com/docs/guides/troubleshooting/supavisor-and-connection-terminology-explained-9pr_ZO)
-- [asyncpg prepared statement errors with Supabase poolers (GitHub issue)](https://github.com/supabase/supabase/issues/39227)
-- [Supabase Free Tier Limits 2026 — Hidden Pauses &amp; Caps](https://www.itpathsolutions.com/supabase-free-tier-limits)
+Nếu migration lỗi: dừng ngay, lưu nguyên lỗi và revision, không stamp head thủ công, không sửa trực tiếp bảng để “chạy tiếp”. Restore/rollback chỉ thực hiện theo backup/runbook đã duyệt.
+
+## 6. Security/RLS
+
+Migration bật RLS cho toàn bộ bảng `public` và thu hồi quyền `anon`/`authenticated` nếu các role này tồn tại. Backend hiện dùng direct SQLAlchemy, vì vậy không tạo policy dựa trên `auth.uid()` giả cho custom auth. Trước production cần tạo runtime DB role least-privilege không phải owner, cấp đúng DML/sequence, giữ migration role riêng và kiểm tra runtime role không có `BYPASSRLS`/DDL.
+
+Secret rotation:
+
+1. Tạo key mới trong secret manager, không gửi qua chat/log.
+2. Với `QUOTE_SIGNING_KEY`, chỉ đổi sau khi quote cũ hết TTL hoặc hỗ trợ key version/key ring.
+3. Với `FIELD_ENCRYPTION_KEY`, phải có migration decrypt-old/encrypt-new theo batch và khả năng rollback; đổi thẳng sẽ làm TOTP cũ không giải mã được.
+4. Restart canary, kiểm tra login/2FA/quote, rồi rollout.
+
+## 7. Definition of Done
+
+Persistence/quote chỉ đạt production gate khi đồng thời có:
+
+- migration live ở `0004_maps_places_routes`;
+- script PostgreSQL acceptance pass;
+- restart và multi-instance duplicate booking bằng 0;
+- runtime role least-privilege, RLS/advisors không còn lỗi P0;
+- backup/PITR và restore drill có bằng chứng;
+- key rotation, retention, deletion/export và audit được duyệt;
+- pricing/route/promotion catalog production có owner, version và approval;
+- metrics/alert cho DB latency, transaction error, quote rejection, idempotency collision và outbox lag.
+
+Các việc cần owner/hạ tầng được hướng dẫn chi tiết ở `mustdo.md`; phần còn lại thuộc trách nhiệm code và không được chuyển sang mustdo.

@@ -1,3 +1,95 @@
+# MUST DO — thao tác owner/hạ tầng còn lại
+
+Cập nhật **2026-08-16** cho migration head `0004_maps_places_routes` (persistence/quote: `9e9b6f420a9a`). Phần persistence, repository, quote integrity, snapshot, test và script nghiệm thu đã được AI triển khai. Những mục dưới đây cần quyền thay đổi database live, tài khoản hạ tầng hoặc phê duyệt nghiệp vụ; không thể hợp lệ hóa chỉ bằng code.
+
+## P0.1 — Phê duyệt và áp dụng migration PostgreSQL live
+
+**Tại sao bạn phải làm:** database Supabase live đang ở `0002_handoff_operations`; thao tác đổi schema, bật RLS và revoke quyền là mutation bền vững. Phiên AI chỉ được phép đọc/check, không được phép tự áp dụng khi chưa có phê duyệt live rõ ràng.
+
+1. Mở Supabase Dashboard → project đúng môi trường → **Database → Backups**.
+2. Xác nhận có backup gần nhất hoặc PITR; ghi lại timestamp và người chịu trách nhiệm. Nếu đang dùng plan không có PITR, export backup bằng công cụ chính thức của Supabase/Postgres và thử đọc file backup.
+3. Thông báo maintenance window; tạm dừng deploy/worker đang ghi DB.
+4. Trong terminal tại root project, kiểm tra đúng branch và revision:
+
+   ```powershell
+   git branch --show-current
+   .\.venv\Scripts\python.exe -m alembic heads
+   .\.venv\Scripts\python.exe -m alembic current
+   ```
+
+   Expected: branch `feature/voice-ai`, head `0004_maps_places_routes`, current `0002_handoff_operations`.
+5. Cấp phê duyệt rõ ràng cho mutation database live, sau đó chạy:
+
+   ```powershell
+   .\.venv\Scripts\python.exe -m alembic upgrade head
+   .\.venv\Scripts\python.exe -m alembic current
+   .\.venv\Scripts\python.exe -m alembic check
+   ```
+
+6. Expected: current `0004_maps_places_routes (head)`; check báo `No new upgrade operations detected`.
+7. Nếu lỗi: dừng ngay; không `stamp head`, không sửa tay schema, không chạy lại bằng credential mạnh hơn. Lưu lỗi/revision và restore theo runbook nếu migration đã commit một phần.
+
+**Bằng chứng đóng mục:** backup/PITR timestamp, output current/check, người phê duyệt, môi trường và thời gian thực hiện.
+
+## P0.2 — Chạy acceptance PostgreSQL thật
+
+Sau khi P0.1 pass:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\verify_postgres_persistence.py
+```
+
+Expected đủ năm dòng `PASS`: PostgreSQL persistence, quote tamper rejection, concurrent idempotency, restart readback và RLS. Script dùng record riêng có suffix ngẫu nhiên, không mock và tự dọn chính xác dữ liệu nó tạo.
+
+Tiếp theo chạy hai API instance cùng `DATABASE_URL`, gửi đồng thời cùng `quote_id` + `Idempotency-Key`, rồi query xác nhận chỉ một booking/outbox event. Lưu request IDs và row counts làm artifact.
+
+**Không đóng mục nếu:** script bị skip, chạy SQLite, sửa script để bỏ assertion, hoặc chỉ thấy API 200 mà không kiểm tra row DB.
+
+## P0.3 — Tách runtime role least-privilege khỏi migration owner
+
+1. Trong Supabase SQL Editor hoặc quy trình DBA, tạo login role riêng cho app runtime; không dùng `postgres`/owner và không cấp `BYPASSRLS`, `CREATEDB`, `CREATEROLE`.
+2. Cấp `CONNECT`, `USAGE` schema và đúng quyền `SELECT/INSERT/UPDATE` cần thiết cho các bảng runtime; cấp sequence usage cho bảng autoincrement. Không cấp `ALTER`, `DROP`, `CREATE`.
+3. Giữ `DATABASE_URL_MIGRATIONS` ở secret riêng chỉ CI migration/DBA truy cập. Đổi `DATABASE_URL` sang runtime role qua Supavisor transaction pooler.
+4. Restart canary và chạy health/login/session/quote/booking/cancel/handoff.
+5. Xác minh:
+
+   ```sql
+   SELECT rolname, rolsuper, rolcreaterole, rolcreatedb, rolbypassrls
+   FROM pg_roles WHERE rolname = '<runtime_role>';
+   ```
+
+   Tất cả cờ đặc quyền phải `false`.
+6. Supabase Dashboard → **Database → Advisors → Security** và **Performance**; xử lý toàn bộ finding P0/P1, đặc biệt RLS, exposed tables, missing FK index và duplicate index.
+
+**Lưu ý auth:** dự án dùng custom auth qua backend, không được tạo policy giả dựa trên `auth.uid()`. Nếu muốn dùng Supabase Data API/Auth về sau, phải thiết kế tenant/owner policies riêng và có security review.
+
+## P0.4 — Backup, restore, retention và secret rotation
+
+1. Chọn retention cho account/token, session/transcript, location, quote/booking, call/handoff và audit/outbox; có Legal/Privacy approval.
+2. Tạo backup theo lịch và cảnh báo backup failure.
+3. Restore backup vào project/database cô lập, chạy Alembic current, FK/orphan checks, row counts và smoke API; ghi RTO/RPO thực tế.
+4. Đưa `DATABASE_URL`, `DATABASE_URL_MIGRATIONS`, `QUOTE_SIGNING_KEY`, `FIELD_ENCRYPTION_KEY` vào secret manager; xóa bản rò rỉ khỏi kênh chat/log và rotate credential đã từng chia sẻ.
+5. Rotate quote key chỉ sau khi quote dùng key cũ hết TTL hoặc đã có key ring/version.
+6. Rotate field encryption key bằng batch decrypt-old/encrypt-new có checkpoint/rollback; không thay thẳng vì TOTP ciphertext cũ sẽ không giải mã được.
+
+**Bằng chứng đóng mục:** restore report, RTO/RPO, retention matrix, secret references (không phải secret value), rotation/canary report.
+
+## P0.5 — Dữ liệu nghiệp vụ để quote trở thành production
+
+Code hiện cố ý lưu nhãn `DEMO`. Finance/Product/Ops phải cung cấp và ký duyệt:
+
+1. vehicle catalog thật (capacity, luggage, accessibility);
+2. bảng giá theo region/version/effective date, minimum fare, tier/km/time/wait/cancel/no-show, surcharge và rounding;
+3. Maps/Route provider, service area và quyền lưu place/coordinate/polyline;
+4. voucher eligibility, budget, stackability, ranking và version;
+5. Fleet/Dispatch API, timeout/unknown-outcome reconciliation và SLA;
+6. golden cases có input route/time/vehicle/voucher và expected breakdown/tổng tiền.
+
+Sau khi nhận artifact: tạo **version mới** trạng thái `APPROVED`, không sửa catalog DEMO tại chỗ; chạy đối soát golden cases qua quote API và booking snapshot; Finance/Product ký kết quả.
+
+**Bằng chứng đóng mục:** source checksum, owner/approver, effective period, rollback version, golden-case report và provider credentials trong secret manager.
+
+---
 # MUST DO — đầu vào bên ngoài bắt buộc
 
 Cập nhật: **2026-08-16**.
@@ -86,7 +178,7 @@ và legal sign-off; sau đó cập nhật một policy version mới, không s�
 ## 3. Hạ tầng dữ liệu production cần owner/hạ tầng
 
 Kết nối Supabase/Postgres và Alembic đã được kiểm tra thật ngày 2026-08-16: `current` khớp
-`0002_handoff_operations (head)` và SQLAlchemy thực hiện được query. Không cần tạo lại project chỉ để
+`0002_handoff_operations` trong lần kiểm tra read-only; code head hiện là `0004_maps_places_routes` và cần thực hiện P0.1/P0.2 trước khi cập nhật trạng thái live. Không cần tạo lại project chỉ để
 chứng minh database hoạt động.
 
 Phần còn cần con người/hạ tầng:

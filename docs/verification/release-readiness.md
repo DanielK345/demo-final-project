@@ -1,30 +1,29 @@
 # Release readiness matrix
 
-Date: **2026-08-16** · Branch: `feature/voice-ai` · Policy integration parent: `f7e6bd6`.
+Date: **2026-08-16** · Branch: `feature/voice-ai`.
 
-| Domain | Code | Automated test | Live validation | External dependency | Status |
-|---|---|---|---|---|---|
-| Database | ORM/Alembic/readiness implemented; service wiring incomplete | migration graph + readiness | Supabase `SELECT 1`, current=head | backup/PITR, retention, Redis decision | `STAGING_ONLY` |
-| Maps | provider contract + fail-closed adapter | provider safety tests | no production provider | credential, service polygon, license | `EXTERNAL_BLOCKED` |
-| Pricing | versioned expiring demo quote | quote safety tests | no approved pricing | Product/Finance data | `DEMO` |
-| Promotion | contract documented; runtime service absent | none | none | approved rules/budget | `EXTERNAL_BLOCKED` |
-| Fleet | contract documented; runtime provider absent | none | none | dispatch/fleet feed | `EXTERNAL_BLOCKED` |
-| Booking | explicit confirmation/idempotency guardrails; persistence incomplete | Agent/API regressions | no dispatch provider | dispatch + approved quote source | `STAGING_ONLY` |
-| Policy/RAG | owner-approved immutable source, checksum catalog, public API and cited operational rules | checksum/API/RAG/identity tests | owner approval recorded; AloSM legal identity not supplied | verified AloSM legal/contact sheet, durable consent audit, policy eval/rollback | `STAGING_ONLY` |
-| ASR | ZipFormer/Groq adapters, validation and benchmark tooling | Voice tests | technical artifact benchmark exists | license, consented corpus, production hardware | `RELEASE_GATED` |
-| Transcript Rewrite | privacy guard + evaluator/CLI | semantic/PII hard-gate tests | prior OpenRouter canary | rotated key, data approval, real eval set | `STAGING_ONLY` |
-| TTS | orchestrator, review, validation, bounded fallback | Voice/TTS tests | technical Edge-TTS report | SLA provider + two human reviewers | `RELEASE_GATED` |
-| Telephony | call/websocket skeleton only | limited transport tests | none | number/SIP/webhook secret/operator destinations | `EXTERNAL_BLOCKED` |
-| Handoff | typed policy/lifecycle | Agent/API/service tests | no transfer | operator queue + telephony | `STAGING_ONLY` |
-| Payment | UI only | frontend build | none | merchant/webhook/reconciliation | `EXTERNAL_BLOCKED` |
-| Security | secret hygiene, ownership checks, config/readiness sanitation | automated regressions | no pentest | retention/legal/pentest approval | `STAGING_ONLY` |
+| Domain | Code/test evidence | Còn thiếu | Status |
+|---|---|---|---|
+| PostgreSQL persistence | ORM, repositories, runtime wiring, 467-test suite và real-SQL integration pass | apply migration live, PostgreSQL acceptance, least-privilege role, backup/restore | `RELEASE_GATED` |
+| Quote integrity/snapshot | stored HMAC quote, TTL, ownership, single-use, idempotency, immutable snapshots | approved production pricing/route/promotion và live PG acceptance | `STAGING_ONLY` |
+| Maps/Route | fail-closed provider contract | provider, credential, service area, license | `EXTERNAL_BLOCKED` |
+| Pricing | versioned catalog và deterministic engine | Finance/Product-approved AloSM catalog | `DEMO` |
+| Promotion/Voucher | snapshot contract có sẵn | eligibility/ranking provider và approved budget/rules | `EXTERNAL_BLOCKED` |
+| Fleet/Dispatch | booking/trip contract có sẵn | provider thật, reconciliation và SLA | `EXTERNAL_BLOCKED` |
+| Auth/Consent | DB-backed auth/token/2FA/policy acceptance, encrypted sensitive field support | live migration, retention/export/delete approval | `RELEASE_GATED` |
+| Agent/Handoff | typed workflow, durable state/handoff | operator queue và live transfer drill | `STAGING_ONLY` |
+| Voice ASR/Rewrite/TTS | technical pipeline và automated gates | licensed model/provider, consented corpus, listening review, production soak | `RELEASE_GATED` |
+| Telephony | call/WebSocket integration points | number/SIP/provider/webhook/operator destination | `EXTERNAL_BLOCKED` |
+| Payment/Notification | UI/contracts only | merchant/provider/webhook/reconciliation | `EXTERNAL_BLOCKED` |
+| Security/Operations | fail-closed readiness, RLS migration, no secret output | runtime DB role, advisors, pentest, DR and monitoring | `RELEASE_GATED` |
 
-No row may be interpreted as `PRODUCTION_READY`; that status is intentionally not part of the project taxonomy.
-## Validation result
+## Evidence của thay đổi này
 
-- Full pytest: `472 passed, 5 skipped`, one dependency deprecation warning.
-- Ruff and Python compile: pass.
-- Alembic live: `0002_handoff_operations (head)` equals current PostgreSQL revision.
-- Frontend: lint, TypeScript and Vite production build pass (`1910` modules).
-- Policy source checksum: `5954A5851773F70BA8E5E81AD3785EAA662B86FED5DB7FE38089BC99270F791B`.
-- `git diff --check`: pass.
+- Ruff toàn repository: pass.
+- Full non-live pytest: `501 passed, 2 skipped`.
+- Real SQLite persistence/quote integration: pass, không mock repository/transaction.
+- Alembic code head: `0004_maps_places_routes` (persistence/quote ở `9e9b6f420a9a`, Maps/Route nối tiếp).
+- Supabase current: `0002_handoff_operations`; migration mới chưa áp dụng vì mutation live cần phê duyệt.
+- PostgreSQL acceptance script: đã triển khai nhưng chưa được phép chạy trước migration.
+
+Không domain nào được coi là `PRODUCTION_READY`. Các thao tác external/owner và expected evidence nằm trong `mustdo.md`.

@@ -4,6 +4,9 @@ import json
 from pathlib import Path
 from typing import Any
 
+from src.backend.config import get_settings
+from src.backend.repositories.persistence_repository import PersistenceRepository
+
 _PROJECT_ROOT = Path(__file__).resolve().parents[3]
 _LOGS_DIR = _PROJECT_ROOT / "logs"
 
@@ -17,8 +20,37 @@ class ConversationHistoryService:
     trong dict in-memory (mất khi server restart), nhưng file log vẫn còn.
     """
 
-    def __init__(self, logs_dir: Path | None = None) -> None:
+    def __init__(self, logs_dir: Path | None = None, repository: PersistenceRepository | None = None) -> None:
         self.logs_dir = logs_dir or _LOGS_DIR
+        self._repository = repository or PersistenceRepository()
+
+    async def list_sessions_durable(self, user_id: str) -> list[dict[str, Any]]:
+        if get_settings().app_env == "test":
+            return self.list_sessions(user_id)
+        summaries: list[dict[str, Any]] = []
+        for session in await self._repository.list_sessions(user_id):
+            messages = await self._repository.conversation_messages(str(session["session_id"]))
+            if not messages:
+                continue
+            first = next((str(item["text"]) for item in messages if item["role"] == "user"), "")
+            summaries.append({
+                "session_id": session["session_id"], "channel": session["channel"],
+                "status": session["status"], "created_at": session["created_at"],
+                "message_count": len(messages), "preview": first[:120],
+            })
+        return summaries
+
+    async def get_transcript_durable(self, user_id: str, session_id: str) -> dict[str, Any] | None:
+        if get_settings().app_env == "test":
+            return self.get_transcript(user_id, session_id)
+        session = await self._repository.get_session(session_id)
+        if session is None or session.get("user_id") != user_id:
+            return None
+        return {
+            "session_id": session_id, "channel": session["channel"], "status": session["status"],
+            "created_at": session["created_at"], "ended_at": session["ended_at"],
+            "messages": await self._repository.conversation_messages(session_id),
+        }
 
     def list_sessions(self, user_id: str) -> list[dict[str, Any]]:
         summaries: list[dict[str, Any]] = []

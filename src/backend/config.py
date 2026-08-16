@@ -56,10 +56,15 @@ class Settings(BaseSettings):
     # Tên riêng cho giọng OpenAI của pipeline `/voice/turn`. Không nhận alias
     # `VOICE_TTS_VOICE`: tên legacy đó thuộc Voice runtime Edge-TTS và từng làm
     # OpenAI nhận nhầm tên giọng `vi-VN-*` không hợp lệ.
-    voice_tts_voice: str = Field(
+    openai_tts_voice: str = Field(
         default="nova",
         validation_alias="VOICE_OPENAI_TTS_VOICE",
     )
+
+    @property
+    def voice_tts_voice(self) -> str:
+        """OpenAI voice; deliberately isolated from legacy VOICE_TTS_VOICE."""
+        return self.openai_tts_voice
     voice_gemini_model: str = "gemini-2.0-flash"
     voice_timeout_seconds: float = Field(default=30.0, gt=0)
 
@@ -93,19 +98,55 @@ class Settings(BaseSettings):
     database_url: str = "sqlite:///./data/app.db"
     database_url_migrations: str = ""
     database_readiness_timeout_seconds: float = Field(default=2.0, gt=0, le=30)
+    quote_signing_key: str = ""
+    field_encryption_key: str = ""
+
+    # ---- Maps / Geocoding / Routing ----
+    # Provider-neutral config. MAPS_PROVIDER selects the active stack.
+    maps_provider: str = ""  # "osm" to enable Nominatim + OSRM
+    maps_api_key: str = ""   # Not required for self-hosted Nominatim/OSRM
+    maps_base_url: str = ""
+
+    # Geocoding
+    geocoding_provider: str = "nominatim"
+    nominatim_base_url: str = "http://localhost:8088"
+
+    # Routing
+    routing_provider: str = "osrm"
+    osrm_base_url: str = "http://localhost:5000"
+
+    # Search / display
+    map_country_code: str = "vn"
+    map_search_limit: int = Field(default=5, ge=1, le=20)
+    map_request_timeout_seconds: float = Field(default=5.0, gt=0, le=30)
+
+    # Service area — EXTERNAL_BLOCKED until Product/Ops provides GeoJSON
+    maps_service_area_id: str = ""
+    maps_service_area_path: str = ""  # path to GeoJSON Polygon/MultiPolygon
+
+    # OSM data version metadata (informational)
+    osm_data_version: str = ""
+
+    # Tile provider — for frontend basemap rendering (separate from geocoding/routing)
+    map_tile_url: str = ""
+    map_tile_attribution: str = "© OpenStreetMap contributors"
 
     def production_readiness_errors(self) -> list[str]:
         """Return safe configuration error codes; never include secret values."""
         if self.app_env != "production":
             return []
-        # Auth/session/settings/booking/trip/handoff services still use process-memory.
-        # Keep production fail-closed until typed repositories and restart/multi-instance
-        # integration tests are wired; no environment flag may bypass this code gate.
+        # Durable repositories are implemented. Keep production fail-closed until the live
+        # migration, PostgreSQL acceptance, least-privilege role and multi-instance gate
+        # are completed; no environment flag may bypass this code gate.
         errors: list[str] = ["DURABLE_SERVICE_PERSISTENCE_REQUIRED"]
         if not self.database_url.startswith(("postgres://", "postgresql://", "postgresql+asyncpg://")):
             errors.append("DATABASE_URL_MUST_BE_POSTGRES")
         if not self.database_url_migrations.startswith(("postgres://", "postgresql://", "postgresql+psycopg2://")):
             errors.append("DATABASE_URL_MIGRATIONS_REQUIRED")
+        if len(self.quote_signing_key) < 32:
+            errors.append("QUOTE_SIGNING_KEY_REQUIRED")
+        if len(self.field_encryption_key) < 32:
+            errors.append("FIELD_ENCRYPTION_KEY_REQUIRED")
         origins = {origin.strip() for origin in self.cors_origins.split(",") if origin.strip()}
         if not origins or "*" in origins:
             errors.append("CORS_ORIGINS_MUST_BE_EXPLICIT")

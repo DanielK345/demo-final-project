@@ -8,10 +8,10 @@ class TripController:
         self.service = service or TripService()
 
     async def get_trip_status(self, session_id: str) -> TripStatusDTO:
-        session = SessionService.sessions.get(session_id)
+        session = await SessionService().get_session_durable(session_id)
         if session is None:
             raise KeyError("Không tìm thấy phiên hội thoại")
         booking_id = session.get("booking_id")
         if not booking_id:
             raise ValueError("Phiên này chưa có chuyến đi nào được đặt")
-        return TripStatusDTO(**self.service.get_status_for_booking(str(booking_id)))
+        return TripStatusDTO(**await self.service.get_status_for_booking_durable(str(booking_id)))

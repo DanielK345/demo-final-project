@@ -1,8 +1,57 @@
+import hashlib
+import json
 from datetime import UTC, datetime
 from uuid import uuid4
 
+from src.backend.repositories.persistence_repository import PersistenceRepository
+from src.backend.services.quote_service import QuoteService
+
 
 class BookingService:
+    def __init__(self, repository: PersistenceRepository | None = None, quote_service: QuoteService | None = None) -> None:
+        self._repository = repository or PersistenceRepository()
+        self._quote_service = quote_service or QuoteService(repository=self._repository)
+
+    async def create_booking_from_quote(self, payload: dict[str, object]) -> dict[str, object]:
+        quote_id = str(payload.get("quote_id") or payload.get("fare_estimate_id") or "")
+        user_id = str(payload.get("user_id") or "")
+        session_id = str(payload.get("session_id") or "")
+        idempotency_key = str(payload.get("idempotency_key") or "")
+        if not all((quote_id, user_id, session_id, idempotency_key)):
+            raise ValueError("BOOKING_QUOTE_CONTEXT_REQUIRED")
+        quote = await self._repository.get_quote(quote_id)
+        if quote is None:
+            raise ValueError("QUOTE_NOT_FOUND")
+        await self._quote_service.verify_quote(quote)
+        expected = {
+            "pickup_place_id": payload.get("pickup_place_id"),
+            "destination_place_id": payload.get("destination_place_id"),
+            "vehicle_type": payload.get("vehicle_type"),
+        }
+        for field, value in expected.items():
+            if value is not None and str(value) != str(quote[field]):
+                raise ValueError("QUOTE_CONTEXT_MISMATCH")
+        request_payload = {"quote_id": quote_id, "user_id": user_id, "session_id": session_id, **expected}
+        request_hash = hashlib.sha256(json.dumps(request_payload, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+        return await self._repository.create_booking_from_quote(
+            quote_id=quote_id,
+            user_id=user_id,
+            session_id=session_id,
+            idempotency_key=idempotency_key,
+            request_hash=request_hash,
+            pickup=payload.get("pickup") if isinstance(payload.get("pickup"), dict) else None,
+            destination=payload.get("destination") if isinstance(payload.get("destination"), dict) else None,
+            eta_minutes=int(int(dict(quote["route_snapshot"])["duration_seconds"]) / 60),
+        )
+
+    async def get_booking_durable(self, booking_id: str) -> dict[str, object] | None:
+        return await self._repository.booking(booking_id)
+
+    async def list_bookings_for_user_durable(self, user_id: str) -> list[dict[str, object]]:
+        return await self._repository.bookings_for_user(user_id)
+
+    async def cancel_booking_durable(self, booking_id: str, idempotency_key: str, user_id: str | None = None) -> dict[str, object] | None:
+        return await self._repository.cancel_booking(booking_id, user_id, idempotency_key)
     bookings_by_key: dict[str, dict[str, object]] = {}
     # booking_id -> record (mọi booking, bất kể tạo qua đường nào) — phục vụ
     # GET /api/v1/bookings (lịch sử) và GET /api/v1/trips/status (tra cứu theo booking).

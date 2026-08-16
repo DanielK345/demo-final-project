@@ -31,6 +31,8 @@ async def ready(response: Response) -> dict[str, object]:
         "configuration": "ok" if not config_errors else "failed",
         "database": "not_checked" if config_errors else "pending",
         "asr": "ok" if asr.ready else "failed",
+        "nominatim": "not_configured",
+        "osrm": "not_configured",
     }
     error_codes = list(config_errors)
 
@@ -47,6 +49,24 @@ async def ready(response: Response) -> dict[str, object]:
 
     if not asr.ready:
         error_codes.append("ASR_NOT_READY")
+
+    # Maps provider health checks (§37) — non-blocking, informational
+    if settings.maps_provider:
+        try:
+            from src.backend.services.maps_service import MapsService
+            maps = MapsService(settings=settings)
+            maps_health = await maps.health_check()
+            geo_status = maps_health.get("geocoding", {}).get("status", "not_checked")
+            route_status = maps_health.get("routing", {}).get("status", "not_checked")
+            checks["nominatim"] = geo_status
+            checks["osrm"] = route_status
+            if geo_status == "failed":
+                error_codes.append("NOMINATIM_UNAVAILABLE")
+            if route_status == "failed":
+                error_codes.append("OSRM_UNAVAILABLE")
+        except Exception:
+            checks["nominatim"] = "check_error"
+            checks["osrm"] = "check_error"
 
     is_ready = not error_codes
     if not is_ready:

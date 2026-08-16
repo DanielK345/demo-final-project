@@ -7,10 +7,10 @@ class SessionController:
         self.service = service or SessionService()
 
     async def get_session(self, session_id: str) -> SessionDTO:
-        return SessionDTO(**self.service.get_session(session_id))
+        return SessionDTO(**await self.service.get_session_durable(session_id))
 
     async def update_session(self, session_id: str, request: SessionUpdateDTO) -> SessionDTO:
-        return SessionDTO(**self.service.update_session(session_id, request.model_dump(exclude_none=True)))
+        return SessionDTO(**await self.service.update_session_durable(session_id, request.model_dump(exclude_none=True)))
 
     async def resume_session(self, session_id: str) -> SessionResumeResponseDTO:
-        return SessionResumeResponseDTO(**self.service.resume_session(session_id))
+        return SessionResumeResponseDTO(**await self.service.resume_session_durable(session_id))

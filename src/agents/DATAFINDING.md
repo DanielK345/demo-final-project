@@ -287,6 +287,16 @@ Chỉ số gate đề xuất:
 Log phải có correlation ID, turn ID, tool call ID, provider latency, data version, reason code và
 outcome; không log raw secret/audio/phone/address nếu không cần.
 
+## 7.1 Quote/booking data truth hiện hành
+
+- `pricing_catalog_versions`: catalog bất biến theo version/region/checksum; catalog hiện tại vẫn `DEMO`.
+- `fare_quotes`: nguồn chuẩn tạm thời cho giá đã báo, có owner/session, TTL, route/pricing/promotion snapshot, context hash và HMAC signature.
+- `bookings`: chỉ nhận giá từ quote đã lưu; giữ snapshot và `quote_context_hash` phục vụ audit.
+- `idempotency_records`: nguồn chuẩn cho retry side-effect; `outbox_events`: nguồn phát sự kiện sau commit.
+- Frontend/Agent không được gửi `estimated_fare` như sự thật. Chúng chỉ giữ và xác nhận `quote_id`.
+- Maps route hiện là deterministic demo và promotion snapshot ghi rõ provider chưa cấu hình; không được nâng nhãn production.
+
+Acceptance bắt buộc: migration head `0004_maps_places_routes`, quote tamper rejection, concurrent retry chỉ một booking, restart readback, RLS enabled và booking snapshot đối soát đúng quote. Script chuẩn: `scripts/verify_postgres_persistence.py`.
 ## 8. Lộ trình dữ liệu
 
 ### P0 — trước pilot
@@ -307,7 +317,7 @@ outcome; không log raw secret/audio/phone/address nếu không cần.
 
 ### P2 — production hardening
 
-1. Multi-instance persistence, queue, backup/restore và replay/idempotency test.
+1. Persistence code/idempotency/outbox đã triển khai; còn migration live có phê duyệt, runtime DB role, multi-instance soak và backup/restore drill.
 2. Drift detection cho maps, pricing, policy và ASR.
 3. Red-team voice/prompt injection, pentest và load test.
 4. Data deletion/export workflow và audit RBAC.

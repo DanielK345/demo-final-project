@@ -1,0 +1,11 @@
+query,expected_name,expected_lat,expected_lon,type,slice
+"Bưu điện Hà Nội","Bưu điện trung tâm Hà Nội",21.0285,105.8542,POI,normal
+"Hồ Hoàn Kiếm","Hồ Hoàn Kiếm",21.0288,105.8525,POI,normal
+"Sân bay Nội Bài","Cảng hàng không quốc tế Nội Bài",21.2187,105.8079,POI,normal
+"buu dien ha noi","Bưu điện trung tâm Hà Nội",21.0285,105.8542,POI,no-accent
+"ho hoan kiem","Hồ Hoàn Kiếm",21.0288,105.8525,POI,no-accent
+"Bệnh viện Bạch Mai","Bệnh viện Bạch Mai",21.0010,105.8437,POI,normal
+"132 Ngõ Thổ Quan","132 Ngõ Thổ Quan",21.0185,105.8325,address,alley
+"Chợ Bến Thành","Chợ Bến Thành",10.7721,106.6980,POI,normal
+"cho ben thanh","Chợ Bến Thành",10.7721,106.6980,POI,no-accent
+"Nhà thờ Đức Bà","Nhà thờ Đức Bà Sài Gòn",10.7798,106.6990,POI,normal

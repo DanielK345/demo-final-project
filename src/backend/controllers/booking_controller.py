@@ -1,21 +1,15 @@
 from src.backend.schemas.booking import BookingRequestDTO, BookingResponseDTO, BookingSummaryDTO
 from src.backend.services.booking_service import BookingService
-from src.backend.services.session_service import SessionService
 
 
 class BookingController:
     def __init__(self, service: BookingService | None = None) -> None:
         self.service = service or BookingService()
 
-    async def create_booking(self, request: BookingRequestDTO, idempotency_key: str | None = None) -> BookingResponseDTO:
-        if not request.fare_confirmed:
-            raise ValueError("Cần xác nhận giá trước khi đặt xe")
-        session = SessionService.sessions.get(request.session_id)
-        if session is None or session.get("confirmation_status") != "confirmed":
-            raise ValueError("Phiên đặt xe chưa nhận được xác nhận rõ ràng từ khách hàng")
-        payload = request.model_dump()
-        payload["idempotency_key"] = idempotency_key
-        return BookingResponseDTO(**self.service.create_booking(payload))
+    async def create_booking(self, request: BookingRequestDTO, user_id: str, idempotency_key: str) -> BookingResponseDTO:
+        payload = request.model_dump(mode="json")
+        payload.update({"idempotency_key": idempotency_key, "user_id": user_id})
+        return BookingResponseDTO(**await self.service.create_booking_from_quote(payload))
 
     async def list_bookings(self, user_id: str) -> list[BookingSummaryDTO]:
-        return [BookingSummaryDTO(**booking) for booking in self.service.list_bookings_for_user(user_id)]
+        return [BookingSummaryDTO(**booking) for booking in await self.service.list_bookings_for_user_durable(user_id)]

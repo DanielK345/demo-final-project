@@ -1,6 +1,9 @@
 import hashlib
 from datetime import UTC, datetime
 
+from src.backend.config import get_settings
+from src.backend.repositories.persistence_repository import PersistenceRepository
+
 # Mô phỏng tài xế/xe — KHÔNG phải dữ liệu thật (không có hệ thống điều phối tài xế
 # thật), nhưng ổn định theo booking_id (seed từ hash) thay vì random mỗi lần gọi như
 # code cũ — sửa đúng bug đã ghi trong mustdo.md mục "Database thật".
@@ -18,6 +21,30 @@ _FINAL_STAGE = ("COMPLETED", 0)
 
 
 class TripService:
+    def __init__(self, repository: PersistenceRepository | None = None) -> None:
+        self._repository = repository or PersistenceRepository()
+
+    async def get_status_for_booking_durable(self, booking_id: str) -> dict[str, object]:
+        if get_settings().app_env == "test":
+            return self.get_status_for_booking(booking_id)
+        defaults = self._create_trip(booking_id)
+        defaults.pop("trip_id", None)
+        defaults.pop("booking_id", None)
+        created_at = defaults.pop("created_at")
+        trip = await self._repository.get_or_create_trip(booking_id, defaults)
+        row_created = trip.get("created_at") or created_at
+        if isinstance(row_created, str):
+            row_created = datetime.fromisoformat(row_created)
+        assert isinstance(row_created, datetime)
+        elapsed = (datetime.now(UTC) - row_created).total_seconds()
+        status, eta = _FINAL_STAGE
+        for threshold, candidate_status, candidate_eta in _STAGES:
+            if elapsed < threshold:
+                status, eta = candidate_status, candidate_eta
+                break
+        await self._repository.update_trip(booking_id, status=status, eta_minutes=eta)
+        trip["status"], trip["eta_minutes"] = status, eta
+        return trip
     trips_by_booking: dict[str, dict[str, object]] = {}
 
     def get_status_for_booking(self, booking_id: str) -> dict[str, object]:

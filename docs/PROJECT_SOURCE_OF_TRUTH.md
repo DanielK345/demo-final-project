@@ -134,12 +134,12 @@ Mọi implementation mới phải giữ đúng thứ tự và ID liên kết sau
 Gate: không có duplicate route/env semantics; contract test pass; không có secret
 trong Git.
 
-### Phase 1 — persistence và identity
+### Phase 1 — persistence và identity (`IMPLEMENTED_IN_CODE`, `LIVE_MIGRATION_GATED`)
 
-1. Nối repositories vào các model/migration hiện có.
-2. Chuyển auth, settings, session, booking, trip, handoff khỏi class-level dict.
-3. Thêm transaction, optimistic concurrency, token expiry/revocation và audit event.
-4. Chạy migration/restore/multi-instance test.
+1. [x] Nối repositories vào model/migration cho toàn bộ stateful runtime service.
+2. [x] Chuyển auth, settings, session, conversation, quote, booking, trip, handoff và call sang durable repository ở development/production.
+3. [x] Thêm transaction, optimistic concurrency, hashed token, expiry/revocation, idempotency và outbox.
+4. [ ] Owner phê duyệt migration PostgreSQL live; chạy acceptance, restore drill và multi-instance soak theo `mustdo.md`.
 
 Gate: restart không mất dữ liệu; duplicate booking vẫn bằng 0.
 

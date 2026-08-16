@@ -5,11 +5,9 @@ from src.backend.schemas.common import LocationDTO
 
 class BookingRequestDTO(BaseModel):
     session_id: str
-    pickup: LocationDTO
-    destination: LocationDTO
-    vehicle_type: str
-    fare_confirmed: bool = False
-    estimated_fare: int | None = None
+    quote_id: str
+    pickup: LocationDTO | None = None
+    destination: LocationDTO | None = None
 
 
 class BookingResponseDTO(BaseModel):

@@ -1,21 +1,38 @@
 # Database verification
 
-Date: **2026-08-16** · Branch: `feature/voice-ai` · Baseline commit: `738ea18`.
+Date: **2026-08-16** · Branch: `feature/voice-ai`.
 
-| Field | Actual |
+## Evidence đã chạy
+
+| Check | Kết quả |
 |---|---|
-| Environment | Local `.venv`, remote Supabase/Postgres credentials from untracked `.env` |
-| Secret handling | `.env` ignored and not tracked; values were not printed |
-| Drivers | SQLAlchemy 2.0.52, asyncpg 0.31.0, psycopg2-binary 2.9.12, Alembic 1.19.1 |
-| `alembic heads` | `0002_handoff_operations (head)` |
-| `alembic current` | `0002_handoff_operations (head)` against PostgreSQL |
-| History | `0001_initial -> 0002_handoff_operations` |
-| Runtime readiness | Timed `SELECT 1`; safe 503 without connection details |
+| Runtime imports | pass |
+| Ruff toàn repository | pass |
+| Backend/API regression | pass sau khi sửa 3 regression |
+| Full offline suite | `501 passed, 2 skipped` |
+| Real SQL persistence integration | pass trên SQLite/aiosqlite, không mock repository/transaction |
+| Quote tamper rejection | pass |
+| Idempotent booking retry | pass |
+| Engine restart readback | pass cho booking, place và route snapshot |
+| `alembic heads` | `0004_maps_places_routes (head)` |
+| PostgreSQL `alembic current` | `0002_handoff_operations` |
+| PostgreSQL connectivity | pass, credential không được in |
 
-Status: database connectivity and migration alignment are `LIVE_VALIDATED`. Application persistence
-is only `STAGING_ONLY`: primary services still use process-memory despite ORM tables. Restart and
-multi-instance persistence therefore remain **not passed** and are internal engineering work.
+## Trạng thái trung thực
 
-Supabase changelog review: 2026 Data API no longer auto-exposes new tables. This application currently
-uses direct SQLAlchemy connections; if Data API access is later enabled, explicit grants and ownership
-RLS policies must be reviewed together. No permissive RLS policy was invented in this change.
+Code persistence và migration đã hoàn tất nhưng PostgreSQL live chưa được mutate lên head mới. Lệnh `alembic upgrade head` bị chặn vì cần phê duyệt rõ ràng cho schema/RLS mutation trên database live. Vì vậy:
+
+- không ghi `LIVE_VALIDATED` cho migration mới;
+- không chạy script acceptance trước khi DB ở đúng revision;
+- giữ production readiness fail-closed;
+- thao tác owner cần làm nằm trong `mustdo.md` và `docs/database_supabase.md`.
+
+Sau khi được phê duyệt, chạy:
+
+```powershell
+.\.venv\Scripts\python.exe -m alembic upgrade head
+.\.venv\Scripts\python.exe -m alembic check
+.\.venv\Scripts\python.exe scripts\verify_postgres_persistence.py
+```
+
+Chỉ cập nhật tài liệu này sang `LIVE_VALIDATED` khi lưu được output pass, timestamp, environment và người phê duyệt.

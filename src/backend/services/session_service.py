@@ -6,6 +6,8 @@ from uuid import uuid4
 from src.agents.agent import LLMAgent
 from src.agents.schemas import ActionType, AgentAction, AgentInput
 from src.agents.state import AgentState
+from src.backend.config import get_settings
+from src.backend.repositories.persistence_repository import PersistenceRepository
 from src.backend.services.agent_tool_executor import AgentToolExecutor
 from src.backend.services.conversation_logger import ConversationLogger
 from src.backend.services.handoff_service import HandoffService
@@ -18,6 +20,73 @@ class SessionService:
     _conversation_logger = ConversationLogger()
     _handoff_service = HandoffService()
     _MAX_TOOL_TURNS = 8
+
+    def __init__(self, repository: PersistenceRepository | None = None) -> None:
+        self._repository = repository or PersistenceRepository()
+        self._durable = get_settings().app_env != "test"
+
+    async def create_session_durable(
+        self,
+        user_id: str,
+        channel: str,
+        device_id: str | None = None,
+        *,
+        phone: str | None = None,
+    ) -> dict[str, object]:
+        if not self._durable:
+            return self.create_session(user_id, channel, device_id, phone=phone)
+        session = await self._repository.create_session(user_id=user_id, channel=channel, device_id=device_id, phone=phone)
+        self._conversation_logger.start_session(session_id=str(session["session_id"]), user_id=user_id, channel=channel, device_id=device_id)
+        return {key: session[key] for key in ("session_id", "status", "channel", "created_at")}
+
+    async def get_session_durable(self, session_id: str) -> dict[str, object]:
+        if not self._durable:
+            return self.get_session(session_id)
+        session = await self._repository.get_session(session_id)
+        if session is None:
+            raise KeyError("Không tìm thấy phiên hội thoại")
+        return session
+
+    async def update_session_durable(self, session_id: str, payload: dict[str, object]) -> dict[str, object]:
+        if not self._durable:
+            return self.update_session(session_id, payload)
+        session = await self._repository.update_session(session_id, payload)
+        if session is None:
+            raise KeyError("Không tìm thấy phiên hội thoại")
+        return session
+
+    async def resume_session_durable(self, session_id: str) -> dict[str, str]:
+        updated = await self.update_session_durable(session_id, {"status": "ACTIVE"})
+        return {"session_id": str(updated["session_id"]), "status": "resumed"}
+
+    async def end_session_durable(self, session_id: str, reason: str) -> dict[str, str]:
+        if not self._durable:
+            return self.end_session(session_id, reason)
+        ended_at = datetime.now(UTC)
+        updated = await self._repository.update_session(session_id, {"status": "ENDED", "end_reason": reason, "ended_at": ended_at})
+        if updated is None:
+            raise KeyError("Không tìm thấy phiên hội thoại")
+        return {"session_id": session_id, "status": "ENDED", "ended_at": ended_at.isoformat()}
+
+    async def reset_conversation_durable(self, session_id: str) -> dict[str, str]:
+        if not self._durable:
+            return self.reset_conversation(session_id)
+        current = await self.get_session_durable(session_id)
+        if current.get("status") != "ACTIVE":
+            raise ValueError("Chỉ có thể đặt lại một phiên hội thoại đang hoạt động")
+        fields = {"intent": None, "pickup": None, "destination": None, "vehicle_type": None, "confirmation_status": "pending", "failed_count": 0, "booking_id": None, "handoff_triggered": False, "handoff_id": None, "booking_lifecycle_status": None, "feedback": None, "current_workflow": None, "current_step": None, "agent_state": None, "turn_sequence": 0}
+        await self.update_session_durable(session_id, fields)
+        return {"session_id": session_id, "status": "ACTIVE", "reset_at": datetime.now(UTC).isoformat()}
+
+    async def submit_feedback_durable(self, session_id: str, rating: int, comment: str | None = None) -> dict[str, object]:
+        if not self._durable:
+            return self.submit_feedback(session_id, rating, comment)
+        current = await self.get_session_durable(session_id)
+        if current.get("booking_lifecycle_status") != "SUCCESS":
+            raise ValueError("Chỉ có thể đánh giá sau khi đặt xe thành công")
+        feedback = {"rating": rating, "comment": comment, "submitted_at": datetime.now(UTC).isoformat()}
+        await self.update_session_durable(session_id, {"feedback": feedback})
+        return {"session_id": session_id, "feedback": feedback}
 
     def create_session(
         self,
@@ -139,9 +208,13 @@ class SessionService:
         *,
         source: str = "TEXT",
     ) -> dict[str, object]:
-        session = self.sessions.get(session_id)
+        if self._durable:
+            session = await self._repository.get_session(session_id)
+        else:
+            session = self.sessions.get(session_id)
         if session is None:
             raise KeyError("Không tìm thấy phiên hội thoại")
+        original_version = int(session.get("version") or 1)
         if session["status"] != "ACTIVE":
             raise ValueError("Phiên hội thoại đã kết thúc")
 
@@ -183,7 +256,7 @@ class SessionService:
 
         session["agent_state"] = agent_state.model_dump(mode="json")
         self._sync_legacy_session_fields(session, agent_state, action)
-        self._persist_handoff(session, agent_state, action)
+        await self._persist_handoff(session, agent_state, action)
         response = self._format_action_response(session, agent_state, action)
         # Return the actual text sent to the Agent. Voice transports have already
         # applied their canonical post-ASR rewrite before reaching this service.
@@ -201,6 +274,19 @@ class SessionService:
             stt_confidence=confidence,
             response=response,
         )
+        if self._durable:
+            persisted = await self._repository.update_session(session_id, session, expected_version=original_version)
+            if persisted is None:
+                raise ValueError("SESSION_CONCURRENT_UPDATE")
+            await self._repository.append_messages(
+                session_id=session_id,
+                turn_id=str(response.get("message_id", "turn")),
+                user_text=message.strip(),
+                agent_text=str(response.get("message", "")),
+                source=source,
+                confidence=confidence,
+                action=str(response.get("action", "")),
+            )
         return response
 
     @staticmethod
@@ -275,7 +361,7 @@ class SessionService:
             session["status"] = "ENDED"
 
     @classmethod
-    def _persist_handoff(
+    async def _persist_handoff(
         cls,
         session: dict[str, object],
         agent_state: AgentState,
@@ -301,7 +387,10 @@ class SessionService:
             "queue": context.get("queue", "GENERAL_OPERATOR"),
             "requires_immediate_transfer": context.get("requires_immediate_transfer", False),
         }
-        handoff = cls._handoff_service.create_handoff(payload)
+        if get_settings().app_env == "test":
+            handoff = cls._handoff_service.create_handoff(payload)
+        else:
+            handoff = await cls._handoff_service.create_handoff_durable(payload)
         session["handoff_id"] = handoff["handoff_id"]
 
     @staticmethod

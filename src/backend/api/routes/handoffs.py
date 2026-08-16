@@ -9,16 +9,16 @@ router = APIRouter(prefix="/handoffs", tags=["handoffs"])
 controller = HandoffController()
 
 
-def _authenticated_user(authorization: str | None) -> dict[str, str]:
+async def _authenticated_user(authorization: str | None) -> dict[str, object]:
     token = authorization.removeprefix("Bearer ") if authorization else ""
-    user = auth_service.get_user_for_token(token)
+    user = await auth_service.get_user_for_token_durable(token)
     if user is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Yêu cầu xác thực")
     return user
 
 
-def _require_operator(authorization: str | None) -> dict[str, str]:
-    user = _authenticated_user(authorization)
+async def _require_operator(authorization: str | None) -> dict[str, object]:
+    user = await _authenticated_user(authorization)
     if user.get("role") not in {"OPERATOR", "ADMIN"}:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Chỉ tổng đài viên được truy cập")
     return user
@@ -29,8 +29,11 @@ async def create_handoff(
     request: HandoffDTO,
     authorization: str | None = Header(default=None),
 ) -> HandoffResponseDTO:
-    user = _authenticated_user(authorization)
-    session = SessionService.sessions.get(request.session_id)
+    user = await _authenticated_user(authorization)
+    try:
+        session = await SessionService().get_session_durable(request.session_id)
+    except KeyError:
+        session = None
     if session is None or session.get("user_id") != user.get("user_id"):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Không có quyền với phiên này")
     return await controller.create_handoff(request)
@@ -41,7 +44,7 @@ async def list_pending_handoffs(
     handoff_status: str = Query(default="pending", alias="status"),
     authorization: str | None = Header(default=None),
 ) -> list[HandoffResponseDTO]:
-    _require_operator(authorization)
+    await _require_operator(authorization)
     try:
         return await controller.list_handoffs(handoff_status)
     except ValueError as exc:
@@ -53,7 +56,7 @@ async def accept_handoff(
     handoff_id: str,
     authorization: str | None = Header(default=None),
 ) -> HandoffAcceptanceDTO:
-    operator = _require_operator(authorization)
+    operator = await _require_operator(authorization)
     try:
         return await controller.accept_handoff(handoff_id, operator.get("user_id"))
     except KeyError as exc:

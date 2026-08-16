@@ -20,11 +20,10 @@ Frontend (React/Vite)  --HTTP/WS-->  Backend (FastAPI)
                 guardrails         voice.py)           controllers/)
 ```
 
-- **Backend**: FastAPI, entrypoint `src/main.py` → `src/backend/main.py`. Domain
-  services (auth, session, booking, trip, handoff, call) hiện lưu **in-memory**
-  (dict cấp class) — xem [`mustdo.md`](mustdo.md) mục 3 cho yêu cầu chuyển sang
-  Postgres/Supabase; model và Alembic migration đã có tại `src/backend/db/` và
-  `migrations/`, nhưng repository production chưa được nối.
+- **Backend**: FastAPI, entrypoint `src/main.py` → `src/backend/main.py`. Auth,
+  token/2FA, session, settings, conversation, quote, booking, trip, handoff và call
+  đã dùng repository PostgreSQL trong development/production. `APP_ENV=test` giữ
+  adapter bộ nhớ cũ cho unit test lịch sử; xem [`docs/database_supabase.md`](docs/database_supabase.md).
 - **Agentic AI** (`src/agents/`): LangGraph agent thật điều khiển hội thoại đặt xe
   (thay cho rule-engine đơn giản ban đầu) — xem `src/agents/README.md`.
 - **Voice AI**: một pipeline kiểm duyệt dùng chung với ba transport: `/voice/turn`
@@ -95,6 +94,6 @@ cd src/frontend && npm run lint && npx tsc -b && npm run build
 
 - **`mustdo.md`** liệt kê mọi việc cần thao tác thủ công (tạo tài khoản Supabase,
   Payment Gateway thật, v.v.) — luôn xem file này trước khi hỏi "sao chưa hoạt động".
-- Backend hiện là **in-memory MVP** (không phải bug) — dữ liệu mất khi restart server,
-  cho tới khi các service được nối vào `src/backend/db/` (hạ tầng Postgres đã sẵn
-  sàng, xem `docs/database_supabase.md`).
+- Runtime development/production đã dùng persistence và quote snapshot. Database live
+  vẫn phải được migrate lên `9e9b6f420a9a` và chạy acceptance trước khi bỏ production gate;
+  xem `docs/verification/database.md` và `mustdo.md`.

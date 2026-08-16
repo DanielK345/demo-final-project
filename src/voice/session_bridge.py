@@ -48,11 +48,11 @@ class SessionBridge:
         device_id: str | None = None,
     ) -> dict[str, Any]:
         user_id = f"voice_guest_{uuid4().hex[:8]}"
-        return self._service.create_session(user_id, channel, device_id)
+        return await self._service.create_session_durable(user_id, channel, device_id)
 
     async def get_session(self, session_id: str) -> dict[str, Any] | None:
         try:
-            return self._service.get_session(session_id)
+            return await self._service.get_session_durable(session_id)
         except KeyError:
             return None
 
@@ -85,6 +85,6 @@ class SessionBridge:
 
     async def end_session(self, session_id: str, reason: str = "USER_ENDED") -> dict[str, Any] | None:
         try:
-            return self._service.end_session(session_id, reason)
+            return await self._service.end_session_durable(session_id, reason)
         except KeyError:
             return None

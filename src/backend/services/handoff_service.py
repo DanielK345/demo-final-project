@@ -1,13 +1,46 @@
 from datetime import UTC, datetime
 from uuid import uuid4
 
+from src.backend.config import get_settings
 from src.backend.repositories.handoff_repository import HandoffRepository, get_handoff_repository
+from src.backend.repositories.persistence_repository import PersistenceRepository
 from src.backend.schemas.handoff import HandoffStatus
 
 
 class HandoffService:
     def __init__(self, repository: HandoffRepository | None = None) -> None:
         self._repository = repository or get_handoff_repository()
+        self._persistence = PersistenceRepository()
+
+    async def create_handoff_durable(self, payload: dict[str, object]) -> dict[str, object]:
+        if get_settings().app_env == "test":
+            return self.create_handoff(payload)
+        values = {
+            "session_id": str(payload.get("session_id", "")),
+            "reason": str(payload.get("reason", "unknown")),
+            "reason_code": str(payload.get("reason_code", "UNABLE_TO_CONTINUE")),
+            "summary": str(payload.get("summary", "")),
+            "pending_action": payload.get("pending_action"),
+            "priority": int(payload.get("priority", 50)),
+            "severity": str(payload.get("severity", "NORMAL")),
+            "queue": str(payload.get("queue", "GENERAL_OPERATOR")),
+            "requires_immediate_transfer": bool(payload.get("requires_immediate_transfer", False)),
+            "status": HandoffStatus.PENDING.value,
+        }
+        return await self._persistence.create_handoff(values)
+
+    async def list_handoffs_durable(self, status: str) -> list[dict[str, object]]:
+        if get_settings().app_env == "test":
+            return self.list_handoffs(status)
+        return await self._persistence.list_handoffs(HandoffStatus(status).value)
+
+    async def accept_handoff_durable(self, handoff_id: str, operator_id: str | None = None) -> dict[str, object]:
+        if get_settings().app_env == "test":
+            return self.accept_handoff(handoff_id, operator_id)
+        updated = await self._persistence.accept_handoff(handoff_id, operator_id)
+        if updated is None:
+            raise KeyError("Không tìm thấy yêu cầu chuyển tổng đài viên")
+        return {"handoff_id": handoff_id, "status": HandoffStatus.ACCEPTED.value, "accepted_at": updated["accepted_at"], "operator_id": operator_id}
 
     def create_handoff(self, payload: dict[str, object]) -> dict[str, object]:
         record = {

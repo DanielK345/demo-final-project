@@ -101,3 +101,10 @@ out/
 #Duy's docs
 duy_docs/
 .aider*
+
+# Maps / OSM data — never commit large binary geodata or generated graph files
+*.osm.pbf
+maps-data/
+data/osm/raw/
+infra/maps/osrm/data/
+infra/maps/nominatim/data/

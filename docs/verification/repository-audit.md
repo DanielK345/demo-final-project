@@ -1,33 +1,20 @@
-# Repository audit — production hardening
+# Repository audit — persistence và quote integrity
 
-Date: **2026-08-16** · Branch: `feature/voice-ai` · Baseline commit: `738ea18`.
+Date: **2026-08-16** · Branch: `feature/voice-ai`.
 
-## Scope and method
-
-Scanned `src/`, `migrations/`, `tests/`, `scripts/`, `docs/` and `data/` for TODO/FIXME,
-mock/fake/demo/stub, `pass`, process-memory stores, hard-coded/random/hash-generated business data
-and placeholder adapters. Reference course material and test doubles were classified separately.
-
-## Classification
-
-| Finding | Classification | Action/evidence |
+| Finding trước đây | Trạng thái mới | Evidence |
 |---|---|---|
-| `tests/test_voice/fake_providers.py`, `AsyncMock`, fake keys | `TEST_ONLY` | Kept; offline deterministic tests only |
-| Frontend catalog/map/voucher/payment sample data | `DEMO_ALLOWED` | Remains explicitly labeled `DEMO`; never treated as API truth |
-| Gazetteer names without coordinates | `DEMO_ALLOWED` | Unknown free-form text now returns unresolved/empty instead of a fabricated candidate |
-| `MapsClient` returning `(0,0)` | `RUNTIME_BLOCKER` | Removed; provider-neutral contract now fails closed when unconfigured |
-| Hash-generated distance/fare | `RUNTIME_BLOCKER` for production | Kept only as `DEMO`, with pricing version, expiry, `estimated=true` and `data_quality=DEMO` |
-| Quote ID ignored during booking | `RUNTIME_BLOCKER` | Backend now rejects quote ID not matching route + vehicle |
-| `/ready` unconditional success | `RUNTIME_BLOCKER` | Replaced by config validation + timed DB `SELECT 1` |
-| Auth/session/settings/booking/trip process-memory | `RUNTIME_BLOCKER` | Not falsely marked done; typed ORM exists but runtime wiring remains code work |
-| Empty Booking/Call/Event repositories | `RUNTIME_BLOCKER` | Confirmed; cannot count scaffolds as persistence |
-| Handoff repository process-local | `RUNTIME_BLOCKER` | Typed lifecycle works, durable wiring still required |
-| Voice provider fakes | `TEST_ONLY` | Kept; live provider gates remain separate |
-| Abstract methods using `pass` in Protocol/ABC layers | `DEMO_ALLOWED` | Interface declarations, not executable stubs |
-| Legacy Agent FSM/router | `HISTORICAL` | Isolated under `src/agents/legacy`; no new production work should target it |
+| Auth/session/settings/booking/trip dùng RAM ở runtime | `RESOLVED_IN_CODE` | `PersistenceRepository`; durable methods và route/controller wiring |
+| Handoff/call không bền vững | `RESOLVED_IN_CODE` | DB-backed handoff/call lifecycle |
+| Conversation history đọc file | `RESOLVED_IN_CODE` cho runtime | `conversation_messages`; file logger chỉ còn shadow/test compatibility |
+| Quote không được lưu/consume atomically | `RESOLVED_IN_CODE` | `fare_quotes`, row lock, TTL, ownership, single-use |
+| Client có thể ảnh hưởng giá booking | `RESOLVED_IN_CODE` | booking API nhận `quote_id`, giá lấy từ DB snapshot |
+| Retry có thể tạo side effect lặp | `RESOLVED_IN_CODE` | `idempotency_records`, unique constraints, outbox |
+| Pricing thay đổi làm lịch sử đổi | `RESOLVED_IN_CODE` | immutable catalog + booking pricing/route/promotion snapshot |
+| Production bật trước nghiệm thu DB | `FAIL_CLOSED` | `DURABLE_SERVICE_PERSISTENCE_REQUIRED` vẫn bật |
+| Maps/Promotion/Fleet/Dispatch production | `EXTERNAL_BLOCKED` | provider/credential/business approval chưa có |
+| Giá hiện hành | `DEMO` | không được coi là AloSM production pricing |
 
-## Priority conclusion
+Test double trong `APP_ENV=test` vẫn được giữ để không phá unit test lịch sử; nó không phải bằng chứng nghiệm thu persistence. Bằng chứng mới là real SQL integration và script `scripts/verify_postgres_persistence.py`.
 
-The database is reachable and Alembic is current, but that does not make application state durable.
-The next internal P0 is wiring typed repositories for identity/session/booking/idempotency/handoff and
-proving restart plus two-instance behavior. It must not be moved to `mustdo.md`.
+P0 còn lại là áp dụng migration live có phê duyệt, chạy acceptance PostgreSQL, tạo runtime role least-privilege, backup/restore drill và multi-instance soak. Đây là thao tác hạ tầng/owner, không phải phần code còn bỏ trống.

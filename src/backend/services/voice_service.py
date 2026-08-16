@@ -86,7 +86,12 @@ class VoiceService:
             logger.info("Voice STT hallucination blocked session=%s provider=%s", session_id, provider_name)
             return self._reprompt_response(provider_name, reason="known_asr_hallucination")
 
-        session_context = self.session_service.get_session(session_id)
+        durable_getter = getattr(self.session_service, "get_session_durable", None)
+        session_context = (
+            await durable_getter(session_id)
+            if durable_getter is not None
+            else self.session_service.get_session(session_id)
+        )
         rewrite = await self._rewrite(
             deterministic_transcript,
             session_context=session_context,
