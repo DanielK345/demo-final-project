@@ -160,15 +160,15 @@ npm run lint
 npm run build
 ```
 
-Chạy 7 MVP eval cases offline và selected regression tests:
+Chạy 6 Agent workflow evals nhiều lượt và selected regression tests:
 
 ```bash
-uv run python -m eval_cases.run_mvp_evals
+uv run python -m eval_cases.run_agent_workflow_evals
 ```
 
-Kết quả tổng hợp nằm tại [`eval_cases/mvp_eval_results.json`](eval_cases/mvp_eval_results.json); input, expected và actual output của từng case nằm trong [`eval_cases/results/`](eval_cases/results/). Xem [`eval_cases/README.md`](eval_cases/README.md) để đọc schema và tái chạy evidence.
+Kết quả tổng hợp nằm tại [`eval_cases/agent_workflow_eval_summary.json`](eval_cases/agent_workflow_eval_summary.json). Mỗi case có một JSON riêng ghi toàn bộ lượt user/agent, semantic decision, backend tool call và state sau lượt đó trong [`eval_cases/results/`](eval_cases/results/). Các case gồm happy path, đổi điểm đón, đổi điểm đến, đổi loại xe, yêu cầu ngoài phạm vi và handoff tổng đài viên. Xem [`eval_cases/README.md`](eval_cases/README.md) để tái chạy evidence.
 
-Các eval dùng deterministic adapters, không gọi provider thật và không cần API key. Live provider checks nằm trong [`docs/voice-ai/`](docs/voice-ai/README.md).
+Các eval dùng scripted semantic decisions để tái lập nhưng vẫn chạy production Agent/state machine/backend tools ở chế độ in-memory; không gọi provider thật và không cần API key.
 
 ## 5. Project layout
 

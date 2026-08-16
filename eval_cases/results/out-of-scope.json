@@ -1,0 +1,93 @@
+{
+  "schema_version": "2.0",
+  "generated_at": "2026-08-16T20:02:45.210408+00:00",
+  "mode": "offline_deterministic_agent_workflow",
+  "case": {
+    "id": "AGENT-005",
+    "title": "Yêu cầu ngoài phạm vi",
+    "goal": "Từ chối lịch sự, không tạo workflow hay gọi backend.",
+    "status": "passed",
+    "duration_ms": 1.756,
+    "conversation": [
+      {
+        "turn": 1,
+        "user": "Viết giúp tôi một chương trình Python quản lý kho",
+        "assistant": {
+          "action": "ASK_USER",
+          "message": "Mình chỉ hỗ trợ đặt xe và các vấn đề chuyến đi của AloSM. Bạn có muốn đặt một chuyến xe không?",
+          "booking": null
+        },
+        "semantic_decisions": [
+          {
+            "tool": "respond",
+            "arguments": {
+              "message": "Mình chỉ hỗ trợ đặt xe và các vấn đề chuyến đi của AloSM. Bạn có muốn đặt một chuyến xe không?",
+              "expects_response": true
+            }
+          }
+        ],
+        "backend_tools": [],
+        "state_after_turn": {
+          "workflow": null,
+          "step": null,
+          "confirmation": "NOT_REQUESTED",
+          "booking": {
+            "pickup_query": null,
+            "pickup": null,
+            "destination_query": null,
+            "destination": null,
+            "vehicle_type": null,
+            "fare_estimate_id": null,
+            "fare_amount": null,
+            "currency": null,
+            "booking_id": null,
+            "booking_status": null
+          },
+          "handoff": null
+        }
+      }
+    ],
+    "assertions": [
+      {
+        "name": "polite scoped response",
+        "passed": true,
+        "expected": "Mình chỉ hỗ trợ đặt xe và các vấn đề chuyến đi của AloSM. Bạn có muốn đặt một chuyến xe không?",
+        "actual": "Mình chỉ hỗ trợ đặt xe và các vấn đề chuyến đi của AloSM. Bạn có muốn đặt một chuyến xe không?"
+      },
+      {
+        "name": "asks whether to book",
+        "passed": true,
+        "expected": "ASK_USER",
+        "actual": "ASK_USER"
+      },
+      {
+        "name": "no workflow started",
+        "passed": true,
+        "expected": null,
+        "actual": null
+      },
+      {
+        "name": "no backend tool called",
+        "passed": true,
+        "expected": [],
+        "actual": []
+      },
+      {
+        "name": "typed respond used",
+        "passed": true,
+        "expected": [
+          "respond"
+        ],
+        "actual": [
+          "respond"
+        ]
+      },
+      {
+        "name": "all scripted decisions consumed",
+        "passed": true,
+        "expected": 0,
+        "actual": 0
+      }
+    ]
+  }
+}

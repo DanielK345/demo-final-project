@@ -1,0 +1,61 @@
+{
+  "schema_version": "2.0",
+  "generated_at": "2026-08-16T20:02:45.210408+00:00",
+  "mode": "offline_deterministic_agent_workflow",
+  "environment": {
+    "python": "3.12.3",
+    "platform": "Linux-7.0.0-28-generic-x86_64-with-glibc2.39"
+  },
+  "summary": {
+    "cases": 6,
+    "passed": 3,
+    "failed": 3,
+    "pytest_exit_code": 1,
+    "overall_status": "failed"
+  },
+  "pytest": {
+    "command": "/home/danielk/AI-thucchien/FINAL PROJECT/P-160/.venv/bin/python -m pytest -q eval_cases/test_agent_workflows.py tests/test_backend/test_hanoi_booking_flow.py::test_vinuni_to_ho_guom_can_reach_confirmation_and_create_booking tests/test_agents/test_model_driven_booking.py::test_typed_respond_tool_controls_whether_agent_expects_an_answer tests/test_agents/test_model_driven_booking.py::test_vehicle_correction_updates_typed_state_before_next_backend_call tests/test_agents/test_model_driven_booking.py::test_handoff_contains_safe_structured_conversation_context tests/test_agents/test_handoff_policy.py::test_classify_specialized_handoff_cases",
+    "selected_tests": [
+      "eval_cases/test_agent_workflows.py",
+      "tests/test_backend/test_hanoi_booking_flow.py::test_vinuni_to_ho_guom_can_reach_confirmation_and_create_booking",
+      "tests/test_agents/test_model_driven_booking.py::test_typed_respond_tool_controls_whether_agent_expects_an_answer",
+      "tests/test_agents/test_model_driven_booking.py::test_vehicle_correction_updates_typed_state_before_next_backend_call",
+      "tests/test_agents/test_model_driven_booking.py::test_handoff_contains_safe_structured_conversation_context",
+      "tests/test_agents/test_handoff_policy.py::test_classify_specialized_handoff_cases"
+    ],
+    "exit_code": 1,
+    "output": ".FFF.............                                                        [100%]\n=================================== FAILURES ===================================\n_____________________ test_agent_workflow_case[AGENT-002] ______________________\n\ndefinition = CaseDefinition(case_id='AGENT-002', slug='change-pickup', title='Đổi điểm đón giữa chừng', goal='Đổi điểm đón, báo giá lại và chỉ booking sau xác nhận mới.', function=<function case_change_pickup at 0x7ae9a47fafc0>)\n\n    @pytest.mark.asyncio\n    @pytest.mark.parametrize(\"definition\", CASE_DEFINITIONS, ids=lambda item: item.case_id)\n    async def test_agent_workflow_case(definition):\n        result = await execute_case(definition)\n    \n>       assert result[\"status\"] == \"passed\", result\nE       AssertionError: {'id': 'AGENT-002', 'title': 'Đổi điểm đón giữa chừng', 'goal': 'Đổi điểm đón, báo giá lại và chỉ booking sau xác nhận mới.', 'status': 'failed', ...}\nE       assert 'failed' == 'passed'\nE         \nE         - passed\nE         + failed\n\neval_cases/test_agent_workflows.py:11: AssertionError\n_____________________ test_agent_workflow_case[AGENT-003] ______________________\n\ndefinition = CaseDefinition(case_id='AGENT-003', slug='change-destination', title='Đổi điểm đến giữa chừng', goal='Giữ điểm đón, đổi điểm đến và tạo lại bản xác nhận.', function=<function case_change_destination at 0x7ae9a47fb060>)\n\n    @pytest.mark.asyncio\n    @pytest.mark.parametrize(\"definition\", CASE_DEFINITIONS, ids=lambda item: item.case_id)\n    async def test_agent_workflow_case(definition):\n        result = await execute_case(definition)\n    \n>       assert result[\"status\"] == \"passed\", result\nE       AssertionError: {'id': 'AGENT-003', 'title': 'Đổi điểm đến giữa chừng', 'goal': 'Giữ điểm đón, đổi điểm đến và tạo lại bản xác nhận.', 'status': 'failed', ...}\nE       assert 'failed' == 'passed'\nE         \nE         - passed\nE         + failed\n\neval_cases/test_agent_workflows.py:11: AssertionError\n_____________________ test_agent_workflow_case[AGENT-004] ______________________\n\ndefinition = CaseDefinition(case_id='AGENT-004', slug='change-vehicle', title='Đổi loại xe giữa chừng', goal='Đổi CAR_4 sang CAR_7 và chỉ tính lại giá cần thiết.', function=<function case_change_vehicle at 0x7ae9a47fb100>)\n\n    @pytest.mark.asyncio\n    @pytest.mark.parametrize(\"definition\", CASE_DEFINITIONS, ids=lambda item: item.case_id)\n    async def test_agent_workflow_case(definition):\n        result = await execute_case(definition)\n    \n>       assert result[\"status\"] == \"passed\", result\nE       AssertionError: {'id': 'AGENT-004', 'title': 'Đổi loại xe giữa chừng', 'goal': 'Đổi CAR_4 sang CAR_7 và chỉ tính lại giá cần thiết.', 'status': 'failed', ...}\nE       assert 'failed' == 'passed'\nE         \nE         - passed\nE         + failed\n\neval_cases/test_agent_workflows.py:11: AssertionError\n=========================== short test summary info ============================\nFAILED eval_cases/test_agent_workflows.py::test_agent_workflow_case[AGENT-002]\nFAILED eval_cases/test_agent_workflows.py::test_agent_workflow_case[AGENT-003]\nFAILED eval_cases/test_agent_workflows.py::test_agent_workflow_case[AGENT-004]\n3 failed, 14 passed in 0.41s"
+  },
+  "case_files": [
+    {
+      "id": "AGENT-001",
+      "status": "passed",
+      "path": "eval_cases/results/happy-path.json"
+    },
+    {
+      "id": "AGENT-002",
+      "status": "failed",
+      "path": "eval_cases/results/change-pickup.json"
+    },
+    {
+      "id": "AGENT-003",
+      "status": "failed",
+      "path": "eval_cases/results/change-destination.json"
+    },
+    {
+      "id": "AGENT-004",
+      "status": "failed",
+      "path": "eval_cases/results/change-vehicle.json"
+    },
+    {
+      "id": "AGENT-005",
+      "status": "passed",
+      "path": "eval_cases/results/out-of-scope.json"
+    },
+    {
+      "id": "AGENT-006",
+      "status": "passed",
+      "path": "eval_cases/results/operator-handoff.json"
+    }
+  ]
+}
