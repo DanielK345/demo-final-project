@@ -1,5 +1,5 @@
 import React, { type FormEvent, useEffect, useRef } from "react";
-import { ArrowLeft, MessageCircle, RotateCcw, Send } from "lucide-react";
+import { MessageCircle, RotateCcw, Send, X } from "lucide-react";
 import { useVoiceAssistant } from "@/features/ai-assistant/context/useVoiceAssistant";
 
 // Cửa sổ chữ độc lập với màn hình gọi: dùng chung `messages` và `sessionId`, vì vậy
@@ -12,7 +12,7 @@ export const ConversationWindow: React.FC = () => {
     draft,
     setDraft,
     sendText,
-    newSession,
+    resetConversation,
     status,
     sessionEnded,
     notice,
@@ -37,18 +37,20 @@ export const ConversationWindow: React.FC = () => {
 
   return (
     <section
+      role="dialog"
+      aria-modal="true"
       aria-label="Cuộc trò chuyện với trợ lý AloSM"
-      className="absolute inset-0 z-10 flex min-h-0 flex-col bg-white dark:bg-[#12161A]"
+      className="fixed inset-x-4 bottom-4 top-4 z-50 flex min-h-0 flex-col overflow-hidden rounded-[28px] border border-slate-200/80 bg-white shadow-2xl dark:border-white/10 dark:bg-[#12161A] xl:inset-x-auto xl:bottom-28 xl:right-[calc(2rem+680px+1rem)] xl:top-auto xl:h-[760px] xl:w-[460px] xl:max-w-[calc(100vw-46rem)]"
     >
       <header className="flex shrink-0 items-center gap-3 border-b border-slate-100 px-4 py-3 dark:border-white/10">
         <button
           type="button"
           onClick={closeConversation}
-          aria-label="Quay lại cuộc gọi"
-          title="Quay lại cuộc gọi"
+          aria-label="Đóng cửa sổ trò chuyện"
+          title="Đóng cửa sổ trò chuyện"
           className="grid h-9 w-9 place-items-center rounded-full text-slate-500 transition hover:bg-slate-100 hover:text-slate-800 dark:text-slate-400 dark:hover:bg-white/10 dark:hover:text-white"
         >
-          <ArrowLeft className="h-5 w-5" />
+          <X className="h-5 w-5" />
         </button>
         <span className="grid h-9 w-9 place-items-center rounded-full bg-[#E9FBF8] text-[#008F88] dark:bg-[#00C9B7]/10 dark:text-[#5BE0D3]">
           <MessageCircle className="h-4 w-4" />
@@ -59,9 +61,9 @@ export const ConversationWindow: React.FC = () => {
         </div>
         <button
           type="button"
-          onClick={() => void newSession()}
+          onClick={() => void resetConversation()}
           disabled={status === "processing"}
-          title="Xóa cuộc trò chuyện và memory của agent"
+          title="Xóa hội thoại và memory của agent, giữ nguyên đăng nhập"
           className="ml-auto inline-flex shrink-0 items-center gap-1.5 rounded-lg px-2.5 py-2 text-xs font-bold text-[#008F88] transition hover:bg-[#E9FBF8] disabled:cursor-not-allowed disabled:opacity-40 dark:text-[#5BE0D3] dark:hover:bg-[#00C9B7]/10"
         >
           <RotateCcw className="h-3.5 w-3.5" />

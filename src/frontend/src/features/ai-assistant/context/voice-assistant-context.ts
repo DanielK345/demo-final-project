@@ -46,6 +46,7 @@ export interface VoiceAssistantValue {
   handleVoiceRecorded: (audio: Blob) => Promise<void>;
   endSession: () => Promise<void>;
   newSession: () => Promise<void>;
+  resetConversation: () => Promise<void>;
 
   // Tiến trình đặt xe (đổ trực tiếp từ state thật trả về mỗi lượt — không tự bịa field)
   bookingProgress: BookingProgress | null;

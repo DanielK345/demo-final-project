@@ -105,6 +105,22 @@ class ConversationLogger:
             payload["updated_at"] = now
             self._write(path, payload)
 
+    def reset_conversation(self, log_file: str | Path) -> None:
+        """Remove transcript rows while retaining the same active session log."""
+        path = Path(log_file)
+        if not path.is_absolute():
+            path = self.logs_dir / path
+
+        now = datetime.now(_VN_TZ).isoformat()
+        with self._lock:
+            if not path.exists():
+                return
+            payload = self._read(path)
+            payload["messages"] = []
+            payload["updated_at"] = now
+            payload["reset_at"] = now
+            self._write(path, payload)
+
     def _new_log_path(self, session_id: str, started: datetime) -> Path:
         self.logs_dir.mkdir(parents=True, exist_ok=True)
         base = started.strftime("%Y-%m-%d-%H-%M-%S")

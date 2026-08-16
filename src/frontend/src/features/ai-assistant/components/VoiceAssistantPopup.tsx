@@ -13,12 +13,13 @@ import { TranscriptModal } from "@/features/history/components/TranscriptModal";
 // hình cuộc gọi thoại kiểu Messenger (không còn mode chat/call để chuyển qua lại) —
 // gọi điện thật với AI Agentic, không phải cửa sổ nhắn tin chatbot.
 export const VoiceAssistantPopup: React.FC = () => {
-  const { isOpen, close, newSession, isHistoryOpen, openHistory, closeHistory, transcriptSessionId, openTranscript, closeTranscript } =
+  const { isOpen, close, resetConversation, isHistoryOpen, openHistory, closeHistory, transcriptSessionId, openTranscript, closeTranscript } =
     useVoiceAssistant();
 
   if (!isOpen) return null;
 
   return (
+    <>
     <div
       role="dialog"
       aria-label="Cuộc gọi với trợ lý AloSM"
@@ -33,9 +34,9 @@ export const VoiceAssistantPopup: React.FC = () => {
         <div className="flex items-center gap-1">
           <button
             type="button"
-            onClick={() => void newSession()}
-            aria-label="Bắt đầu lại cuộc hội thoại"
-            title="Bắt đầu lại cuộc hội thoại"
+            onClick={() => void resetConversation()}
+            aria-label="Xóa hội thoại và memory của agent"
+            title="Xóa hội thoại và memory của agent"
             className="text-slate-400 hover:text-[#00A651] p-1.5 rounded-full hover:bg-[#00A651]/10 transition-colors dark:text-slate-400 dark:hover:text-[#00A651] dark:hover:bg-[#00A651]/10"
           >
             <RotateCcw className="w-4 h-4" />
@@ -64,11 +65,12 @@ export const VoiceAssistantPopup: React.FC = () => {
         <VoiceCallPanel />
         <BookingConfirmationModal />
         <BookingSuccessModal />
-        <ConversationWindow />
       </div>
 
       <HistoryPanel isOpen={isHistoryOpen} onClose={closeHistory} onSelectSession={openTranscript} />
       <TranscriptModal sessionId={transcriptSessionId} onClose={closeTranscript} />
     </div>
+    <ConversationWindow />
+    </>
   );
 };

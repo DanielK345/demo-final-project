@@ -6,6 +6,7 @@ from src.backend.schemas.session import (
     CreateSessionDTO,
     EndSessionDTO,
     EndSessionResponseDTO,
+    SessionResetResponseDTO,
     SessionCreatedDTO,
     SessionDTO,
     SessionFeedbackDTO,
@@ -213,3 +214,17 @@ async def end_session(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail=_SESSION_AUTH_MESSAGE,
         ) from exc
+
+
+@router.post("/{session_id}/reset", response_model=SessionResetResponseDTO)
+async def reset_conversation(
+    session_id: str,
+    authorization: str | None = Header(default=None),
+) -> SessionResetResponseDTO:
+    _require_session_access(session_id, authorization)
+    try:
+        return SessionResetResponseDTO(**controller.service.reset_conversation(session_id))
+    except KeyError as exc:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=_SESSION_AUTH_MESSAGE) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc

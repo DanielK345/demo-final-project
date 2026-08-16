@@ -99,6 +99,38 @@ class SessionService:
         session.update({"status": "ENDED", "end_reason": reason})
         return {"session_id": session_id, "status": "ENDED", "ended_at": datetime.now(UTC).isoformat()}
 
+    def reset_conversation(self, session_id: str) -> dict[str, str]:
+        """Clear agent memory and transcript without ending or replacing a session."""
+        session = self.sessions.get(session_id)
+        if session is None:
+            raise KeyError("Không tìm thấy phiên hội thoại")
+        if session.get("status") != "ACTIVE":
+            raise ValueError("Chỉ có thể đặt lại một phiên hội thoại đang hoạt động")
+
+        log_file = session.get("log_file")
+        if isinstance(log_file, str):
+            self._conversation_logger.reset_conversation(log_file)
+        session.update(
+            {
+                "intent": None,
+                "pickup": None,
+                "destination": None,
+                "vehicle_type": None,
+                "confirmation_status": "pending",
+                "failed_count": 0,
+                "booking_id": None,
+                "handoff_triggered": False,
+                "handoff_id": None,
+                "booking_lifecycle_status": None,
+                "feedback": None,
+                "current_workflow": None,
+                "current_step": None,
+                "agent_state": None,
+                "turn_sequence": 0,
+            }
+        )
+        return {"session_id": session_id, "status": "ACTIVE", "reset_at": datetime.now(UTC).isoformat()}
+
     async def process_message(
         self,
         session_id: str,

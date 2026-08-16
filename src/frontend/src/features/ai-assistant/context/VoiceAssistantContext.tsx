@@ -7,6 +7,7 @@ import {
   createRideSession,
   endRideSession,
   getRideSession,
+  resetRideConversation,
   sendRideMessage,
   submitSessionFeedback,
 } from "@/features/ride/api";
@@ -358,6 +359,21 @@ export const VoiceAssistantProvider: React.FC<{ children: React.ReactNode }> = (
     }
   }, [sessionId, navigate, resetConversationUi]);
 
+  const resetConversation = useCallback(async () => {
+    if (!sessionId || sessionEnded || statusRef.current === "processing") return;
+    try {
+      stopVoicePlayback();
+      setStatus("processing");
+      await resetRideConversation(sessionId);
+      resetConversationUi();
+      setStatus("idle");
+    } catch (error) {
+      if (redirectToLoginIfUnauthorized(error, navigate)) return;
+      setStatus("error");
+      setNotice(error instanceof Error ? error.message : "Không thể đặt lại cuộc hội thoại.");
+    }
+  }, [sessionId, sessionEnded, navigate, resetConversationUi]);
+
   const openHistory = useCallback(() => setIsHistoryOpen(true), []);
   const closeHistory = useCallback(() => setIsHistoryOpen(false), []);
   const openTranscript = useCallback((id: string) => setTranscriptSessionId(id), []);
@@ -397,6 +413,7 @@ export const VoiceAssistantProvider: React.FC<{ children: React.ReactNode }> = (
       handleVoiceRecorded,
       endSession,
       newSession,
+      resetConversation,
       bookingProgress,
       lifecycleStatus,
       showConfirmationModal,
@@ -436,6 +453,7 @@ export const VoiceAssistantProvider: React.FC<{ children: React.ReactNode }> = (
       handleVoiceRecorded,
       endSession,
       newSession,
+      resetConversation,
       bookingProgress,
       lifecycleStatus,
       showConfirmationModal,

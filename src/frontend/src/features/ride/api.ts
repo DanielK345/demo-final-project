@@ -86,6 +86,13 @@ export function endRideSession(sessionId: string): Promise<unknown> {
   });
 }
 
+export function resetRideConversation(sessionId: string): Promise<{ session_id: string; status: string; reset_at: string }> {
+  return fetchApi(`/api/v1/sessions/${sessionId}/reset`, {
+    method: "POST",
+    headers: authHeader(),
+  });
+}
+
 export function submitSessionFeedback(
   sessionId: string,
   rating: number,

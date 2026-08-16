@@ -63,7 +63,7 @@ export const VoiceCallPanel: React.FC = () => {
   const latestUserMessage = [...messages].reverse().find((message) => message.role === "user")?.text;
 
   return (
-    <div className="flex h-full min-h-0 flex-col items-center overflow-hidden px-4 py-5 text-center sm:px-6">
+    <div className="relative flex h-full min-h-0 flex-col items-center overflow-hidden px-4 py-5 pb-28 text-center sm:px-6">
       <p className="shrink-0 text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">AloSM Voice</p>
       <p className="mt-1 shrink-0 text-sm font-mono text-slate-400 dark:text-slate-500">{formatDuration(elapsed)}</p>
 
@@ -136,17 +136,18 @@ export const VoiceCallPanel: React.FC = () => {
         Xem cuộc trò chuyện{messages.length > 1 ? ` (${messages.length})` : ""}
       </button>
 
+      <div className="absolute inset-x-0 bottom-5 z-10 flex w-full justify-center px-4">
       {sessionEnded ? (
         <button
           type="button"
           onClick={() => void newSession()}
-          className="mt-6 inline-flex items-center gap-2 rounded-xl bg-[#00C9B7] px-5 py-2.5 text-sm font-semibold text-[#0B0E11] hover:opacity-90"
+          className="inline-flex items-center gap-2 rounded-xl bg-[#00C9B7] px-5 py-2.5 text-sm font-semibold text-[#0B0E11] hover:opacity-90"
         >
           <RotateCcw className="w-4 h-4" />
           Gọi lại
         </button>
       ) : (
-        <div className="flex items-center gap-6 mt-4 shrink-0">
+        <div className="flex items-center gap-6">
           <button
             type="button"
             onClick={toggleMuted}
@@ -184,6 +185,7 @@ export const VoiceCallPanel: React.FC = () => {
           </button>
         </div>
       )}
+      </div>
     </div>
   );
 };

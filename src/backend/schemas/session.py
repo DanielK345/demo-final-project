@@ -68,6 +68,14 @@ class EndSessionResponseDTO(BaseModel):
     ended_at: str
 
 
+class SessionResetResponseDTO(BaseModel):
+    """Reset conversation state without invalidating the authenticated session."""
+
+    session_id: str
+    status: str
+    reset_at: str
+
+
 class SessionUpdateDTO(BaseModel):
     intent: str | None = None
     pickup: LocationDTO | None = None
