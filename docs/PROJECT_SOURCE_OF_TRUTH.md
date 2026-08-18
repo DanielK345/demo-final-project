@@ -1,6 +1,6 @@
 # AloSM Voice — nguồn sự thật và trình tự hoàn thiện project
 
-Cập nhật: **2026-08-16**. Tài liệu này là điểm bắt đầu duy nhất để xác định tài liệu
+Cập nhật: **2026-08-17**. Tài liệu này là điểm bắt đầu duy nhất để xác định tài liệu
 nào có thẩm quyền, dữ liệu nào đang là demo, contract nào đang chạy và phải hoàn
 thiện project theo thứ tự nào. Không dùng báo cáo tiến trình hoặc kế hoạch cũ để
 suy ra trạng thái runtime.
@@ -23,6 +23,7 @@ Khi hai nguồn mâu thuẫn, áp dụng thứ tự sau:
 | Trạng thái Core Agent | `src/agents/docs/CORE_AGENT_STATUS.md` |
 | Data production cần gì? | `src/agents/DATAFINDING.md`, `data/catalog.json` |
 | Voice runtime | `docs/voice-ai/voice_local_dev.md` và các báo cáo live tương ứng |
+| Target refactor LiveKit | `docs/LIVEKIT_MIGRATION_IMPLEMENTATION.md`, sau đó `docs/LIVEKIT_REFACTOR_RESEARCH.md` |
 | Việc AI/code không thể tự hoàn tất | `mustdo.md` |
 | Cần truy vết tài liệu đã thay thế | Git history; không giữ duplicate trong cây hiện hành |
 
@@ -233,5 +234,10 @@ Khi thay đổi contract/runtime:
 - Policy/RAG: `STAGING_ONLY`, catalog owner-approved đã tích hợp; còn pháp nhân/liên hệ AloSM và durable consent.
 - Supabase connectivity/migration: `LIVE_VALIDATED`; service repository wiring vẫn là internal `STAGING_ONLY`.
 - Telephony, maps business truth, backup/PITR/retention, Redis decision và payment: `EXTERNAL_BLOCKED`.
+- LiveKit migration: baseline xuyên suốt React → LiveKit Room → AgentSession →
+  application tools → persistence đã implement tới Phase 3 hardening; vẫn cần E2E
+  recheck cho lỗi thỉnh thoảng bỏ sót lượt nói. Runtime legacy tiếp tục được giữ sau
+  feature flag cho tới khi acceptance gate hoàn tất. Chi tiết và runbook nằm tại
+  `docs/LIVEKIT_MIGRATION_IMPLEMENTATION.md`.
 
 Các blocker chi tiết và cách verify nằm duy nhất trong `mustdo.md`.

@@ -35,6 +35,41 @@ Phone:    0901234567
 Password: Password123!
 ```
 
+### Chạy LiveKit Voice Agent
+
+LiveKit runtime cần ba tiến trình; mỗi lệnh chạy trong một terminal riêng. Chỉ
+chạy một worker `alosm-voice` để tránh nhiều job test cùng tồn tại:
+
+```bash
+# Terminal 1 — FastAPI control/business plane
+make livekit-backend
+
+# Terminal 2 — native LiveKit AgentServer/AgentSession worker
+make livekit-worker
+
+# Terminal 3 — React dùng LiveKit useSession
+make livekit-frontend
+```
+
+Các lệnh trên không bật hoặc khởi tạo Core Agent legacy. Nếu lần đầu agent chưa
+tham gia do cold start/dispatch tạm thời, UI tự tạo lại đúng một cuộc gọi; nếu vẫn
+lỗi, nút **Tạo lại cuộc gọi** sẽ đóng LiveKit session cũ và tạo call ID, Room và
+agent dispatch mới.
+
+Để debug lỗi mất câu, ngắt giọng hoặc nhận sai địa điểm trong local test, chạy
+worker với native LiveKit event logging. Terminal vẫn hiện event ngắn và bản đầy đủ
+được lưu dạng JSONL trong `logs/livekit/`:
+
+```bash
+LIVEKIT_DEBUG_EVENT_LOG=true \
+LIVEKIT_DEBUG_TRANSCRIPTS=true \
+make livekit-worker
+```
+
+Transcript mặc định không được lưu; chỉ bật `LIVEKIT_DEBUG_TRANSCRIPTS=true` cho
+phiên local đã được phép debug. Logger không ghi raw audio, token, credential, tool
+arguments hoặc provider payload.
+
 ## 2. Environment variables
 
 Copy `.env.example` thành `.env`; không commit secret.

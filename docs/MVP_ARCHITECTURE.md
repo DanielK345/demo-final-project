@@ -2,6 +2,10 @@
 
 > Cập nhật: **2026-08-17** · Phạm vi: **Login/Auth** và **Homepage đặt xe bằng text hoặc voice**. Không gồm tracking, history, payment hoặc wallet.
 
+> Tài liệu này mô tả runtime custom hiện hành. Target migration đã chốt là full
+> LiveKit-native theo [`LIVEKIT_MIGRATION_IMPLEMENTATION.md`](LIVEKIT_MIGRATION_IMPLEMENTATION.md);
+> không dùng sơ đồ hiện tại để thiết kế thêm custom Voice Gateway/tool loop mới.
+
 ## Tech stack
 
 | Phần | Công nghệ chính |

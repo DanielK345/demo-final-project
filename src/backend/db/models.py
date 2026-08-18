@@ -50,7 +50,9 @@ class User(Base):
     totp_pending_secret_ciphertext: Mapped[str | None] = mapped_column(Text, nullable=True)
     password_changed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
 
     tokens: Mapped[list[AuthToken]] = relationship(back_populates="user", cascade="all, delete-orphan")
     ride_sessions: Mapped[list[RideSession]] = relationship(back_populates="user")
@@ -105,12 +107,18 @@ class RideSession(Base):
     ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     user_phone: Mapped[str | None] = mapped_column(String(20), nullable=True)
     agent_state: Mapped[dict | None] = mapped_column(JSON_DOCUMENT, nullable=True)
+    # LiveKit-native state is isolated from the legacy Core Agent document so the
+    # two rollout paths cannot deserialize or overwrite each other's schema.
+    voice_agent_state: Mapped[dict | None] = mapped_column(JSON_DOCUMENT, nullable=True)
+    voice_state_revision: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
     turn_sequence: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
     handoff_id: Mapped[str | None] = mapped_column(String(32), nullable=True)
     booking_lifecycle_status: Mapped[str | None] = mapped_column(String(30), nullable=True)
     feedback: Mapped[dict | None] = mapped_column(JSON_DOCUMENT, nullable=True)
     version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
 
     user: Mapped[User] = relationship(back_populates="ride_sessions")
     bookings: Mapped[list[Booking]] = relationship(back_populates="session")
@@ -158,7 +166,9 @@ class Trip(Base):
     status: Mapped[str] = mapped_column(String(30), nullable=False, default="SEARCHING_DRIVER")
     eta_minutes: Mapped[int | None] = mapped_column(Integer, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
     driver_name: Mapped[str | None] = mapped_column(String(100), nullable=True)
     vehicle: Mapped[str | None] = mapped_column(String(100), nullable=True)
     license_plate: Mapped[str | None] = mapped_column(String(20), nullable=True)
@@ -207,13 +217,16 @@ class ConversationEvent(Base):
     __tablename__ = "conversation_events"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    session_id: Mapped[str | None] = mapped_column(String(32), ForeignKey("ride_sessions.id"), nullable=True, index=True)
+    session_id: Mapped[str | None] = mapped_column(
+        String(32), ForeignKey("ride_sessions.id"), nullable=True, index=True
+    )
     call_id: Mapped[str | None] = mapped_column(String(32), nullable=True)
     event_type: Mapped[str] = mapped_column(String(50), nullable=False)
     intent: Mapped[str | None] = mapped_column(String(50), nullable=True)
     action: Mapped[str | None] = mapped_column(String(50), nullable=True)
     event_metadata: Mapped[dict] = mapped_column(JSON_DOCUMENT, nullable=False, default=dict)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), index=True)
+
 
 class PolicyAcceptance(Base):
     __tablename__ = "policy_acceptances"
@@ -226,6 +239,7 @@ class PolicyAcceptance(Base):
     accepted_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     withdrawn_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
+
 class AuthChallenge(Base):
     __tablename__ = "auth_challenges"
     id: Mapped[str] = mapped_column(String(32), primary_key=True)
@@ -237,6 +251,7 @@ class AuthChallenge(Base):
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     consumed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
+
 class UserSetting(Base):
     __tablename__ = "user_settings"
     user_id: Mapped[str] = mapped_column(String(32), ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
@@ -245,11 +260,16 @@ class UserSetting(Base):
     sms_notifications: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     language: Mapped[str] = mapped_column(String(10), nullable=False, default="vi")
     theme: Mapped[str] = mapped_column(String(20), nullable=False, default="light")
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
 
 class ConversationMessage(Base):
     __tablename__ = "conversation_messages"
-    __table_args__ = (UniqueConstraint("session_id", "turn_id", "sequence", name="uq_conversation_message_turn_sequence"),)
+    __table_args__ = (
+        UniqueConstraint("session_id", "turn_id", "sequence", name="uq_conversation_message_turn_sequence"),
+    )
     id: Mapped[int] = mapped_column(BIGINT_PRIMARY_KEY, primary_key=True, autoincrement=True)
     session_id: Mapped[str] = mapped_column(String(32), ForeignKey("ride_sessions.id", ondelete="CASCADE"), index=True)
     turn_id: Mapped[str] = mapped_column(String(64), nullable=False)
@@ -263,6 +283,7 @@ class ConversationMessage(Base):
     tool_call_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
     message_metadata: Mapped[dict] = mapped_column(JSON_DOCUMENT, nullable=False, default=dict)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
 
 class PricingCatalogVersion(Base):
     __tablename__ = "pricing_catalog_versions"
@@ -278,6 +299,7 @@ class PricingCatalogVersion(Base):
     catalog_snapshot: Mapped[dict] = mapped_column(JSON_DOCUMENT, nullable=False)
     approved_by: Mapped[str] = mapped_column(String(100), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
 
 class FareQuote(Base):
     __tablename__ = "fare_quotes"
@@ -306,6 +328,7 @@ class FareQuote(Base):
     consumed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     consumed_by_booking_id: Mapped[str | None] = mapped_column(String(32), nullable=True)
 
+
 class IdempotencyRecord(Base):
     __tablename__ = "idempotency_records"
     scope: Mapped[str] = mapped_column(String(50), primary_key=True)
@@ -317,6 +340,7 @@ class IdempotencyRecord(Base):
     response_snapshot: Mapped[dict | None] = mapped_column(JSON_DOCUMENT, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
 
 class OutboxEvent(Base):
     __tablename__ = "outbox_events"
@@ -359,7 +383,9 @@ class Place(Base):
     source_version: Mapped[str | None] = mapped_column(String(64), nullable=True)
     resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
 
 
 class RouteSnapshot(Base):
@@ -372,10 +398,16 @@ class RouteSnapshot(Base):
 
     id: Mapped[str] = mapped_column(String(32), primary_key=True)
     pickup_place_id: Mapped[str] = mapped_column(
-        String(32), ForeignKey("places.id"), nullable=False, index=True,
+        String(32),
+        ForeignKey("places.id"),
+        nullable=False,
+        index=True,
     )
     destination_place_id: Mapped[str] = mapped_column(
-        String(32), ForeignKey("places.id"), nullable=False, index=True,
+        String(32),
+        ForeignKey("places.id"),
+        nullable=False,
+        index=True,
     )
     distance_meters: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False)
     duration_seconds: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False)

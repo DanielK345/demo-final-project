@@ -9,6 +9,12 @@ import { BookingProgressStrip } from "@/features/ai-assistant/components/Booking
 import { RideBookingExperience } from "@/features/ai-assistant/components/RideBookingExperience";
 import { CURRENT_POLICY_VERSION } from "@/features/policies/api";
 
+const LiveKitVoiceSession = React.lazy(() =>
+  import("@/features/livekit/LiveKitVoiceSession").then((module) => ({
+    default: module.LiveKitVoiceSession,
+  })),
+);
+
 function formatDuration(totalSeconds: number): string {
   const minutes = Math.floor(totalSeconds / 60)
     .toString()
@@ -21,7 +27,7 @@ function formatDuration(totalSeconds: number): string {
 // trong 2 chế độ nữa. State hiển thị đi qua đúng 1 AssistantStatus, không rải rác
 // boolean. Micro LUÔN lắng nghe (VAD tự động phát hiện lúc nói/lúc dứt câu) — không
 // còn kiểu "bấm mic mới được nói", đúng cảm giác một cuộc gọi thật.
-export const VoiceCallPanel: React.FC = () => {
+const LegacyVoiceCallPanel: React.FC = () => {
   const {
     status,
     sessionId,
@@ -216,4 +222,15 @@ export const VoiceCallPanel: React.FC = () => {
       </button>
     </div>
   );
+};
+
+export const VoiceCallPanel: React.FC = () => {
+  if (import.meta.env.VITE_VOICE_RUNTIME === "livekit") {
+    return (
+      <React.Suspense fallback={<div className="p-6 text-center text-sm text-slate-500">Đang tải cuộc gọi…</div>}>
+        <LiveKitVoiceSession />
+      </React.Suspense>
+    );
+  }
+  return <LegacyVoiceCallPanel />;
 };

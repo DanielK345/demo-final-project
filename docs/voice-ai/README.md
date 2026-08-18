@@ -1,6 +1,11 @@
 # Voice AI documentation
 
-Cập nhật: **2026-08-16**. Đây là chỉ mục duy nhất cho Voice runtime hiện hành.
+Cập nhật: **2026-08-17**. Đây là chỉ mục cho Voice runtime custom hiện hành.
+
+> Không mở rộng thêm custom Voice Gateway/VAD/tool orchestration từ các tài liệu
+> dưới đây. Target thay thế đã được chốt tại
+> [`../LIVEKIT_MIGRATION_IMPLEMENTATION.md`](../LIVEKIT_MIGRATION_IMPLEMENTATION.md).
+> Runtime cũ vẫn được giữ làm baseline cho tới khi LiveKit flow đạt acceptance gate.
 
 | Tài liệu | Vai trò | Trạng thái |
 |---|---|---|

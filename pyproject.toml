@@ -40,4 +40,5 @@ dependencies = [
     "asyncpg>=0.30.0",
     "aiosqlite>=0.20.0",
     "cryptography>=45.0.0",
+    "livekit-agents==1.6.6",
 ]

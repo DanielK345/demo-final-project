@@ -89,6 +89,8 @@ def _session_dict(row: RideSession) -> dict[str, object]:
         "current_workflow": row.current_workflow,
         "current_step": row.current_step,
         "agent_state": row.agent_state,
+        "voice_agent_state": row.voice_agent_state,
+        "voice_state_revision": row.voice_state_revision,
         "turn_sequence": row.turn_sequence,
         "version": row.version,
         "created_at": _iso(row.created_at),
@@ -351,6 +353,48 @@ class PersistenceRepository:
         async with self.factory() as db:
             row = await db.get(RideSession, session_id)
             return _session_dict(row) if row else None
+
+    async def get_voice_agent_state(self, session_id: str) -> dict[str, object] | None:
+        """Load the isolated LiveKit business document without raw transcript/audio."""
+
+        async with self.factory() as db:
+            row = await db.get(RideSession, session_id)
+            if row is None:
+                return None
+            return {
+                "session_id": row.id,
+                "user_id": row.user_id,
+                "state": row.voice_agent_state,
+                "revision": row.voice_state_revision,
+            }
+
+    async def save_voice_agent_state(
+        self,
+        session_id: str,
+        state: Mapping[str, object],
+        *,
+        expected_revision: int,
+    ) -> dict[str, object] | None:
+        """Optimistically persist one LiveKit state revision in a short transaction."""
+
+        async with self.factory() as db, db.begin():
+            statement = (
+                update(RideSession)
+                .where(
+                    RideSession.id == session_id,
+                    RideSession.voice_state_revision == expected_revision,
+                )
+                .values(
+                    voice_agent_state=dict(state),
+                    voice_state_revision=RideSession.voice_state_revision + 1,
+                    updated_at=datetime.now(UTC),
+                )
+                .returning(RideSession.voice_state_revision)
+            )
+            revision = (await db.execute(statement)).scalar_one_or_none()
+            if revision is None:
+                return None
+            return {"session_id": session_id, "revision": int(revision)}
 
     async def update_session(
         self, session_id: str, updates: Mapping[str, object], *, expected_version: int | None = None

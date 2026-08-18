@@ -1,22 +1,31 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from typing import TYPE_CHECKING
 from uuid import uuid4
 
-from src.agents.agent import LLMAgent
-from src.agents.schemas import ActionType, AgentAction, AgentInput
-from src.agents.state import AgentState
 from src.backend.config import get_settings
 from src.backend.repositories.persistence_repository import PersistenceRepository
-from src.backend.services.agent_tool_executor import AgentToolExecutor
 from src.backend.services.conversation_logger import ConversationLogger
 from src.backend.services.handoff_service import HandoffService
+
+if TYPE_CHECKING:
+    from src.agents.agent import LLMAgent
+    from src.agents.schemas import AgentAction
+    from src.agents.state import AgentState
+    from src.backend.services.agent_tool_executor import AgentToolExecutor
+
+
+def _action_type():
+    from src.agents.schemas import ActionType
+
+    return ActionType
 
 
 class SessionService:
     sessions: dict[str, dict[str, object]] = {}
-    _agent = LLMAgent()
-    _tool_executor = AgentToolExecutor()
+    _agent: LLMAgent | None = None
+    _tool_executor: AgentToolExecutor | None = None
     _conversation_logger = ConversationLogger()
     _handoff_service = HandoffService()
     _MAX_TOOL_TURNS = 8
@@ -24,6 +33,24 @@ class SessionService:
     def __init__(self, repository: PersistenceRepository | None = None) -> None:
         self._repository = repository or PersistenceRepository()
         self._durable = get_settings().app_env != "test"
+
+    def _conversation_agent(self) -> LLMAgent:
+        agent = self._agent
+        if agent is None:
+            from src.agents.agent import LLMAgent
+
+            agent = LLMAgent()
+            type(self)._agent = agent
+        return agent
+
+    def _legacy_tool_executor(self) -> AgentToolExecutor:
+        executor = self._tool_executor
+        if executor is None:
+            from src.backend.services.agent_tool_executor import AgentToolExecutor
+
+            executor = AgentToolExecutor()
+            type(self)._tool_executor = executor
+        return executor
 
     async def create_session_durable(
         self,
@@ -208,6 +235,7 @@ class SessionService:
         *,
         source: str = "TEXT",
     ) -> dict[str, object]:
+        action_type = _action_type()
         if self._durable:
             session = await self._repository.get_session(session_id)
         else:
@@ -236,9 +264,9 @@ class SessionService:
         agent_state = agent_state.apply(action.state_updates)
         tool_turns = 0
 
-        while action.action_type is ActionType.CALL_TOOL and tool_turns < self._MAX_TOOL_TURNS:
+        while action.action_type is action_type.CALL_TOOL and tool_turns < self._MAX_TOOL_TURNS:
             assert action.tool_call is not None
-            tool_result = await self._tool_executor.execute(
+            tool_result = await self._legacy_tool_executor().execute(
                 action.tool_call,
                 session_id=session_id,
                 user_id=str(user_id) if user_id is not None else None,
@@ -305,6 +333,8 @@ class SessionService:
         stt_confidence: float | None = None,
         tool_result=None,
     ) -> AgentAction:
+        from src.agents.schemas import AgentInput
+
         # turn_id: bắt buộc theo contract mới (xem src/agents/docs/BACKEND_INTEGRATION.md
         # §3) — mỗi lượt gọi Agent (kể cả lượt tool-result nối tiếp trong cùng 1 turn
         # người dùng) có 1 turn_id riêng. App hiện chưa có cơ chế client-side retry nên
@@ -317,9 +347,11 @@ class SessionService:
             stt_confidence=stt_confidence,
             tool_result=tool_result,
         )
-        return await self._agent.handle(agent_input, agent_state)
+        return await self._conversation_agent().handle(agent_input, agent_state)
 
     def _load_agent_state(self, session_id: str, session: dict[str, object]) -> AgentState:
+        from src.agents.state import AgentState
+
         raw_state = session.get("agent_state")
         if isinstance(raw_state, dict):
             return AgentState.model_validate(raw_state)
@@ -335,6 +367,7 @@ class SessionService:
         agent_state: AgentState,
         action: AgentAction,
     ) -> None:
+        action_type = _action_type()
         booking = agent_state.collected_data.get("booking", {})
         if isinstance(booking, dict):
             pickup = booking.get("pickup")
@@ -356,8 +389,8 @@ class SessionService:
             agent_state.current_workflow.value if agent_state.current_workflow else None
         )
         session["current_step"] = agent_state.current_step
-        session["handoff_triggered"] = action.action_type is ActionType.HANDOFF
-        if action.action_type is ActionType.END_SESSION:
+        session["handoff_triggered"] = action.action_type is action_type.HANDOFF
+        if action.action_type is action_type.END_SESSION:
             session["status"] = "ENDED"
 
     @classmethod
@@ -367,7 +400,8 @@ class SessionService:
         agent_state: AgentState,
         action: AgentAction,
     ) -> None:
-        if action.action_type is not ActionType.HANDOFF or session.get("handoff_id"):
+        action_type = _action_type()
+        if action.action_type is not action_type.HANDOFF or session.get("handoff_id"):
             return
         context = agent_state.collected_data.get("handoff")
         if not isinstance(context, dict):
@@ -401,9 +435,10 @@ class SessionService:
         từ những gì thật sự có: booking_id + booking_status nghĩa là đã tạo chuyến
         thành công; HANDOFF trong lúc đang có dữ liệu đặt xe dở dang (đã có điểm đón
         hoặc điểm đến nhưng chưa có booking_id) nghĩa là agent không tự hoàn tất được."""
+        action_type = _action_type()
         if booking.get("booking_id") and booking.get("booking_status"):
             return "SUCCESS"
-        if action.action_type is ActionType.HANDOFF and (booking.get("pickup") or booking.get("destination")):
+        if action.action_type is action_type.HANDOFF and (booking.get("pickup") or booking.get("destination")):
             return "FAILED"
         return None
 
@@ -460,11 +495,12 @@ class SessionService:
         agent_state: AgentState,
         action: AgentAction,
     ) -> dict[str, object]:
+        action_type = _action_type()
         action_name = {
-            ActionType.ASK_USER: "ASK_USER",
-            ActionType.RESPOND: "RESPOND",
-            ActionType.HANDOFF: "HANDOFF",
-            ActionType.END_SESSION: "END_SESSION",
+            action_type.ASK_USER: "ASK_USER",
+            action_type.RESPOND: "RESPOND",
+            action_type.HANDOFF: "HANDOFF",
+            action_type.END_SESSION: "END_SESSION",
         }.get(action.action_type, "RESPOND")
 
         booking = None

@@ -7,6 +7,8 @@ import unicodedata
 from functools import lru_cache
 from pathlib import Path
 
+from rapidfuzz import fuzz
+
 # data/gazetteer/place_names.json đã có sẵn từ trước (dùng cho Voice ASR biasing, xem
 # src/voice/text/gazetteer.py) — tái dùng đúng nguồn thật này cho search_place của Core
 # Agent thay vì bịa candidate giả (bản cũ chỉ echo lại nguyên câu người dùng nhập thành
@@ -118,6 +120,31 @@ def place_id_for(display_name: str) -> str:
     return f"place_{digest[:12]}"
 
 
+def _fuzzy_canonical_match(normalized_query: str) -> str | None:
+    """Resolve a single high-confidence gazetteer name without inventing a place.
+
+    Every returned place still has to be confirmed through the LiveKit task's
+    ``select_place`` tool. Ambiguous or weak matches deliberately return ``None``.
+    """
+
+    if len(normalized_query.split()) < 2:
+        return None
+
+    scores: dict[str, float] = {}
+    for name in _load_place_names():
+        scores[name] = fuzz.WRatio(normalized_query, _normalize(name))
+    for alias, canonical in _load_aliases().items():
+        scores[canonical] = max(scores.get(canonical, 0), fuzz.WRatio(normalized_query, alias))
+
+    ranked = sorted(scores.items(), key=lambda item: (-item[1], item[0]))
+    if not ranked or ranked[0][1] < 92.5:
+        return None
+    runner_up_score = ranked[1][1] if len(ranked) > 1 else 0
+    if ranked[0][1] - runner_up_score < 5:
+        return None
+    return ranked[0][0]
+
+
 class PlaceSearchService:
     """Demo search for the Hanoi seed gazetteer and its known ASR aliases.
 
@@ -133,7 +160,16 @@ class PlaceSearchService:
         if alias_match:
             matches = [alias_match]
         else:
-            matches = [name for name in _load_place_names() if normalized_query in _normalize(name)]
+            matches = [
+                name
+                for name in _load_place_names()
+                if normalized_query in _normalize(name) or _normalize(name) in normalized_query
+            ]
+        match_provider = "local_gazetteer"
+        if not matches:
+            fuzzy_match = _fuzzy_canonical_match(normalized_query)
+            matches = [fuzzy_match] if fuzzy_match else []
+            match_provider = "local_gazetteer_fuzzy"
         if not matches:
             # Gazetteer không phải geocoder. Không echo free-form text thành place đã
             # resolve; caller phải hỏi lại hoặc dùng MapsProvider thật.
@@ -147,7 +183,7 @@ class PlaceSearchService:
                 "place_id": place_id_for(name),
                 "display_name": name,
                 "address": name,
-                "provider": "local_gazetteer",
+                "provider": match_provider,
                 "provider_payload_version": "hanoi-v2-2026-08-16",
                 "data_quality": "DEMO",
                 "serviceable": None,
