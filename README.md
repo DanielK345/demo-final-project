@@ -4,6 +4,10 @@ Web MVP đặt xe bằng **text hoặc voice**. Phạm vi chính gồm Login/Aut
 
 Kiến trúc: [`docs/MVP_ARCHITECTURE.md`](docs/MVP_ARCHITECTURE.md) · Runtime truth: [`docs/PROJECT_SOURCE_OF_TRUTH.md`](docs/PROJECT_SOURCE_OF_TRUTH.md)
 
+Setup LiveKit chi tiết cho thành viên mới, mức độ tích hợp BE/FE/DB, catalog địa
+điểm, ưu/nhược điểm và troubleshooting:
+[`docs/LIVEKIT_TEAM_SETUP.md`](docs/LIVEKIT_TEAM_SETUP.md).
+
 ## 1. Setup
 
 Yêu cầu: Python 3.12, [uv](https://docs.astral.sh/uv/), Node.js/npm và FFmpeg/FFprobe.
@@ -28,7 +32,8 @@ cd src/frontend
 npm run dev
 ```
 
-Demo account local:
+Demo account chỉ dùng trực tiếp khi `APP_ENV=test`. Với durable development database,
+hãy đăng ký qua UI hoặc dùng account đã được seed trong database dev:
 
 ```text
 Phone:    0901234567

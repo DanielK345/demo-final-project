@@ -15,9 +15,10 @@ Cập nhật: **2026-08-17** · Trạng thái: `CURRENT`.
 
 Khi làm migration LiveKit, đọc thêm theo đúng thứ tự:
 
-1. [LIVEKIT_MIGRATION_IMPLEMENTATION.md](LIVEKIT_MIGRATION_IMPLEMENTATION.md) — quyết định và handoff spec để code.
-2. [LIVEKIT_REFACTOR_RESEARCH.md](LIVEKIT_REFACTOR_RESEARCH.md) — căn cứ nghiên cứu và mapping cũ → mới.
-3. [GSM-08_VOICE_AGENT_SCOPE.md](GSM-08_VOICE_AGENT_SCOPE.md) — scope đã chốt với mentor.
+1. [LIVEKIT_TEAM_SETUP.md](LIVEKIT_TEAM_SETUP.md) — runbook cho thành viên lấy source, cấu hình, chạy và test baseline.
+2. [LIVEKIT_MIGRATION_IMPLEMENTATION.md](LIVEKIT_MIGRATION_IMPLEMENTATION.md) — quyết định và handoff spec để code.
+3. [LIVEKIT_REFACTOR_RESEARCH.md](LIVEKIT_REFACTOR_RESEARCH.md) — căn cứ nghiên cứu và mapping cũ → mới.
+4. [GSM-08_VOICE_AGENT_SCOPE.md](GSM-08_VOICE_AGENT_SCOPE.md) — scope đã chốt với mentor.
 
 ## Tài liệu hiện hành
 
