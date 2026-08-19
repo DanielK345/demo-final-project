@@ -1,0 +1,55 @@
+version: "3.8"
+
+services:
+  # 1. FastAPI Web Backend
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: always
+    environment:
+      - APP_ENV=production
+      - VOICE_RUNTIME=livekit
+      - LOG_LEVEL=INFO
+    env_file:
+      - .env.production
+    volumes:
+      - ./data:/app/data
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health/ready')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # 2. LiveKit Voice Agent Worker
+  voice-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: ["python", "-m", "src.voice_agent.server", "dev"]
+    restart: always
+    environment:
+      - APP_ENV=production
+      - VOICE_RUNTIME=livekit
+      - LOG_LEVEL=INFO
+    env_file:
+      - .env.production
+    depends_on:
+      backend:
+        condition: service_healthy
+
+  # 3. Frontend React Web UI
+  frontend:
+    build:
+      context: ./src/frontend
+      dockerfile: Dockerfile
+      args:
+        - VITE_API_BASE_URL=
+        - VITE_VOICE_RUNTIME=livekit
+    restart: always
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
