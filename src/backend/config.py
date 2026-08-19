@@ -119,6 +119,10 @@ class Settings(BaseSettings):
     map_country_code: str = "vn"
     map_search_limit: int = Field(default=5, ge=1, le=20)
     map_request_timeout_seconds: float = Field(default=5.0, gt=0, le=30)
+    map_candidate_ttl_seconds: int = Field(default=600, ge=60, le=3600)
+    map_route_ttl_seconds: int = Field(default=300, ge=30, le=3600)
+    maps_cache_backend: str = "memory"  # memory (dev/test) or redis (production)
+    maps_cache_redis_url: str = ""
 
     # Service area — EXTERNAL_BLOCKED until Product/Ops provides GeoJSON
     maps_service_area_id: str = ""
@@ -147,6 +151,14 @@ class Settings(BaseSettings):
             errors.append("QUOTE_SIGNING_KEY_REQUIRED")
         if len(self.field_encryption_key) < 32:
             errors.append("FIELD_ENCRYPTION_KEY_REQUIRED")
+        if self.maps_provider and self.maps_cache_backend != "redis":
+            errors.append("MAPS_DISTRIBUTED_CACHE_REQUIRED")
+        if self.maps_provider and not self.maps_cache_redis_url:
+            errors.append("MAPS_CACHE_REDIS_URL_REQUIRED")
+        if self.maps_provider and not self.maps_service_area_path:
+            errors.append("MAPS_SERVICE_AREA_REQUIRED")
+        if self.maps_provider and not self.osm_data_version:
+            errors.append("OSM_DATA_VERSION_REQUIRED")
         origins = {origin.strip() for origin in self.cors_origins.split(",") if origin.strip()}
         if not origins or "*" in origins:
             errors.append("CORS_ORIGINS_MUST_BE_EXPLICIT")

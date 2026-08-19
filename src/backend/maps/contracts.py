@@ -15,6 +15,7 @@ from typing import Any
 # Place resolution state machine (§17)
 # ---------------------------------------------------------------------------
 
+
 class PlaceResolutionStatus(StrEnum):
     """Lifecycle of a place during a booking session.
 
@@ -34,14 +35,15 @@ class PlaceResolutionStatus(StrEnum):
 class TrafficDataStatus(StrEnum):
     """Provenance label for route duration estimates."""
 
-    NONE = "NONE"                   # vanilla OSRM, no traffic data
-    LIVE_TRAFFIC = "LIVE_TRAFFIC"   # only when provider actually has live traffic
-    HISTORICAL = "HISTORICAL"       # historical speed profiles
+    NONE = "NONE"  # vanilla OSRM, no traffic data
+    LIVE_TRAFFIC = "LIVE_TRAFFIC"  # only when provider actually has live traffic
+    HISTORICAL = "HISTORICAL"  # historical speed profiles
 
 
 # ---------------------------------------------------------------------------
 # Place contracts
 # ---------------------------------------------------------------------------
+
 
 class PlaceCandidate:
     """A geocoding result not yet confirmed by the user.
@@ -164,6 +166,7 @@ class ResolvedPlace:
 # Route contract (§9)
 # ---------------------------------------------------------------------------
 
+
 class RouteResult:
     """Normalised routing result from any provider."""
 
@@ -180,6 +183,7 @@ class RouteResult:
         "provider_version",
         "source_data_version",
         "created_at",
+        "expires_at",
     )
 
     def __init__(
@@ -197,6 +201,7 @@ class RouteResult:
         provider_version: str = "",
         source_data_version: str = "",
         created_at: datetime | None = None,
+        expires_at: datetime | None = None,
     ) -> None:
         self.route_id = route_id
         self.pickup_place_id = pickup_place_id
@@ -210,6 +215,7 @@ class RouteResult:
         self.provider_version = provider_version
         self.source_data_version = source_data_version
         self.created_at = created_at
+        self.expires_at = expires_at
 
     def to_api_dict(self) -> dict[str, Any]:
         """Public API representation — no internal DB IDs leaked."""
@@ -221,6 +227,7 @@ class RouteResult:
             "traffic_status": self.traffic_status.value,
             "provider": self.provider,
             "created_at": self.created_at.isoformat() if self.created_at else None,
+            "expires_at": self.expires_at.isoformat() if self.expires_at else None,
         }
 
     def to_snapshot_dict(self) -> dict[str, Any]:
@@ -238,12 +245,14 @@ class RouteResult:
             "provider_version": self.provider_version,
             "source_data_version": self.source_data_version,
             "created_at": self.created_at.isoformat() if self.created_at else None,
+            "expires_at": self.expires_at.isoformat() if self.expires_at else None,
         }
 
 
 # ---------------------------------------------------------------------------
 # Domain errors (§10)
 # ---------------------------------------------------------------------------
+
 
 class MapsDomainError(Exception):
     """Base error for all Maps subsystem failures."""
@@ -275,6 +284,11 @@ class MapProviderTimeoutError(MapsDomainError):
         super().__init__("MAP_PROVIDER_TIMEOUT", message, retryable=True)
 
 
+class PlaceCandidateExpiredError(MapsDomainError):
+    def __init__(self, message: str = "Place candidate expired; search again") -> None:
+        super().__init__("PLACE_CANDIDATE_EXPIRED", message, retryable=False)
+
+
 class PlaceNotFoundError(MapsDomainError):
     def __init__(self, message: str = "Place not found") -> None:
         super().__init__("PLACE_NOT_FOUND", message, retryable=False)
@@ -298,6 +312,7 @@ class OutOfServiceAreaError(MapsDomainError):
 # ---------------------------------------------------------------------------
 # Coordinate validation helpers
 # ---------------------------------------------------------------------------
+
 
 def validate_latitude(lat: float) -> float:
     """Validate and return latitude in [-90, 90]."""

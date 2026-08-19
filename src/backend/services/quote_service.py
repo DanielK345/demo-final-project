@@ -8,22 +8,25 @@ from typing import Any
 from uuid import uuid4
 
 from src.backend.config import Settings, get_settings
+from src.backend.repositories.maps_repository import MapsRepository
 from src.backend.repositories.persistence_repository import PersistenceRepository
 from src.backend.services.pricing_service import PricingService
 
 
 class QuoteService:
-    """Issues immutable DB-backed fare quotes; the client never supplies money."""
+    """Issues immutable fare quotes from persisted route snapshots."""
 
     def __init__(
         self,
         repository: PersistenceRepository | None = None,
         pricing: PricingService | None = None,
         settings: Settings | None = None,
+        maps_repository: MapsRepository | None = None,
     ) -> None:
         self.repository = repository or PersistenceRepository()
         self.pricing = pricing or PricingService()
         self.settings = settings or get_settings()
+        self.maps_repository = maps_repository or (MapsRepository() if self.settings.app_env != "test" else None)
 
     def _signing_key(self) -> bytes:
         key = self.settings.quote_signing_key
@@ -46,34 +49,67 @@ class QuoteService:
 
     def _integrity(self, payload: dict[str, Any], quote_id: str, expires_at: object) -> tuple[str, str]:
         canonical_expiry = self._canonical_timestamp(expires_at)
-        canonical_payload = {**payload, "expires_at": canonical_expiry}
-        context_hash = hashlib.sha256(self._canonical(canonical_payload).encode()).hexdigest()
+        context_hash = hashlib.sha256(self._canonical({**payload, "expires_at": canonical_expiry}).encode()).hexdigest()
         signature = hmac.new(
-            self._signing_key(),
-            f"{quote_id}.{context_hash}.{canonical_expiry}".encode(),
-            hashlib.sha256,
+            self._signing_key(), f"{quote_id}.{context_hash}.{canonical_expiry}".encode(), hashlib.sha256
         ).hexdigest()
         return context_hash, signature
 
-    async def issue_quote(
-        self, *, user_id: str, session_id: str, pickup_place_id: str, destination_place_id: str, vehicle_type: str
-    ) -> dict[str, object]:
+    async def _load_route(
+        self, route_id: str | None, pickup_place_id: str | None, destination_place_id: str | None, vehicle_type: str
+    ) -> tuple[dict[str, Any], dict[str, object]]:
+        if route_id and self.maps_repository is not None:
+            route = await self.maps_repository.get_route_snapshot(route_id)
+            if route is None:
+                raise ValueError("ROUTE_SNAPSHOT_NOT_FOUND")
+            expires_at = route.get("expires_at")
+            if expires_at:
+                expiry = datetime.fromisoformat(str(expires_at).replace("Z", "+00:00"))
+                if expiry.tzinfo is None:
+                    expiry = expiry.replace(tzinfo=UTC)
+                if expiry <= datetime.now(UTC):
+                    raise ValueError("ROUTE_SNAPSHOT_EXPIRED")
+            draft = self.pricing.estimate_route_fare(
+                route_id=route_id,
+                distance_meters=float(route["distance_meters"]),
+                duration_seconds=float(route["duration_seconds"]),
+                vehicle_type=vehicle_type,
+            )
+            return route, draft
+        if self.settings.app_env != "test" or not pickup_place_id or not destination_place_id:
+            raise ValueError("PERSISTED_ROUTE_SNAPSHOT_REQUIRED")
         draft = self.pricing.estimate_fare(
             pickup_place_id=pickup_place_id, destination_place_id=destination_place_id, vehicle_type=vehicle_type
         )
-        catalog_snapshot = self.pricing.catalog.model_dump(mode="json")
-        catalog_row = await self.repository.ensure_pricing_catalog(catalog_snapshot)
-        quote_id = f"quote_{uuid4().hex[:16]}"
-        route_snapshot = {
-            "route_id": f"route_{hashlib.sha256(f'{pickup_place_id}:{destination_place_id}'.encode()).hexdigest()[:16]}",
+        route = {
+            "route_id": f"test_{draft['estimate_id']}",
             "pickup_place_id": pickup_place_id,
             "destination_place_id": destination_place_id,
             "distance_meters": round(float(draft["distance_km"]) * 1000),
             "duration_seconds": int(draft["eta_minutes"]) * 60,
-            "traffic_timestamp": draft["issued_at"],
-            "provider": "DETERMINISTIC_DEMO",
-            "provider_payload_version": "1.0.0",
+            "provider": "TEST_DETERMINISTIC_ONLY",
+            "provider_version": "test",
+            "source_data_version": "test",
         }
+        return route, draft
+
+    async def issue_quote(
+        self,
+        *,
+        user_id: str,
+        session_id: str,
+        vehicle_type: str,
+        route_id: str | None = None,
+        pickup_place_id: str | None = None,
+        destination_place_id: str | None = None,
+    ) -> dict[str, object]:
+        route_snapshot, draft = await self._load_route(route_id, pickup_place_id, destination_place_id, vehicle_type)
+        pickup_place_id = str(route_snapshot["pickup_place_id"])
+        destination_place_id = str(route_snapshot["destination_place_id"])
+        route_id = str(route_snapshot["route_id"])
+        catalog_snapshot = self.pricing.catalog.model_dump(mode="json")
+        catalog_row = await self.repository.ensure_pricing_catalog(catalog_snapshot)
+        quote_id = f"quote_{uuid4().hex[:16]}"
         breakdown = dict(draft["fare_breakdown"])
         pricing_snapshot = {
             "pricing_version": draft["pricing_version"],
@@ -94,7 +130,7 @@ class QuoteService:
             "discount_amount": 0,
             "promotion_version": None,
         }
-        integrity_payload = {
+        payload = {
             "user_id": user_id,
             "session_id": session_id,
             "pickup_place_id": pickup_place_id,
@@ -108,19 +144,16 @@ class QuoteService:
             "pricing_snapshot": pricing_snapshot,
             "promotion_snapshot": promotion_snapshot,
         }
-        context_hash, signature = self._integrity(integrity_payload, quote_id, str(draft["expires_at"]))
+        context_hash, signature = self._integrity(payload, quote_id, draft["expires_at"])
         issued_at = datetime.fromisoformat(str(draft["issued_at"]))
         expires_at = datetime.fromisoformat(str(draft["expires_at"]))
-        if issued_at.tzinfo is None:
-            issued_at = issued_at.replace(tzinfo=UTC)
-        if expires_at.tzinfo is None:
-            expires_at = expires_at.replace(tzinfo=UTC)
         stored = await self.repository.create_quote(
             {
                 "id": quote_id,
                 "user_id": user_id,
                 "session_id": session_id,
                 "pricing_catalog_id": catalog_row.id,
+                "route_snapshot_id": route_id if self.maps_repository is not None else None,
                 "pickup_place_id": pickup_place_id,
                 "destination_place_id": destination_place_id,
                 "vehicle_type": vehicle_type,
@@ -160,34 +193,53 @@ class QuoteService:
         *,
         user_id: str,
         session_id: str,
-        pickup_place_id: str,
-        destination_place_id: str,
         passenger_count: int,
         luggage_count: int | None = None,
+        route_id: str | None = None,
+        pickup_place_id: str | None = None,
+        destination_place_id: str | None = None,
     ) -> list[dict[str, object]]:
-        drafts = self.pricing.vehicle_options(
-            pickup_place_id=pickup_place_id,
-            destination_place_id=destination_place_id,
-            passenger_count=passenger_count,
-            luggage_count=luggage_count,
-        )
-        options: list[dict[str, object]] = []
+        if route_id and self.maps_repository is not None:
+            route = await self.maps_repository.get_route_snapshot(route_id)
+            if route is None:
+                raise ValueError("ROUTE_SNAPSHOT_NOT_FOUND")
+            drafts = self.pricing.vehicle_options_for_route(
+                route_id=route_id,
+                distance_meters=float(route["distance_meters"]),
+                duration_seconds=float(route["duration_seconds"]),
+                passenger_count=passenger_count,
+                luggage_count=luggage_count,
+            )
+        else:
+            if self.settings.app_env != "test" or not pickup_place_id or not destination_place_id:
+                raise ValueError("PERSISTED_ROUTE_SNAPSHOT_REQUIRED")
+            drafts = self.pricing.vehicle_options(
+                pickup_place_id=pickup_place_id,
+                destination_place_id=destination_place_id,
+                passenger_count=passenger_count,
+                luggage_count=luggage_count,
+            )
+        options = []
         for draft in drafts:
             quote = await self.issue_quote(
                 user_id=user_id,
                 session_id=session_id,
+                route_id=route_id,
                 pickup_place_id=pickup_place_id,
                 destination_place_id=destination_place_id,
                 vehicle_type=str(draft["vehicle_type"]),
             )
             quote.update(
                 {
-                    "option_id": draft["option_id"],
-                    "display_name": draft["display_name"],
-                    "capacity": draft["capacity"],
-                    "luggage_capacity": draft["luggage_capacity"],
-                    "available": draft["available"],
-                    "vehicle_type": draft["vehicle_type"],
+                    key: draft[key]
+                    for key in (
+                        "option_id",
+                        "display_name",
+                        "capacity",
+                        "luggage_capacity",
+                        "available",
+                        "vehicle_type",
+                    )
                 }
             )
             options.append(quote)
@@ -208,7 +260,7 @@ class QuoteService:
             "pricing_snapshot": quote["pricing_snapshot"],
             "promotion_snapshot": quote["promotion_snapshot"],
         }
-        context_hash, signature = self._integrity(payload, str(quote["quote_id"]), str(quote["expires_at"]))
+        context_hash, signature = self._integrity(payload, str(quote["quote_id"]), quote["expires_at"])
         if not hmac.compare_digest(context_hash, str(quote["context_hash"])) or not hmac.compare_digest(
             signature, str(quote["signature"])
         ):

@@ -100,6 +100,7 @@ class MapsRepository:
                 provider_version=route.provider_version,
                 source_data_version=route.source_data_version or "",
                 created_at=route.created_at or datetime.now(UTC),
+                expires_at=route.expires_at,
             )
             db.add(row)
             await db.flush()

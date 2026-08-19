@@ -1,37 +1,34 @@
-"""Maps orchestration service — the single entry point for geocoding, routing
-and place resolution.
-
-All Maps operations flow through this service. Public API routes call
-``MapsService``; no direct Nominatim/OSRM access from outside this module.
-
-Responsibilities:
-- Search places via geocoding provider
-- Reverse-geocode coordinates
-- Resolve a candidate into a persisted internal Place
-- Create immutable route snapshots via routing provider
-- Check service area
-- Cache provider calls
-- Emit observability metrics
-"""
+"""Maps orchestration with provider isolation, session-bound candidates and durable snapshots."""
 
 from __future__ import annotations
 
+import hashlib
 import logging
 import time
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 from uuid import uuid4
 
 from src.backend.config import Settings, get_settings
-from src.backend.maps.cache import InMemoryMapsCache, MapsCacheProvider, route_cache_key, search_cache_key
+from src.backend.maps.cache import (
+    InMemoryMapsCache,
+    MapsCacheProvider,
+    RedisMapsCache,
+    candidate_cache_key,
+    candidate_reference_key,
+    route_cache_key,
+    search_cache_key,
+)
 from src.backend.maps.contracts import (
     MapProviderUnavailableError,
     MapsDomainError,
-    OutOfServiceAreaError,
+    PlaceCandidateExpiredError,
     PlaceNotFoundError,
     PlaceResolutionStatus,
     ResolvedPlace,
     RouteResult,
+    ServiceAreaNotConfiguredError,
+    TrafficDataStatus,
     validate_latitude,
     validate_longitude,
 )
@@ -44,15 +41,7 @@ logger = logging.getLogger(__name__)
 
 
 class MapsService:
-    """Orchestrates geocoding, routing, service-area and persistence.
-
-    The service is designed to work in two modes:
-    1. **Provider configured** (``maps_provider`` is set): calls Nominatim/OSRM
-    2. **No provider**: falls back to existing gazetteer/demo behaviour
-
-    Persistence (PlaceRepository, RouteSnapshotRepository) is injected optionally.
-    When None, the service operates statelessly (suitable for search/reverse).
-    """
+    """Single Maps boundary used by API and backend tool executors."""
 
     def __init__(
         self,
@@ -67,38 +56,48 @@ class MapsService:
     ) -> None:
         self._settings = settings or get_settings()
         self._provider_configured = bool(self._settings.maps_provider)
-
-        if self._provider_configured:
-            self._geocoding = geocoding or get_geocoding_provider(self._settings)
-            self._routing = routing or get_routing_provider(self._settings)
-        else:
-            self._geocoding = geocoding
-            self._routing = routing
-
+        self._geocoding = geocoding or (get_geocoding_provider(self._settings) if self._provider_configured else None)
+        self._routing = routing or (get_routing_provider(self._settings) if self._provider_configured else None)
         self._service_area = service_area or ServiceAreaChecker(
             geojson_path=self._settings.maps_service_area_path,
             service_area_id=self._settings.maps_service_area_id,
         )
-        self._cache = cache or InMemoryMapsCache()
-        durable_repository = MapsRepository() if self._settings.app_env != "test" else None
-        self._place_repo = place_repo or durable_repository
-        self._route_repo = route_repo or durable_repository
+        if cache is not None:
+            self._cache = cache
+        elif self._settings.maps_cache_backend == "redis":
+            self._cache = RedisMapsCache(self._settings.maps_cache_redis_url)
+        else:
+            self._cache = InMemoryMapsCache()
+        durable = MapsRepository() if self._settings.app_env != "test" else None
+        self._place_repo = place_repo or durable
+        self._route_repo = route_repo or durable
 
-    # ------------------------------------------------------------------
-    # Search
-    # ------------------------------------------------------------------
+    async def _remember_candidates(self, candidates: list[dict[str, Any]], session_id: str) -> list[dict[str, Any]]:
+        remembered: list[dict[str, Any]] = []
+        for original in candidates:
+            candidate = dict(original)
+            if session_id:
+                reference = (
+                    "cand_"
+                    + hashlib.sha256(
+                        f"{session_id}:{candidate['provider']}:{candidate['provider_place_id']}".encode()
+                    ).hexdigest()[:24]
+                )
+                candidate["candidate_reference"] = reference
+                await self._cache.set(
+                    candidate_cache_key(session_id, str(candidate["provider"]), str(candidate["provider_place_id"])),
+                    candidate,
+                    ttl_seconds=self._settings.map_candidate_ttl_seconds,
+                )
+                await self._cache.set(
+                    candidate_reference_key(session_id, reference),
+                    candidate,
+                    ttl_seconds=self._settings.map_candidate_ttl_seconds,
+                )
+            remembered.append(candidate)
+        return remembered
 
-    async def search_places(
-        self,
-        query: str,
-        *,
-        limit: int | None = None,
-    ) -> dict[str, Any]:
-        """Search for places matching *query*.
-
-        Returns a dict with ``status`` and ``candidates`` suitable for the
-        public API response.
-        """
+    async def search_places(self, query: str, *, session_id: str = "", limit: int | None = None) -> dict[str, Any]:
         if self._geocoding is None:
             return {
                 "query": query,
@@ -106,49 +105,32 @@ class MapsService:
                 "candidates": [],
                 "error": "MAP_PROVIDER_NOT_CONFIGURED",
             }
-
         effective_limit = limit or self._settings.map_search_limit
-        start = time.monotonic()
-
+        started = time.monotonic()
         try:
-            # Check cache
-            cache_key = search_cache_key(
+            key = search_cache_key(
                 query,
                 country=self._settings.map_country_code,
                 provider=self._settings.geocoding_provider,
                 data_version=self._settings.osm_data_version,
             )
-            cached = await self._cache.get(cache_key)
-            if cached is not None:
-                return cached
-
-            candidates = await self._geocoding.search(query, limit=effective_limit)
-
-            if not candidates:
-                result: dict[str, Any] = {
-                    "query": query,
-                    "status": PlaceResolutionStatus.NOT_FOUND.value,
-                    "candidates": [],
-                }
-            elif len(candidates) == 1:
-                # Single result — still CANDIDATES, not auto-RESOLVED (§17)
+            result = await self._cache.get(key)
+            if result is None:
+                candidates = await self._geocoding.search(query, limit=effective_limit)
+                api_candidates = [candidate.to_api_dict() for candidate in candidates]
                 result = {
                     "query": query,
-                    "status": PlaceResolutionStatus.CANDIDATES.value,
-                    "candidates": [c.to_api_dict() for c in candidates],
+                    "status": PlaceResolutionStatus.CANDIDATES.value
+                    if api_candidates
+                    else PlaceResolutionStatus.NOT_FOUND.value,
+                    "candidates": api_candidates,
                 }
-            else:
-                result = {
-                    "query": query,
-                    "status": PlaceResolutionStatus.CANDIDATES.value,
-                    "candidates": [c.to_api_dict() for c in candidates],
-                }
-
-            await self._cache.set(cache_key, result, ttl_seconds=300)
+                await self._cache.set(key, result, ttl_seconds=300)
+            result = dict(result)
+            result["candidates"] = await self._remember_candidates(list(result.get("candidates", [])), session_id)
             return result
-
         except MapsDomainError as exc:
-            logger.warning("Maps search failed for query='%s': %s", query[:50], exc.code)
+            logger.warning("maps.search_failed code=%s", exc.code)
             return {
                 "query": query,
                 "status": PlaceResolutionStatus.PROVIDER_ERROR.value,
@@ -156,49 +138,30 @@ class MapsService:
                 "error": exc.code,
             }
         finally:
-            elapsed = time.monotonic() - start
-            logger.info("maps.search query=%r latency=%.3fs", query[:50], elapsed)
+            logger.info("maps.search latency_seconds=%.3f", time.monotonic() - started)
 
-    # ------------------------------------------------------------------
-    # Reverse
-    # ------------------------------------------------------------------
-
-    async def reverse_geocode(
-        self,
-        latitude: float,
-        longitude: float,
-    ) -> dict[str, Any]:
-        """Reverse-geocode coordinates to a place."""
+    async def reverse_geocode(self, latitude: float, longitude: float, *, session_id: str = "") -> dict[str, Any]:
         if self._geocoding is None:
             return {
                 "status": PlaceResolutionStatus.PROVIDER_ERROR.value,
                 "candidates": [],
                 "error": "MAP_PROVIDER_NOT_CONFIGURED",
             }
-
-        lat = validate_latitude(latitude)
-        lon = validate_longitude(longitude)
-        start = time.monotonic()
-
+        lat, lon = validate_latitude(latitude), validate_longitude(longitude)
+        started = time.monotonic()
         try:
             candidate = await self._geocoding.reverse(lat, lon)
-            if candidate is None:
-                return {
-                    "latitude": lat,
-                    "longitude": lon,
-                    "status": PlaceResolutionStatus.NOT_FOUND.value,
-                    "candidates": [],
-                }
-
+            candidates = [candidate.to_api_dict()] if candidate else []
+            candidates = await self._remember_candidates(candidates, session_id)
             return {
                 "latitude": lat,
                 "longitude": lon,
-                "status": PlaceResolutionStatus.CANDIDATES.value,
-                "candidates": [candidate.to_api_dict()],
+                "status": PlaceResolutionStatus.CANDIDATES.value
+                if candidates
+                else PlaceResolutionStatus.NOT_FOUND.value,
+                "candidates": candidates,
             }
-
         except MapsDomainError as exc:
-            logger.warning("Maps reverse failed: %s", exc.code)
             return {
                 "latitude": lat,
                 "longitude": lon,
@@ -207,115 +170,86 @@ class MapsService:
                 "error": exc.code,
             }
         finally:
-            elapsed = time.monotonic() - start
-            logger.info("maps.reverse lat=%.4f lon=%.4f latency=%.3fs", latitude, longitude, elapsed)
+            logger.info("maps.reverse latency_seconds=%.3f", time.monotonic() - started)
 
-    # ------------------------------------------------------------------
-    # Place resolution (§17, §25)
-    # ------------------------------------------------------------------
-
-    async def resolve_place(
-        self,
-        *,
-        provider: str,
-        provider_place_id: str,
-        session_id: str,
-        candidate_data: dict[str, Any] | None = None,
-    ) -> ResolvedPlace:
-        """Confirm a candidate and persist as an internal Place.
-
-        1. Validate the candidate exists (from search cache or re-fetch)
-        2. Persist with internal ``plc_<uuid>`` ID
-        3. Check service area
-        4. Return ``ResolvedPlace``
-        """
-        # Check if already resolved in DB
+    async def resolve_place(self, *, provider: str, provider_place_id: str, session_id: str) -> ResolvedPlace:
         if self._place_repo is not None:
             existing = await self._place_repo.find_place_by_provider(provider, provider_place_id)
             if existing is not None:
                 return existing
-
-        if candidate_data is None:
-            raise PlaceNotFoundError("Candidate data not provided and not found in cache")
-
-        # Generate internal place_id
-        place_id = f"plc_{uuid4().hex[:16]}"
-
-        lat = float(candidate_data.get("latitude", 0))
-        lon = float(candidate_data.get("longitude", 0))
-
-        # Check service area
-        area_result = self._service_area.check(lat, lon)
-
-        resolved = ResolvedPlace(
-            place_id=place_id,
-            provider=provider,
+        candidate = await self._cache.get(candidate_cache_key(session_id, provider, provider_place_id))
+        if candidate is None:
+            raise PlaceCandidateExpiredError()
+        if (
+            str(candidate.get("provider", "")).casefold() != provider.casefold()
+            or str(candidate.get("provider_place_id")) != provider_place_id
+        ):
+            raise PlaceNotFoundError("Candidate identity does not match provider result")
+        lat = validate_latitude(float(candidate["latitude"]))
+        lon = validate_longitude(float(candidate["longitude"]))
+        if self._settings.app_env == "production" and not self._service_area.configured:
+            raise ServiceAreaNotConfiguredError()
+        area = self._service_area.check(lat, lon)
+        place = ResolvedPlace(
+            place_id=f"plc_{uuid4().hex[:16]}",
+            provider=provider.casefold(),
             provider_place_id=provider_place_id,
-            display_name=str(candidate_data.get("display_name", "")),
-            formatted_address=str(candidate_data.get("formatted_address", "")),
+            display_name=str(candidate["display_name"]),
+            formatted_address=str(candidate.get("formatted_address", "")),
             latitude=lat,
             longitude=lon,
-            types=candidate_data.get("types", []),
-            serviceable=area_result.serviceable,
-            service_area_id=area_result.service_area_id,
+            types=list(candidate.get("types", [])),
+            serviceable=area.serviceable,
+            service_area_id=area.service_area_id,
             source_version=self._settings.osm_data_version or None,
             resolved_at=datetime.now(UTC),
         )
+        return await self._place_repo.create_place(place) if self._place_repo is not None else place
 
-        # Persist
-        if self._place_repo is not None:
-            await self._place_repo.create_place(resolved)
-
-        logger.info(
-            "Place resolved: id=%s provider=%s serviceable=%s",
-            place_id,
-            provider,
-            area_result.serviceable,
+    async def resolve_candidate_reference(self, *, session_id: str, candidate_reference: str) -> ResolvedPlace:
+        candidate = await self._cache.get(candidate_reference_key(session_id, candidate_reference))
+        if candidate is None:
+            raise PlaceCandidateExpiredError()
+        return await self.resolve_place(
+            provider=str(candidate["provider"]),
+            provider_place_id=str(candidate["provider_place_id"]),
+            session_id=session_id,
         )
 
-        return resolved
-
-    # ------------------------------------------------------------------
-    # Routing (§26)
-    # ------------------------------------------------------------------
-
-    async def create_route(
-        self,
-        *,
-        pickup_place_id: str,
-        destination_place_id: str,
+    @staticmethod
+    def _route_from_cache(
+        data: dict[str, Any], pickup_place_id: str, destination_place_id: str, ttl: int
     ) -> RouteResult:
-        """Create a route between two resolved places.
+        now = datetime.now(UTC)
+        return RouteResult(
+            route_id=f"rte_{uuid4().hex[:16]}",
+            pickup_place_id=pickup_place_id,
+            destination_place_id=destination_place_id,
+            distance_meters=float(data["distance_meters"]),
+            duration_seconds=float(data["duration_seconds"]),
+            geometry=data.get("geometry"),
+            traffic_status=TrafficDataStatus(str(data.get("traffic_status", "NONE"))),
+            traffic_timestamp=data.get("traffic_timestamp"),
+            provider=str(data["provider"]),
+            provider_version=str(data.get("provider_version", "")),
+            source_data_version=str(data.get("source_data_version", "")),
+            created_at=now,
+            expires_at=now + timedelta(seconds=ttl),
+        )
 
-        1. Load places from repository
-        2. Verify both exist and are serviceable
-        3. Call routing provider with lat/lon from DB
-        4. Persist immutable route snapshot
-        5. Return normalised RouteResult
-        """
+    async def create_route(self, *, pickup_place_id: str, destination_place_id: str) -> RouteResult:
         if self._routing is None:
             raise MapProviderUnavailableError("Routing provider not configured")
+        pickup, destination = await self._get_place(pickup_place_id), await self._get_place(destination_place_id)
+        if pickup is None or destination is None:
+            raise PlaceNotFoundError("Pickup or destination place does not exist")
+        if pickup.serviceable is False or destination.serviceable is False:
+            from src.backend.maps.contracts import OutOfServiceAreaError
 
-        # Load places
-        pickup = await self._get_place(pickup_place_id)
-        destination = await self._get_place(destination_place_id)
-
-        if pickup is None:
-            raise PlaceNotFoundError(f"Pickup place not found: {pickup_place_id}")
-        if destination is None:
-            raise PlaceNotFoundError(f"Destination place not found: {destination_place_id}")
-
-        # Verify serviceable
-        if pickup.serviceable is False:
-            raise OutOfServiceAreaError("Pickup location is outside service area")
-        if destination.serviceable is False:
-            raise OutOfServiceAreaError("Destination is outside service area")
-
-        start = time.monotonic()
-
+            raise OutOfServiceAreaError()
+        started = time.monotonic()
         try:
-            # Check cache
-            cache_key = route_cache_key(
+            key = route_cache_key(
                 pickup.latitude,
                 pickup.longitude,
                 destination.latitude,
@@ -323,64 +257,44 @@ class MapsService:
                 provider=self._settings.routing_provider,
                 data_version=self._settings.osm_data_version,
             )
-            cached = await self._cache.get(cache_key)
+            cached = await self._cache.get(key)
             if cached is not None:
-                return cached
-
-            # Call routing provider
-            route = await self._routing.route(
-                pickup.latitude,
-                pickup.longitude,
-                destination.latitude,
-                destination.longitude,
-            )
-
-            # Fill place IDs
-            route.pickup_place_id = pickup_place_id
-            route.destination_place_id = destination_place_id
-
-            # Persist snapshot (immutable — §22)
+                route = self._route_from_cache(
+                    cached, pickup_place_id, destination_place_id, self._settings.map_route_ttl_seconds
+                )
+            else:
+                route = await self._routing.route(
+                    pickup.latitude, pickup.longitude, destination.latitude, destination.longitude
+                )
+                route.pickup_place_id, route.destination_place_id = pickup_place_id, destination_place_id
+                await self._cache.set(key, route.to_snapshot_dict(), ttl_seconds=self._settings.map_route_ttl_seconds)
             if self._route_repo is not None:
                 await self._route_repo.create_route_snapshot(route)
-
-            # Cache
-            await self._cache.set(cache_key, route, ttl_seconds=300)
-
             return route
-
         except MapsDomainError:
             raise
         except Exception as exc:
             raise MapProviderUnavailableError(f"Route creation failed: {exc}") from exc
         finally:
-            elapsed = time.monotonic() - start
-            logger.info(
-                "maps.route pickup=%s dest=%s latency=%.3fs",
-                pickup_place_id[:16],
-                destination_place_id[:16],
-                elapsed,
-            )
+            logger.info("maps.route latency_seconds=%.3f", time.monotonic() - started)
 
     async def _get_place(self, place_id: str) -> ResolvedPlace | None:
-        """Load a resolved place from the repository."""
-        if self._place_repo is not None:
-            return await self._place_repo.get_place(place_id)
-        return None
-
-    # ------------------------------------------------------------------
-    # Health (§37)
-    # ------------------------------------------------------------------
+        return await self._place_repo.get_place(place_id) if self._place_repo is not None else None
 
     async def health_check(self) -> dict[str, Any]:
-        """Check health of all configured providers."""
-        result: dict[str, Any] = {"maps_configured": self._provider_configured}
-
+        result: dict[str, Any] = {
+            "maps_configured": self._provider_configured,
+            "service_area_configured": self._service_area.configured,
+        }
         if self._geocoding is not None:
             result["geocoding"] = await self._geocoding.health_check()
-
         if self._routing is not None:
             result["routing"] = await self._routing.health_check()
-
-        result["service_area_configured"] = self._service_area.configured
-
+        if isinstance(self._cache, RedisMapsCache):
+            try:
+                result["cache"] = "ok" if await self._cache.health_check() else "failed"
+            except Exception:
+                result["cache"] = "failed"
+        else:
+            result["cache"] = "memory_dev_only"
         return result

@@ -9,9 +9,12 @@ from __future__ import annotations
 
 import abc
 import hashlib
+import json
 import time
 import unicodedata
 from typing import Any
+
+from redis.asyncio import Redis
 
 
 class MapsCacheProvider(abc.ABC):
@@ -57,9 +60,29 @@ class InMemoryMapsCache(MapsCacheProvider):
         self._store[key] = (time.monotonic() + ttl_seconds, value)
 
 
+class RedisMapsCache(MapsCacheProvider):
+    """Distributed JSON cache for multi-instance Maps deployments."""
+
+    def __init__(self, url: str) -> None:
+        if not url:
+            raise ValueError("MAPS_CACHE_REDIS_URL_REQUIRED")
+        self._client = Redis.from_url(url, decode_responses=True)
+
+    async def get(self, key: str) -> Any | None:
+        raw = await self._client.get(key)
+        return json.loads(raw) if raw is not None else None
+
+    async def set(self, key: str, value: Any, *, ttl_seconds: int = 300) -> None:
+        await self._client.set(key, json.dumps(value, ensure_ascii=False), ex=ttl_seconds)
+
+    async def health_check(self) -> bool:
+        return bool(await self._client.ping())
+
+
 # ---------------------------------------------------------------------------
 # Cache key helpers
 # ---------------------------------------------------------------------------
+
 
 def search_cache_key(
     query: str,
@@ -90,9 +113,16 @@ def route_cache_key(
     Coordinates are rounded to ~11m precision (4 decimal places) to allow
     cache hits for nearby coordinates.
     """
-    raw = (
-        f"route:{provider}:{profile}:{data_version}:"
-        f"{pickup_lat:.4f},{pickup_lon:.4f};"
-        f"{dest_lat:.4f},{dest_lon:.4f}"
-    )
+    raw = f"route:{provider}:{profile}:{data_version}:{pickup_lat:.4f},{pickup_lon:.4f};{dest_lat:.4f},{dest_lon:.4f}"
     return f"maps:route:{hashlib.sha256(raw.encode()).hexdigest()[:24]}"
+
+
+def candidate_cache_key(session_id: str, provider: str, provider_place_id: str) -> str:
+    """Return a session-bound opaque cache key for an unconfirmed candidate."""
+    raw = f"candidate:{session_id}:{provider.casefold()}:{provider_place_id}"
+    return f"maps:candidate:{hashlib.sha256(raw.encode()).hexdigest()}"
+
+
+def candidate_reference_key(session_id: str, candidate_reference: str) -> str:
+    raw = f"candidate-reference:{session_id}:{candidate_reference}"
+    return f"maps:candidate-ref:{hashlib.sha256(raw.encode()).hexdigest()}"

@@ -15,8 +15,7 @@ async def create_quote(request: QuoteRequestDTO, authorization: str | None = Hea
         quote = await service.issue_quote(
             user_id=user_id,
             session_id=request.session_id,
-            pickup_place_id=request.pickup_place_id,
-            destination_place_id=request.destination_place_id,
+            route_id=request.route_id,
             vehicle_type=request.vehicle_type,
         )
         return QuoteResponseDTO(**quote)

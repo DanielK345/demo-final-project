@@ -38,6 +38,7 @@ def get_routing_provider(settings: Settings | None = None) -> RoutingProvider:
             base_url=s.osrm_base_url,
             timeout=s.map_request_timeout_seconds,
             source_data_version=s.osm_data_version,
+            route_ttl_seconds=s.map_route_ttl_seconds,
         )
 
     # Future: GoongProvider, VietMapProvider, GoogleProvider, MapboxProvider

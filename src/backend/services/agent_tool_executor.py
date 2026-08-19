@@ -8,6 +8,7 @@ from src.agents.state import AgentState
 from src.backend.config import get_settings
 from src.backend.services.booking_service import BookingService
 from src.backend.services.knowledge_service import KnowledgeService
+from src.backend.services.maps_service import MapsService
 from src.backend.services.place_search_service import PlaceSearchService
 from src.backend.services.pricing_service import PricingService
 from src.backend.services.quote_service import QuoteService
@@ -36,6 +37,7 @@ class AgentToolExecutor:
         self._pricing = pricing or PricingService()
         self._quotes = QuoteService(pricing=self._pricing)
         self._durable = get_settings().app_env != "test"
+        self._maps = MapsService() if self._durable else None
         self._booking_service = booking_service or BookingService()
         self._trip_service = trip_service or TripService()
         self._knowledge_service = knowledge_service or KnowledgeService()
@@ -80,15 +82,46 @@ class AgentToolExecutor:
 
         if tool_call.tool_name is ToolName.SEARCH_PLACE:
             query = str(params["query"])
+            if self._maps is not None:
+                result = await self._maps.search_places(query, session_id=session_id)
+                candidates = [
+                    {
+                        "place_id": item["candidate_reference"],
+                        "display_name": item["display_name"],
+                        "address": item.get("formatted_address"),
+                    }
+                    for item in result.get("candidates", [])
+                ]
+                status = "NOT_FOUND" if not candidates else "RESOLVED" if len(candidates) == 1 else "AMBIGUOUS"
+                return {"status": status, "candidates": candidates}
             return {"candidates": self._place_search.search(query)}
 
         if tool_call.tool_name is ToolName.GET_VEHICLE_OPTIONS:
             if user_id is None:
                 raise ValueError("AUTHENTICATED_USER_REQUIRED_FOR_QUOTE")
+            route_id = None
+            if self._maps is not None:
+                pickup_id = str(params["pickup_place_id"])
+                destination_id = str(params["destination_place_id"])
+                if pickup_id.startswith("cand_"):
+                    pickup_id = (
+                        await self._maps.resolve_candidate_reference(
+                            session_id=session_id, candidate_reference=pickup_id
+                        )
+                    ).place_id
+                if destination_id.startswith("cand_"):
+                    destination_id = (
+                        await self._maps.resolve_candidate_reference(
+                            session_id=session_id, candidate_reference=destination_id
+                        )
+                    ).place_id
+                route = await self._maps.create_route(pickup_place_id=pickup_id, destination_place_id=destination_id)
+                route_id = route.route_id
             return {
                 "options": await self._quotes.vehicle_options(
                     user_id=user_id,
                     session_id=session_id,
+                    route_id=route_id,
                     pickup_place_id=str(params["pickup_place_id"]),
                     destination_place_id=str(params["destination_place_id"]),
                     passenger_count=int(params["passenger_count"]),
@@ -99,9 +132,28 @@ class AgentToolExecutor:
         if tool_call.tool_name is ToolName.ESTIMATE_FARE:
             if user_id is None:
                 raise ValueError("AUTHENTICATED_USER_REQUIRED_FOR_QUOTE")
+            route_id = None
+            if self._maps is not None:
+                pickup_id = str(params["pickup_place_id"])
+                destination_id = str(params["destination_place_id"])
+                if pickup_id.startswith("cand_"):
+                    pickup_id = (
+                        await self._maps.resolve_candidate_reference(
+                            session_id=session_id, candidate_reference=pickup_id
+                        )
+                    ).place_id
+                if destination_id.startswith("cand_"):
+                    destination_id = (
+                        await self._maps.resolve_candidate_reference(
+                            session_id=session_id, candidate_reference=destination_id
+                        )
+                    ).place_id
+                route = await self._maps.create_route(pickup_place_id=pickup_id, destination_place_id=destination_id)
+                route_id = route.route_id
             return await self._quotes.issue_quote(
                 user_id=user_id,
                 session_id=session_id,
+                route_id=route_id,
                 pickup_place_id=str(params["pickup_place_id"]),
                 destination_place_id=str(params["destination_place_id"]),
                 vehicle_type=str(params["vehicle_type"]),
@@ -112,7 +164,13 @@ class AgentToolExecutor:
 
         if tool_call.tool_name is ToolName.CANCEL_BOOKING:
             booking_id = str(params["booking_id"])
-            cancelled = (self._booking_service.cancel_booking(booking_id, str(params["idempotency_key"])) if not self._durable else await self._booking_service.cancel_booking_durable(booking_id, str(params["idempotency_key"]), user_id))
+            cancelled = (
+                self._booking_service.cancel_booking(booking_id, str(params["idempotency_key"]))
+                if not self._durable
+                else await self._booking_service.cancel_booking_durable(
+                    booking_id, str(params["idempotency_key"]), user_id
+                )
+            )
             if cancelled is None:
                 raise ValueError(f"Không tìm thấy booking để huỷ: {booking_id}")
             return {"booking_id": booking_id, "status": str(cancelled["status"])}
@@ -151,26 +209,40 @@ class AgentToolExecutor:
             )
             if str(params["fare_estimate_id"]) != str(fare["estimate_id"]):
                 raise ValueError("Fare estimate does not match the confirmed route and vehicle")
-            result = self._booking_service.create_booking({
-                "idempotency_key": params["idempotency_key"], "estimated_fare": fare["fare_amount"],
-                "user_id": user_id, "pickup": None, "destination": None, "vehicle_type": vehicle_type,
-            })
-            return {"booking_id": str(result["booking_id"]), "status": "CONFIRMED", "eta_minutes": fare.get("eta_minutes"), "fare_amount": result.get("estimated_fare"), "currency": "VND"}
+            result = self._booking_service.create_booking(
+                {
+                    "idempotency_key": params["idempotency_key"],
+                    "estimated_fare": fare["fare_amount"],
+                    "user_id": user_id,
+                    "pickup": None,
+                    "destination": None,
+                    "vehicle_type": vehicle_type,
+                }
+            )
+            return {
+                "booking_id": str(result["booking_id"]),
+                "status": "CONFIRMED",
+                "eta_minutes": fare.get("eta_minutes"),
+                "fare_amount": result.get("estimated_fare"),
+                "currency": "VND",
+            }
         booking_state = agent_state.collected_data.get("booking", {})
         pickup = booking_state.get("pickup") if isinstance(booking_state, dict) else None
         destination = booking_state.get("destination") if isinstance(booking_state, dict) else None
-        booking = await self._booking_service.create_booking_from_quote({
-            "quote_id": params["fare_estimate_id"],
-            "fare_estimate_id": params["fare_estimate_id"],
-            "idempotency_key": params["idempotency_key"],
-            "session_id": session_id,
-            "user_id": user_id,
-            "pickup_place_id": params["pickup_place_id"],
-            "destination_place_id": params["destination_place_id"],
-            "vehicle_type": params["vehicle_type"],
-            "pickup": pickup,
-            "destination": destination,
-        })
+        booking = await self._booking_service.create_booking_from_quote(
+            {
+                "quote_id": params["fare_estimate_id"],
+                "fare_estimate_id": params["fare_estimate_id"],
+                "idempotency_key": params["idempotency_key"],
+                "session_id": session_id,
+                "user_id": user_id,
+                "pickup_place_id": params["pickup_place_id"],
+                "destination_place_id": params["destination_place_id"],
+                "vehicle_type": params["vehicle_type"],
+                "pickup": pickup,
+                "destination": destination,
+            }
+        )
         return {
             "booking_id": str(booking["booking_id"]),
             "status": str(booking["status"]),
@@ -179,13 +251,22 @@ class AgentToolExecutor:
             "currency": booking.get("currency", "VND"),
             "quote_id": booking.get("quote_id"),
         }
+
     async def _lookup_trip(self, params: dict[str, object], *, user_id: str | None) -> dict[str, object]:
         booking_id = params.get("booking_id")
         if booking_id:
-            booking = (self._booking_service.get_booking(str(booking_id)) if not self._durable else await self._booking_service.get_booking_durable(str(booking_id)))
+            booking = (
+                self._booking_service.get_booking(str(booking_id))
+                if not self._durable
+                else await self._booking_service.get_booking_durable(str(booking_id))
+            )
             if booking is None or (user_id is not None and booking.get("user_id") != user_id):
                 return {"found": False}
-            live = (self._trip_service.get_status_for_booking(str(booking_id)) if not self._durable else await self._trip_service.get_status_for_booking_durable(str(booking_id)))
+            live = (
+                self._trip_service.get_status_for_booking(str(booking_id))
+                if not self._durable
+                else await self._trip_service.get_status_for_booking_durable(str(booking_id))
+            )
             return {
                 "found": True,
                 "booking_id": str(booking_id),
@@ -204,7 +285,11 @@ class AgentToolExecutor:
                 return {"found": False}
             trips = []
             for booking in matches:
-                live = (self._trip_service.get_status_for_booking(str(booking["booking_id"])) if not self._durable else await self._trip_service.get_status_for_booking_durable(str(booking["booking_id"])))
+                live = (
+                    self._trip_service.get_status_for_booking(str(booking["booking_id"]))
+                    if not self._durable
+                    else await self._trip_service.get_status_for_booking_durable(str(booking["booking_id"]))
+                )
                 pickup = booking.get("pickup")
                 destination = booking.get("destination")
                 trips.append(

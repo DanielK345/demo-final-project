@@ -3,8 +3,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 class QuoteRequestDTO(BaseModel):
     session_id: str = Field(min_length=1)
-    pickup_place_id: str = Field(min_length=1)
-    destination_place_id: str = Field(min_length=1)
+    route_id: str = Field(min_length=1, max_length=32)
     vehicle_type: str = Field(min_length=1)
 
 

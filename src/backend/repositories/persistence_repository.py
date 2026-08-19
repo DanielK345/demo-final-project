@@ -645,6 +645,7 @@ class PersistenceRepository:
             "user_id": row.user_id,
             "session_id": row.session_id,
             "pricing_catalog_id": row.pricing_catalog_id,
+            "route_snapshot_id": row.route_snapshot_id,
             "pickup_place_id": row.pickup_place_id,
             "destination_place_id": row.destination_place_id,
             "vehicle_type": row.vehicle_type,
