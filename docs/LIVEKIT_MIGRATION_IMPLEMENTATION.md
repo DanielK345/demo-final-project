@@ -34,10 +34,8 @@ Cập nhật: **2026-08-19** · Trạng thái: **PHASE 3 HARDENING + LIVEKIT TRA
 
 ```text
 Authenticated React user
-→ user presses call; frontend creates one call_instance_id
-→ POST FastAPI `/livekit/prepare` performs best-effort explicit agent dispatch
-→ popup mounts and connects to the same LiveKit Room with the prepared token
-→ token RoomConfiguration dispatch remains as fallback when prepare fails
+→ POST FastAPI LiveKit token endpoint
+→ connect LiveKit Room and dispatch alosm-voice Agent
 → publish microphone audio over WebRTC
 → AgentServer receives job
 → AgentSession receives audio through RoomIO
@@ -60,22 +58,22 @@ Không được thêm REST upload hoặc custom WebSocket vào flow mới.
 
 ## 3. Ownership
 
-| Concern | Owner sau migration | Ghi chú |
-|---|---|---|
-| WebRTC, audio tracks, reconnect | LiveKit Room/client SDK | Không tự gửi PCM/MP3 |
-| Agent job/lifecycle | LiveKit `AgentServer` | Worker riêng FastAPI |
-| Pipeline/session | LiveKit `AgentSession` | Một session cho một cuộc gọi |
-| VAD/endpointing/barge-in | LiveKit turn handling | Baseline `vad` cho tiếng Việt |
-| STT/LLM/TTS orchestration | LiveKit | Model cấu hình qua ENV |
-| Final transcript rewrite trước conversation LLM | AloSM `on_user_turn_completed` hook | Không thay streaming STT hoặc override provider node |
-| Conversation/tool loop | LiveKit Agent/tools | Không giữ loop cũ |
-| Runtime booking draft | typed `userdata` | Không coi là durable |
-| Booking workflow | `BookingTask` | Typed result, correction được hỗ trợ |
-| Domain validation | AloSM policy/service | Deterministic, không chỉ prompt |
-| External side effects | AloSM services | Place, quote, booking, trip, handoff |
-| Durable truth/audit | PostgreSQL/repositories | Idempotency và reconciliation |
-| UI state | LiveKit state + structured AloSM data | Không parse câu nói để suy state |
-| Metrics/session report | LiveKit + AloSM metric sink | Đo thêm ASR entity accuracy |
+| Concern                                           | Owner sau migration                   | Ghi chú                                               |
+| ------------------------------------------------- | ------------------------------------- | ------------------------------------------------------ |
+| WebRTC, audio tracks, reconnect                   | LiveKit Room/client SDK               | Không tự gửi PCM/MP3                                |
+| Agent job/lifecycle                               | LiveKit`AgentServer`                | Worker riêng FastAPI                                  |
+| Pipeline/session                                  | LiveKit`AgentSession`               | Một session cho một cuộc gọi                       |
+| VAD/endpointing/barge-in                          | LiveKit turn handling                 | Baseline`vad` cho tiếng Việt                       |
+| STT/LLM/TTS orchestration                         | LiveKit                               | Model cấu hình qua ENV                               |
+| Final transcript rewrite trước conversation LLM | AloSM`on_user_turn_completed` hook  | Không thay streaming STT hoặc override provider node |
+| Conversation/tool loop                            | LiveKit Agent/tools                   | Không giữ loop cũ                                   |
+| Runtime booking draft                             | typed`userdata`                     | Không coi là durable                                 |
+| Booking workflow                                  | `BookingTask`                       | Typed result, correction được hỗ trợ              |
+| Domain validation                                 | AloSM policy/service                  | Deterministic, không chỉ prompt                      |
+| External side effects                             | AloSM services                        | Place, quote, booking, trip, handoff                   |
+| Durable truth/audit                               | PostgreSQL/repositories               | Idempotency và reconciliation                         |
+| UI state                                          | LiveKit state + structured AloSM data | Không parse câu nói để suy state                  |
+| Metrics/session report                            | LiveKit + AloSM metric sink           | Đo thêm ASR entity accuracy                          |
 
 ## 4. Cấu trúc source đích
 
@@ -237,17 +235,17 @@ phải enforce state transition quan trọng.
 
 Baseline tool set:
 
-| Tool | Loại | Side effect | Policy chính |
-|---|---|---|---|
-| `search_place` | read | không | trả typed candidates, không echo free text thành resolved place |
-| `select_place` | state | không | candidate ID phải thuộc result hiện hành |
-| `set_vehicle_type` | state | không | enum hợp lệ; clear quote/confirmation khi đổi |
-| `estimate_fare` | read | không | cần hai resolved places + vehicle |
-| `confirm_booking` | state | không | chỉ hợp lệ ở bước awaiting confirmation |
-| `create_booking` | write | có | confirmation + quote fingerprint + idempotency |
-| `lookup_trip` | read | không | authorization/ownership check |
-| `request_handoff` | write | có | reason code + redacted context |
-| `end_call` | session | có | graceful close |
+| Tool                 | Loại   | Side effect | Policy chính                                                      |
+| -------------------- | ------- | ----------- | ------------------------------------------------------------------ |
+| `search_place`     | read    | không      | trả typed candidates, không echo free text thành resolved place |
+| `select_place`     | state   | không      | candidate ID phải thuộc result hiện hành                       |
+| `set_vehicle_type` | state   | không      | enum hợp lệ; clear quote/confirmation khi đổi                  |
+| `estimate_fare`    | read    | không      | cần hai resolved places + vehicle                                 |
+| `confirm_booking`  | state   | không      | chỉ hợp lệ ở bước awaiting confirmation                      |
+| `create_booking`   | write   | có         | confirmation + quote fingerprint + idempotency                     |
+| `lookup_trip`      | read    | không      | authorization/ownership check                                      |
+| `request_handoff`  | write   | có         | reason code + redacted context                                     |
+| `end_call`         | session | có         | graceful close                                                     |
 
 `create_booking` và các write tool phải:
 
@@ -270,7 +268,6 @@ LIVEKIT_URL
 LIVEKIT_API_KEY
 LIVEKIT_API_SECRET
 LIVEKIT_AGENT_NAME=alosm-voice
-LIVEKIT_NUM_IDLE_PROCESSES=1
 LIVEKIT_STT_MODEL
 LIVEKIT_STT_LANGUAGE=vi
 LIVEKIT_LLM_MODEL
@@ -321,25 +318,6 @@ Transcript rewrite:
 - rewrite được chấp nhận sửa trực tiếp `new_message.content` trước conversation LLM;
   transcript partial/final mà frontend đã nhận từ STT có thể vẫn là raw transcript;
 - latency của hook nằm trong `ChatMessage.metrics.on_user_turn_completed_delay`.
-
-Startup latency:
-
-- worker local/dev giữ mặc định một idle job process bằng
-  `LIVEKIT_NUM_IDLE_PROCESSES=1`; tăng giá trị theo concurrency chỉ sau khi đo memory;
-- frontend tạo `call_instance_id` ngay trong action mở cuộc gọi, trước khi lazy popup
-  hoàn tất mount;
-- khi consent đã có, frontend gọi authenticated `POST /api/v1/livekit/prepare`; lần
-  đồng ý consent đầu tiên gọi prepare ngay trước khi mount session;
-- backend tự derive opaque Room từ user/session/call ID và explicit-dispatch đúng
-  `LIVEKIT_AGENT_NAME`; client không được chọn Room, identity hoặc metadata;
-- prepare trả luôn participant token cho cùng Room. `TokenSource.custom` dùng token
-  này ở lần fetch đầu, các lần refresh/reconnect tiếp tục dùng `/livekit/token`;
-- browser chỉ chờ prepare tối đa 1.5 giây rồi dùng token endpoint fallback, tránh
-  biến tối ưu cold-start thành một blocking failure mới;
-- prepare là best-effort: token vẫn chứa `RoomConfiguration.agents`, nên nếu API
-  dispatch lỗi thì participant đầu tiên tạo Room sẽ dispatch agent như flow cũ;
-- không prepare lúc login và không bật microphone trước consent để tránh giữ Room/job
-  hoặc tiêu inference quota cho người không thực hiện cuộc gọi.
 
 Turn handling baseline (LiveKit Agents 1.6.x API):
 
@@ -714,24 +692,22 @@ trong local session đã được phép debug; không dùng cấu hình này là
 - Automated coverage kiểm tra parent agent, active booking task, candidate context,
   preservation của confidence, low-confidence skip và provider fail-open.
 
-#### LiveKit startup latency hardening — 2026-08-20
+#### Terminal session logout — 2026-08-20
 
-- `AgentServer` nhận `num_idle_processes` từ `LIVEKIT_NUM_IDLE_PROCESSES`, mặc định
-  một process. Điều này sửa khác biệt của LiveKit `dev` mode vốn giữ zero idle process,
-  nhưng không tự tạo Room hoặc gọi inference khi chưa có cuộc gọi.
-- Thêm authenticated `POST /api/v1/livekit/prepare`. Endpoint dùng cùng derivation
-  opaque Room/participant/metadata với token issuer và gọi
-  `AgentDispatchService.CreateDispatch` trước khi browser kết nối.
-- Prepare không mở rộng quyền client: user/session lấy từ bearer token; request chỉ
-  nhận UUID `call_instance_id`; agent name, Room và metadata vẫn do server sở hữu.
-- Nút gọi khởi động prepare trước khi popup lazy-load hoàn tất nếu consent đã tồn tại.
-  Với consent lần đầu, prepare chỉ bắt đầu sau thao tác “Đồng ý”. Microphone vẫn chỉ
-  bật trong `session.start` sau consent.
-- Prepared token được dùng đúng một lần; token refresh/reconnect quay về endpoint
-  chuẩn. Nếu explicit dispatch lỗi, backend trả token với dispatch config cũ và cuộc
-  gọi vẫn khởi động khi participant join Room.
-- Automated coverage xác minh prepare authentication, Room trong dispatch trùng Room
-  trong JWT, success flag và fail-open token fallback.
+- `POST /api/v1/sessions/{session_id}/end` kết thúc conversation session và revoke
+  ngay bearer token đã bind với session đó. Token cũ nhận `401` trên protected
+  endpoint, kể cả khi localStorage chưa kịp được dọn.
+- Lượt text hoặc REST voice mà Core Agent trả `END_SESSION` cũng revoke token trước
+  khi response được trả về. Frontend phát xong lời chào kết thúc, xóa auth state rồi
+  chuyển về `/login` với history replacement.
+- Nút gác máy của cả LiveKit và legacy runtime gọi terminal `endSession`; nút đóng
+  popup chỉ đóng giao diện và không logout. Nếu mạng lỗi khi gác máy, frontend vẫn
+  xóa credential local; token server còn sót sẽ hết hạn theo TTL hiện hành.
+- LiveKit theo dõi transition từ connected sang disconnected: reconnect tạm thời
+  không logout, nhưng Room/agent đóng hoặc disconnect cuối cùng sẽ chạy terminal
+  cleanup. Disconnect có chủ đích để retry không bị coi là kết thúc session.
+- “Đặt xe mới” reset agent memory trong session đang hoạt động, không gọi `/end`,
+  tránh logout ngoài ý muốn.
 
 ### Phase 4 — Evaluation và cutover
 

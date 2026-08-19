@@ -1,5 +1,6 @@
 import json
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 from livekit.agents import (
@@ -11,6 +12,14 @@ from livekit.agents import (
 
 from src.voice_agent.observability import LiveKitSessionObserver, SessionEventLog
 from src.voice_agent.session_data import AloSMSessionData
+
+
+class _Clock:
+    def __init__(self) -> None:
+        self.now = 0.0
+
+    def __call__(self) -> float:
+        return self.now
 
 
 def _userdata(call_id: str = "call/livekit:1") -> AloSMSessionData:
@@ -141,3 +150,60 @@ async def test_disabled_observability_does_not_create_a_file(tmp_path: Path) -> 
     await event_log.close()
 
     assert not event_log.path.exists()
+
+
+@pytest.mark.asyncio
+async def test_observer_reports_stt_final_stall_with_actionable_stage(tmp_path: Path, caplog) -> None:
+    event_log = SessionEventLog(
+        enabled=True,
+        include_transcripts=False,
+        directory=tmp_path,
+        userdata=_userdata("call-stall"),
+        room_name="room-stall",
+    )
+    clock = _Clock()
+    observer = LiveKitSessionObserver(event_log, clock=clock)
+    await event_log.start()
+
+    observer.record(SimpleNamespace(type="user_state_changed", old_state="listening", new_state="speaking"))
+    clock.now = 1.2
+    observer.record(SimpleNamespace(type="user_state_changed", old_state="speaking", new_state="listening"))
+    clock.now = 4.0
+    observer.record(SimpleNamespace(type="session_usage_updated", usage=SimpleNamespace(model_usage=[])))
+    await event_log.close()
+
+    stalls = [event for event in _read_events(event_log.path) if event["event"] == "pipeline_stall"]
+    assert len(stalls) == 1
+    assert stalls[0]["turn_sequence"] == 1
+    assert stalls[0]["stage"] == "stt_final_missing"
+    assert stalls[0]["waiting_ms"] == 2800.0
+    assert stalls[0]["speech_duration_ms"] == 1200.0
+    assert stalls[0]["last_partial_length"] == 0
+    assert stalls[0]["user_state"] == "listening"
+    assert stalls[0]["agent_state"] == "unknown"
+    assert "pipeline_stall stage=stt_final_missing" in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_observer_throttles_usage_jsonl_without_hiding_stall_checks(tmp_path: Path) -> None:
+    event_log = SessionEventLog(
+        enabled=True,
+        include_transcripts=False,
+        directory=tmp_path,
+        userdata=_userdata("call-usage"),
+        room_name="room-usage",
+    )
+    clock = _Clock()
+    observer = LiveKitSessionObserver(event_log, clock=clock)
+    usage = SimpleNamespace(type="session_usage_updated", usage=SimpleNamespace(model_usage=[]))
+    await event_log.start()
+
+    observer.record(usage)
+    clock.now = 1.0
+    observer.record(usage)
+    clock.now = 10.0
+    observer.record(usage)
+    await event_log.close()
+
+    events = _read_events(event_log.path)
+    assert sum(event["event"] == "session_usage_updated" for event in events) == 2
