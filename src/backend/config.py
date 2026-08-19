@@ -73,6 +73,10 @@ class Settings(BaseSettings):
         return self.openai_tts_voice
     voice_gemini_model: str = "gemini-2.0-flash"
     voice_timeout_seconds: float = Field(default=30.0, gt=0)
+    # Post-ASR guard for short filler/noise vocalisations that pass energy VAD.
+    voice_brief_ambiguous_sound_enabled: bool = True
+    voice_brief_ambiguous_sound_max_duration_ms: int = Field(default=700, ge=100, le=3000)
+    voice_brief_ambiguous_sound_max_confidence: float = Field(default=0.40, ge=0.0, le=1.0)
 
     # Post-ASR Vietnamese correction. Only the current transcript is sent and
     # phone/email/ID/number values are replaced with immutable placeholders.

@@ -46,6 +46,7 @@ class PlaceCandidate(BaseModel):
     address: str
     provider: str
     city: str | None = None
+    asr_aliases: tuple[str, ...] = ()
 
 
 class QuoteSnapshot(BaseModel):

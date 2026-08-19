@@ -1,10 +1,12 @@
 """The single AloSM agent used by the LiveKit-native runtime."""
 
-from livekit.agents import Agent, function_tool
+from livekit.agents import Agent, function_tool, llm
 
+from src.voice.text.rewrite_contract import TranscriptRewriter
 from src.voice_agent.persistence import EphemeralVoiceStateStore, VoiceStateStore
 from src.voice_agent.session_data import AloSMSessionData
 from src.voice_agent.tasks import BookingTask
+from src.voice_agent.transcript_rewrite import rewrite_livekit_user_turn
 
 
 class AloSMAgent(Agent):
@@ -15,9 +17,11 @@ class AloSMAgent(Agent):
         *,
         state_store: VoiceStateStore | None = None,
         session_data: AloSMSessionData | None = None,
+        transcript_rewriter: TranscriptRewriter | None = None,
     ) -> None:
         self._state_store = state_store or EphemeralVoiceStateStore()
         self._session_data = session_data
+        self._transcript_rewriter = transcript_rewriter
         recovered_context = ""
         if session_data is not None and session_data.recovered:
             recovered_context = (
@@ -38,6 +42,18 @@ class AloSMAgent(Agent):
             )
         )
 
+    async def on_user_turn_completed(
+        self,
+        turn_ctx: llm.ChatContext,
+        new_message: llm.ChatMessage,
+    ) -> None:
+        await rewrite_livekit_user_turn(
+            rewriter=self._transcript_rewriter,
+            userdata=self._session_data,
+            turn_ctx=turn_ctx,
+            new_message=new_message,
+        )
+
     @function_tool()
     async def start_booking(self) -> str:
         """Start or resume the native AloSM ride-booking task for this call."""
@@ -45,5 +61,10 @@ class AloSMAgent(Agent):
         # excluding the parent instructions, so the focused task prompt remains
         # small and authoritative.
         task_context = self.chat_ctx.copy(exclude_instructions=True)
-        outcome = await BookingTask(chat_ctx=task_context, state_store=self._state_store)
+        outcome = await BookingTask(
+            chat_ctx=task_context,
+            state_store=self._state_store,
+            session_data=self.session.userdata,
+            transcript_rewriter=self._transcript_rewriter,
+        )
         return outcome.message

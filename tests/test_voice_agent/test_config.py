@@ -73,13 +73,43 @@ def test_livekit_url_must_use_websocket_scheme() -> None:
         livekit_url="https://alosm.example.livekit.cloud",
         livekit_api_key="api-key",
         livekit_api_secret="api-secret",
-        livekit_stt_model="stt",
-        livekit_llm_model="llm",
-        livekit_tts_model="tts",
+        livekit_stt_model="provider/stt",
+        livekit_llm_model="provider/llm",
+        livekit_tts_model="provider/tts",
         livekit_tts_voice="voice",
     )
 
     assert config.readiness_errors() == ["LIVEKIT_URL_MUST_USE_WS"]
+
+
+@pytest.mark.parametrize(
+    ("field", "value", "expected_error"),
+    [
+        ("livekit_stt_model", "chirp_2", "LIVEKIT_STT_MODEL_MUST_USE_PROVIDER_MODEL"),
+        ("livekit_llm_model", "gpt-4.1-mini", "LIVEKIT_LLM_MODEL_MUST_USE_PROVIDER_MODEL"),
+        ("livekit_tts_model", "gpt-4o-mini-tts", "LIVEKIT_TTS_MODEL_MUST_USE_PROVIDER_MODEL"),
+    ],
+)
+def test_livekit_inference_models_require_provider_prefix(
+    field: str,
+    value: str,
+    expected_error: str,
+) -> None:
+    values = {
+        "livekit_stt_model": "deepgram/nova-3",
+        "livekit_llm_model": "openai/gpt-4.1-mini",
+        "livekit_tts_model": "cartesia/sonic-3",
+    }
+    values[field] = value
+    config = settings(**values)
+
+    assert expected_error in config.configuration_errors()
+
+
+def test_livekit_stt_auto_model_is_supported() -> None:
+    config = settings(livekit_stt_model="auto")
+
+    assert "LIVEKIT_STT_MODEL_MUST_USE_PROVIDER_MODEL" not in config.configuration_errors()
 
 
 def test_semantic_turn_detection_cannot_be_selected_by_configuration() -> None:

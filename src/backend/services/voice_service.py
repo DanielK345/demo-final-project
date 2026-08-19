@@ -16,6 +16,7 @@ from src.backend.services.session_service import SessionService
 from src.backend.services.transcript_rewriter import build_transcript_rewriter
 from src.config import Settings, get_settings
 from src.voice.asr.biasing import correct_place_names
+from src.voice.asr.brief_sound import detect_brief_ambiguous_sound
 from src.voice.asr.groq_provider import is_known_hallucination
 from src.voice.text.gazetteer import Gazetteer
 from src.voice.text.normalizer import normalize_transcript
@@ -114,6 +115,23 @@ class VoiceService:
             return self._reprompt_response(provider_name, reason="no_speech_detected")
 
         normalized_raw_transcript = normalize_transcript(raw_transcript)
+        if self.settings.voice_brief_ambiguous_sound_enabled:
+            brief_sound = detect_brief_ambiguous_sound(
+                normalized_raw_transcript,
+                max_duration_ms=self.settings.voice_brief_ambiguous_sound_max_duration_ms,
+                low_confidence_threshold=self.settings.voice_brief_ambiguous_sound_max_confidence,
+            )
+            if brief_sound.blocked:
+                logger.info(
+                    "Voice brief ambiguous sound blocked session=%s provider=%s transcript=%r",
+                    session_id,
+                    provider_name,
+                    normalized_raw_transcript,
+                )
+                return self._reprompt_response(
+                    provider_name,
+                    reason=brief_sound.reason or "brief_ambiguous_sound",
+                )
         # Correct known multi-token ASR aliases before fuzzy gazetteer matching.
         # Otherwise "Bình Yuni" can become "Bình VinUni" when the one-token
         # fuzzy matcher replaces only "Yuni", preventing the exact phrase alias

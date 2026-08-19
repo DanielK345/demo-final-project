@@ -10,6 +10,7 @@ from livekit.agents import AgentServer, AgentSession, JobContext, cli, inference
 from livekit.agents.voice.events import ErrorEvent
 from livekit.agents.voice.room_io import AudioInputOptions, RoomOptions
 
+from src.backend.services.transcript_rewriter import build_transcript_rewriter
 from src.voice_agent.agent import AloSMAgent
 from src.voice_agent.config import LiveKitVoiceSettings, get_livekit_voice_settings
 from src.voice_agent.observability import LiveKitSessionObserver, SessionEventLog
@@ -171,6 +172,9 @@ async def alosm_voice_session(ctx: JobContext) -> None:
     settings = get_livekit_voice_settings()
     userdata = build_session_data(ctx, settings)
     state_store = DatabaseVoiceStateStore()
+    transcript_rewriter = build_transcript_rewriter()
+    if transcript_rewriter is not None:
+        ctx.add_shutdown_callback(transcript_rewriter.client.close)
     recovered = await restore_session_data(userdata, state_store)
     session = build_agent_session(settings, userdata=userdata)
     register_provider_failure_sync(session, state_store)
@@ -202,7 +206,11 @@ async def alosm_voice_session(ctx: JobContext) -> None:
     )
     await session.start(
         room=ctx.room,
-        agent=AloSMAgent(state_store=state_store, session_data=userdata),
+        agent=AloSMAgent(
+            state_store=state_store,
+            session_data=userdata,
+            transcript_rewriter=transcript_rewriter,
+        ),
         record=settings.livekit_record_audio,
         room_options=RoomOptions(
             text_input=True,

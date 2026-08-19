@@ -215,9 +215,8 @@ Chế độ này không chứng minh database persistence và dữ liệu mất 
 `APP_ENV=development`, tài khoản demo trên không tự được seed vào một database mới;
 hãy đăng ký tài khoản qua UI hoặc dùng account đã được tạo trong database dev.
 
-Chuỗi Alembic cũ hiện chưa tạo được **SQLite hoàn toàn mới** do migration durable
-trước Phase LiveKit thêm foreign key ngoài batch mode. Không dùng một SQLite rỗng để
-đánh giá setup đầy đủ; đây là limitation đã biết, không phải lỗi LiveKit.
+Alembic hỗ trợ tạo SQLite hoàn toàn mới cho local development; migration dùng batch
+mode cho các foreign key cần recreate table trên SQLite.
 
 ## 7. Chạy ứng dụng đúng cách
 
@@ -233,7 +232,7 @@ Backend phải ở `http://localhost:8000`. Kiểm tra:
 
 ```bash
 curl http://localhost:8000/health
-curl http://localhost:8000/api/v1/agent/status
+curl http://localhost:8000/api/v1/status
 ```
 
 Kết quả status phải có `livekit_configured: true`.

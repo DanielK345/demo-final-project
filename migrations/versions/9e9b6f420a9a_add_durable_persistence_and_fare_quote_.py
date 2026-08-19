@@ -44,20 +44,24 @@ def upgrade() -> None:
         op.add_column("ride_sessions", column)
     op.create_index("ix_ride_sessions_user_created", "ride_sessions", ["user_id", "created_at"])
 
-    for column in (
-        sa.Column("user_id", sa.String(32), nullable=True),
-        sa.Column("quoted_fare_amount", sa.BigInteger(), nullable=True),
-        sa.Column("pricing_version", sa.String(64), nullable=True),
-        sa.Column("pricing_snapshot", J, nullable=True),
-        sa.Column("route_snapshot", J, nullable=True),
-        sa.Column("promotion_snapshot", J, nullable=True),
-        sa.Column("quote_context_hash", sa.String(64), nullable=True),
-        sa.Column("confirmed_at", sa.DateTime(timezone=True), nullable=True),
-        sa.Column("cancelled_at", sa.DateTime(timezone=True), nullable=True),
-        sa.Column("final_fare_amount", sa.BigInteger(), nullable=True),
-    ):
-        op.add_column("bookings", column)
-    op.create_foreign_key("fk_bookings_user_id", "bookings", "users", ["user_id"], ["id"])
+    # SQLite cannot add foreign-key constraints with ALTER TABLE. Alembic's
+    # batch mode recreates the table there, while preserving normal ALTER TABLE
+    # semantics on PostgreSQL.
+    with op.batch_alter_table("bookings") as batch_op:
+        for column in (
+            sa.Column("user_id", sa.String(32), nullable=True),
+            sa.Column("quoted_fare_amount", sa.BigInteger(), nullable=True),
+            sa.Column("pricing_version", sa.String(64), nullable=True),
+            sa.Column("pricing_snapshot", J, nullable=True),
+            sa.Column("route_snapshot", J, nullable=True),
+            sa.Column("promotion_snapshot", J, nullable=True),
+            sa.Column("quote_context_hash", sa.String(64), nullable=True),
+            sa.Column("confirmed_at", sa.DateTime(timezone=True), nullable=True),
+            sa.Column("cancelled_at", sa.DateTime(timezone=True), nullable=True),
+            sa.Column("final_fare_amount", sa.BigInteger(), nullable=True),
+        ):
+            batch_op.add_column(column)
+        batch_op.create_foreign_key("fk_bookings_user_id", "users", ["user_id"], ["id"])
     op.create_index("ix_bookings_user_created", "bookings", ["user_id", "created_at"])
     op.create_index("ix_bookings_session_created", "bookings", ["session_id", "created_at"])
 
@@ -168,8 +172,9 @@ def upgrade() -> None:
     op.create_index("ix_fare_quotes_pricing_catalog_id", "fare_quotes", ["pricing_catalog_id"])
     op.create_index("ix_fare_quotes_user_issued", "fare_quotes", ["user_id", "issued_at"])
 
-    op.add_column("bookings", sa.Column("quote_id", sa.String(32), nullable=True))
-    op.create_foreign_key("fk_bookings_quote_id", "bookings", "fare_quotes", ["quote_id"], ["id"])
+    with op.batch_alter_table("bookings") as batch_op:
+        batch_op.add_column(sa.Column("quote_id", sa.String(32), nullable=True))
+        batch_op.create_foreign_key("fk_bookings_quote_id", "fare_quotes", ["quote_id"], ["id"])
     op.create_index("ux_bookings_quote_id", "bookings", ["quote_id"], unique=True)
 
     op.create_table("idempotency_records",
@@ -222,8 +227,9 @@ def downgrade() -> None:
     op.drop_table("outbox_events")
     op.drop_table("idempotency_records")
     op.drop_index("ux_bookings_quote_id", table_name="bookings")
-    op.drop_constraint("fk_bookings_quote_id", "bookings", type_="foreignkey")
-    op.drop_column("bookings", "quote_id")
+    with op.batch_alter_table("bookings") as batch_op:
+        batch_op.drop_constraint("fk_bookings_quote_id", type_="foreignkey")
+        batch_op.drop_column("quote_id")
     op.drop_table("fare_quotes")
     op.drop_table("pricing_catalog_versions")
     op.drop_table("conversation_messages")
@@ -234,9 +240,10 @@ def downgrade() -> None:
         op.drop_column("trips", name)
     op.drop_index("ix_bookings_session_created", table_name="bookings")
     op.drop_index("ix_bookings_user_created", table_name="bookings")
-    op.drop_constraint("fk_bookings_user_id", "bookings", type_="foreignkey")
-    for name in ("final_fare_amount", "cancelled_at", "confirmed_at", "quote_context_hash", "promotion_snapshot", "route_snapshot", "pricing_snapshot", "pricing_version", "quoted_fare_amount", "user_id"):
-        op.drop_column("bookings", name)
+    with op.batch_alter_table("bookings") as batch_op:
+        batch_op.drop_constraint("fk_bookings_user_id", type_="foreignkey")
+        for name in ("final_fare_amount", "cancelled_at", "confirmed_at", "quote_context_hash", "promotion_snapshot", "route_snapshot", "pricing_snapshot", "pricing_version", "quoted_fare_amount", "user_id"):
+            batch_op.drop_column(name)
     op.drop_index("ix_ride_sessions_user_created", table_name="ride_sessions")
     for name in ("updated_at", "version", "feedback", "booking_lifecycle_status", "handoff_id", "turn_sequence", "agent_state", "user_phone"):
         op.drop_column("ride_sessions", name)

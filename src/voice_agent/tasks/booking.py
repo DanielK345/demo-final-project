@@ -10,6 +10,7 @@ from typing import Literal
 from livekit.agents import AgentTask, RunContext, ToolError, function_tool, llm
 from pydantic import BaseModel, ConfigDict
 
+from src.voice.text.rewrite_contract import TranscriptRewriter
 from src.voice_agent.persistence import (
     EphemeralVoiceStateStore,
     VoiceStateConflictError,
@@ -24,6 +25,7 @@ from src.voice_agent.session_data import (
     vehicle_spoken_label,
 )
 from src.voice_agent.state_sync import publish_booking_state
+from src.voice_agent.transcript_rewrite import rewrite_livekit_user_turn
 from src.voice_agent.tools import (
     BookingToolsService,
     HandoffToolsService,
@@ -86,12 +88,16 @@ class BookingTask(AgentTask[BookingOutcome]):
         bookings: BookingToolsService | None = None,
         handoffs: HandoffToolsService | None = None,
         state_store: VoiceStateStore | None = None,
+        session_data: AloSMSessionData | None = None,
+        transcript_rewriter: TranscriptRewriter | None = None,
     ) -> None:
         self._places = places or PlaceToolsService()
         self._quotes = quotes or QuoteToolsService()
         self._bookings = bookings or BookingToolsService()
         self._handoffs = handoffs or HandoffToolsService()
         self._state_store = state_store or EphemeralVoiceStateStore()
+        self._session_data = session_data
+        self._transcript_rewriter = transcript_rewriter
         super().__init__(
             chat_ctx=chat_ctx,
             instructions=(
@@ -112,6 +118,18 @@ class BookingTask(AgentTask[BookingOutcome]):
                 "Nếu tool báo ASR_LOW_CONFIDENCE thì yêu cầu khách nói lại hoặc nhập tay. "
                 "Nếu khách yêu cầu gặp người thật hoặc không thể tiếp tục, gọi request_handoff."
             ),
+        )
+
+    async def on_user_turn_completed(
+        self,
+        turn_ctx: llm.ChatContext,
+        new_message: llm.ChatMessage,
+    ) -> None:
+        await rewrite_livekit_user_turn(
+            rewriter=self._transcript_rewriter,
+            userdata=self._session_data,
+            turn_ctx=turn_ctx,
+            new_message=new_message,
         )
 
     async def on_enter(self) -> None:

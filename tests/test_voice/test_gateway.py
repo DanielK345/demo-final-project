@@ -208,6 +208,36 @@ async def test_non_confirmation_step_low_confidence_is_still_forwarded():
 
 
 @pytest.mark.asyncio
+async def test_brief_ambiguous_sound_is_not_forwarded_to_backend():
+    asr = FakeASRProvider(responses=[ASRResult(text="ừm", confidence=0.95)])
+    gateway, asr, tts, bridge = _make_gateway(asr=asr)
+    session_id, _ = await gateway.start_session()
+
+    outputs = await gateway._handle_utterance(
+        gateway._connections[session_id],
+        _loud_chunk(0.25),
+    )
+
+    assert bridge.sent == []
+    assert WSEventType.AGENT_MESSAGE in [event.type for event in _events(outputs)]
+
+
+@pytest.mark.asyncio
+async def test_meaningful_brief_confirmation_is_still_forwarded():
+    asr = FakeASRProvider(responses=[ASRResult(text="ừ", confidence=0.95)])
+    gateway, asr, tts, bridge = _make_gateway(asr=asr)
+    session_id, _ = await gateway.start_session()
+
+    await gateway._handle_utterance(
+        gateway._connections[session_id],
+        _loud_chunk(0.25),
+    )
+
+    assert len(bridge.sent) == 1
+    assert bridge.sent[0][1] == "ừ"
+
+
+@pytest.mark.asyncio
 async def test_handoff_action_sets_stage_and_emits_handoff_event():
     bridge = FakeSessionBridge(responses=[SessionTurnResult(action="HANDOFF", message="Chuyển tổng đài viên.")])
     gateway, asr, tts, bridge = _make_gateway(session_bridge=bridge)

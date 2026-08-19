@@ -13,7 +13,15 @@ BOOKING_STATE_TOPIC = "alosm.booking_state.v1"
 logger = logging.getLogger(__name__)
 
 
-async def publish_booking_state(session: AgentSession[AloSMSessionData]) -> None:
+async def publish_booking_state(session: AgentSession[AloSMSessionData]) -> bool:
+    room = session.room_io.room
+    if not room.isconnected():
+        # Provider errors may fire while AgentSession.start() is still creating
+        # RoomIO. The state is already persisted by the caller and the session
+        # publishes the latest snapshot once start() completes.
+        logger.debug("skipping LiveKit booking state publish before room connection")
+        return False
+
     payload = json.dumps(
         session.userdata.public_state(),
         ensure_ascii=False,
@@ -25,6 +33,12 @@ async def publish_booking_state(session: AgentSession[AloSMSessionData]) -> None
             reliable=True,
             topic=BOOKING_STATE_TOPIC,
         )
+        return True
     except Exception:
-        # The call can continue if a browser disconnects while a tool is completing.
+        # A disconnect can race the check above while a tool is completing. It
+        # is an expected lifecycle event, not a publication defect.
+        if not room.isconnected():
+            logger.debug("skipping LiveKit booking state publish after room disconnect")
+            return False
         logger.exception("failed to publish LiveKit booking state")
+        return False

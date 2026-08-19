@@ -88,6 +88,16 @@ class LiveKitVoiceSettings(BaseSettings):
             "LIVEKIT_TTS_VOICE_REQUIRED": self.livekit_tts_voice,
         }
         errors = [code for code, value in required.items() if not value.strip()]
+        inference_models = {
+            "LIVEKIT_STT_MODEL_MUST_USE_PROVIDER_MODEL": self.livekit_stt_model,
+            "LIVEKIT_LLM_MODEL_MUST_USE_PROVIDER_MODEL": self.livekit_llm_model,
+            "LIVEKIT_TTS_MODEL_MUST_USE_PROVIDER_MODEL": self.livekit_tts_model,
+        }
+        errors.extend(
+            code
+            for code, model in inference_models.items()
+            if model.strip() and "/" not in model and not (code.startswith("LIVEKIT_STT_") and model == "auto")
+        )
         if self.livekit_url and not self.livekit_url.startswith(("ws://", "wss://")):
             errors.append("LIVEKIT_URL_MUST_USE_WS")
         if self.livekit_endpointing_max_delay_seconds < self.livekit_endpointing_min_delay_seconds:

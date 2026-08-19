@@ -32,6 +32,11 @@ class _HallucinationClient:
         return "Hẹn gặp lại các bạn trong những video tiếp theo nhé!"
 
 
+class _BriefAmbiguousSoundClient:
+    async def transcribe(self, *args: object, **kwargs: object) -> str:
+        return "ừm..."
+
+
 class _AliasClient:
     async def transcribe(self, *args: object, **kwargs: object) -> str:
         return "Đón tôi ở Bình Yuni rồi đi Hồ Cương"
@@ -132,6 +137,24 @@ async def test_known_asr_hallucination_is_blocked_before_rewrite_or_agent(
     assert result["action"] == "ASK_USER"
     assert result["transcript"] == ""
     assert result["transcript_rewrite_reason"] == "known_asr_hallucination"
+    assert result["message_id"]
+
+
+@pytest.mark.asyncio
+async def test_brief_ambiguous_sound_is_blocked_before_rewrite_or_agent(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("src.backend.services.voice_service.resolve_voice_provider", lambda _: "zipformer")
+    monkeypatch.setattr(
+        "src.backend.services.voice_service.build_voice_client",
+        lambda _: _BriefAmbiguousSoundClient(),
+    )
+
+    result = await _service().process_turn("sess_test", b"audio")
+
+    assert result["action"] == "ASK_USER"
+    assert result["transcript"] == ""
+    assert result["transcript_rewrite_reason"] == "brief_ambiguous_sound"
     assert result["message_id"]
 
 

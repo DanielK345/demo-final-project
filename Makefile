@@ -1,7 +1,9 @@
-.PHONY: run livekit-backend livekit-worker livekit-frontend test lint format typecheck check clean
+.PHONY: backend run livekit-backend livekit-worker livekit-frontend test lint format typecheck check clean
+
+backend: run
 
 run:
-	uvicorn src.main:app --reload --host 0.0.0.0 --port 8000
+	uv run uvicorn src.main:app --reload --host 0.0.0.0 --port 8000
 
 livekit-backend:
 	VOICE_RUNTIME=livekit uv run uvicorn src.main:app --reload --host 0.0.0.0 --port 8000
