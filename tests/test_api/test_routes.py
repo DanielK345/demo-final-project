@@ -1,3 +1,5 @@
+from unittest.mock import AsyncMock, patch
+
 import pytest
 
 
@@ -127,3 +129,56 @@ async def test_session_message_requires_auth_header(client):
         json={"message": "Xin chào", "source": "TEXT"},
     )
     assert response.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_ending_session_revokes_bearer_token(client):
+    login = await client.post(
+        "/api/v1/auth/login",
+        json={"phone": "0901234567", "password": "Password123!"},
+    )
+    token = login.json()["access_token"]
+    session_id = login.json()["session_id"]
+    headers = {"Authorization": f"Bearer {token}"}
+
+    ended = await client.post(
+        f"/api/v1/sessions/{session_id}/end",
+        json={"reason": "USER_ENDED"},
+        headers=headers,
+    )
+
+    assert ended.status_code == 200
+    assert ended.json()["status"] == "ENDED"
+    assert (await client.get("/api/v1/auth/me", headers=headers)).status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_agent_end_session_action_revokes_bearer_token(client):
+    login = await client.post(
+        "/api/v1/auth/login",
+        json={"phone": "0901234567", "password": "Password123!"},
+    )
+    token = login.json()["access_token"]
+    session_id = login.json()["session_id"]
+    headers = {"Authorization": f"Bearer {token}"}
+
+    with patch(
+        "src.backend.api.routes.sessions.controller.service.process_message",
+        new_callable=AsyncMock,
+    ) as process_message:
+        process_message.return_value = {
+            "message_id": "msg-ended",
+            "action": "END_SESSION",
+            "message": "Cảm ơn bạn đã sử dụng AloSM.",
+            "state": {},
+            "booking": None,
+        }
+        response = await client.post(
+            f"/api/v1/sessions/{session_id}/messages",
+            json={"message": "Kết thúc", "source": "TEXT"},
+            headers=headers,
+        )
+
+    assert response.status_code == 200
+    assert response.json()["action"] == "END_SESSION"
+    assert (await client.get("/api/v1/auth/me", headers=headers)).status_code == 401

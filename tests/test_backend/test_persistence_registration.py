@@ -20,6 +20,7 @@ class _RecordingSession(_AsyncContext):
     def __init__(self) -> None:
         self.added: list[object] = []
         self.flush_snapshots: list[tuple[type, ...]] = []
+        self.executed: list[object] = []
 
     def begin(self) -> _AsyncContext:
         return _AsyncContext()
@@ -37,6 +38,10 @@ class _RecordingSession(_AsyncContext):
 
     async def refresh(self, _row: object) -> None:
         return None
+
+    async def execute(self, statement: object):
+        self.executed.append(statement)
+        return type("Result", (), {"rowcount": 1})()
 
 
 @pytest.mark.asyncio
@@ -56,3 +61,13 @@ async def test_create_user_flushes_fk_parent_before_policy_acceptance() -> None:
     assert session.flush_snapshots == [(User,), (User, PolicyAcceptance)]
     assert result["phone"] == "0987654321"
     assert result["policy_acceptance"]["terms_version"] == "2026-08-16"
+
+
+@pytest.mark.asyncio
+async def test_revoke_token_updates_matching_durable_token() -> None:
+    session = _RecordingSession()
+    repository = PersistenceRepository(factory=lambda: session)  # type: ignore[arg-type]
+
+    assert await repository.revoke_token("raw-token") is True
+    assert len(session.executed) == 1
+    assert "UPDATE auth_tokens" in str(session.executed[0])

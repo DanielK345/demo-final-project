@@ -158,14 +158,15 @@ async def send_message(
 ) -> SessionMessageResponseDTO:
     await _require_session_access(session_id, authorization)
     try:
-        return SessionMessageResponseDTO(
-            **await controller.service.process_message(
-                session_id,
-                request.message,
-                request.stt_confidence,
-                source=request.source,
-            )
+        result = await controller.service.process_message(
+            session_id,
+            request.message,
+            request.stt_confidence,
+            source=request.source,
         )
+        if result.get("action") == "END_SESSION":
+            await auth_service.revoke_token_durable(_token_from_header(authorization))
+        return SessionMessageResponseDTO(**result)
     except KeyError as exc:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -207,7 +208,11 @@ async def end_session(
 ) -> EndSessionResponseDTO:
     await _require_session_access(session_id, authorization)
     try:
-        return EndSessionResponseDTO(**await controller.service.end_session_durable(session_id, request.reason))
+        result = await controller.service.end_session_durable(session_id, request.reason)
+        # Ending the auth-bound conversation is terminal. Revoke server-side so a
+        # stale/localStorage token cannot continue accessing protected endpoints.
+        await auth_service.revoke_token_durable(_token_from_header(authorization))
+        return EndSessionResponseDTO(**result)
     except KeyError as exc:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

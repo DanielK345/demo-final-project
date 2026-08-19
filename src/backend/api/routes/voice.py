@@ -28,7 +28,8 @@ from fastapi import (
 )
 from pydantic import BaseModel, Field
 
-from src.backend.api.routes.sessions import _require_session_access
+from src.backend.api.routes.auth import service as auth_service
+from src.backend.api.routes.sessions import _require_session_access, _token_from_header
 from src.backend.integrations.voice_client import VoiceProviderError
 from src.backend.schemas.voice import VoiceTurnResponseDTO
 from src.backend.services.transcript_rewriter import build_transcript_rewriter
@@ -191,6 +192,8 @@ async def voice_turn(
             audio_bytes,
             mime_type=audio.content_type,
         )
+        if result.get("action") == "END_SESSION":
+            await auth_service.revoke_token_durable(_token_from_header(authorization))
         return VoiceTurnResponseDTO(**result)
     except TTSError as exc:
         raise HTTPException(status_code=exc.status_code, detail={"code": exc.code, "message": str(exc)}) from exc

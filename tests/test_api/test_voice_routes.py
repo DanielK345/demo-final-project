@@ -67,3 +67,41 @@ async def test_voice_turn_endpoint(client):
     assert data["transcript"] == "Tôi muốn đặt xe"
     assert data["voice_provider"] == "openai"
     assert data["audio_base64"]
+
+
+@pytest.mark.asyncio
+async def test_voice_end_session_action_revokes_bearer_token(client):
+    login = await client.post(
+        "/api/v1/auth/login",
+        json={"phone": "0901234567", "password": "Password123!"},
+    )
+    token = login.json()["access_token"]
+    session_id = login.json()["session_id"]
+    headers = {"Authorization": f"Bearer {token}"}
+
+    with patch(
+        "src.backend.services.voice_service.VoiceService.process_turn",
+        new_callable=AsyncMock,
+    ) as process_turn:
+        process_turn.return_value = {
+            "transcript": "Kết thúc",
+            "stt_confidence": 0.98,
+            "message_id": "msg_end",
+            "action": "END_SESSION",
+            "message": "Cảm ơn bạn đã sử dụng AloSM.",
+            "state": {},
+            "booking": None,
+            "audio_base64": "c3R1YmJhcg==",
+            "audio_mime_type": "audio/mpeg",
+            "voice_provider": "openai",
+        }
+        response = await client.post(
+            "/api/v1/voice/turn",
+            data={"session_id": session_id},
+            files={"audio": ("recording.webm", b"fake-audio", "audio/webm")},
+            headers=headers,
+        )
+
+    assert response.status_code == 200
+    assert response.json()["action"] == "END_SESSION"
+    assert (await client.get("/api/v1/auth/me", headers=headers)).status_code == 401

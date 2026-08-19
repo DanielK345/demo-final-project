@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   RoomAudioRenderer,
   SessionProvider,
@@ -225,6 +225,8 @@ function LiveKitSessionAttempt({
 
   const start = session.start;
   const end = session.end;
+  const wasConnectedRef = useRef(false);
+  const intentionalDisconnectRef = useRef(false);
 
   useEffect(() => {
     let active = true;
@@ -237,11 +239,24 @@ function LiveKitSessionAttempt({
     };
   }, [end, start]);
 
+  useEffect(() => {
+    if (session.isConnected) {
+      wasConnectedRef.current = true;
+      return;
+    }
+    if (wasConnectedRef.current && !intentionalDisconnectRef.current) {
+      wasConnectedRef.current = false;
+      onClose();
+    }
+  }, [onClose, session.isConnected]);
+
   const endCall = useCallback(() => {
+    intentionalDisconnectRef.current = true;
     void end().finally(onClose);
   }, [end, onClose]);
 
   const retryCall = useCallback(() => {
+    intentionalDisconnectRef.current = true;
     void end().finally(onRetry);
   }, [end, onRetry]);
 
@@ -269,7 +284,7 @@ function LiveKitSessionAttempt({
 }
 
 export const LiveKitVoiceSession: React.FC = () => {
-  const { close, livekitCallInstanceId } = useVoiceAssistant();
+  const { endSession, livekitCallInstanceId } = useVoiceAssistant();
   const consentKey = `alosm_voice_consent_v${CURRENT_POLICY_VERSION}`;
   const [consented, setConsented] = useState(() => localStorage.getItem(consentKey) === "accepted");
   const [attempt, setAttempt] = useState(() => ({
@@ -314,7 +329,7 @@ export const LiveKitVoiceSession: React.FC = () => {
     <LiveKitSessionAttempt
       key={attempt.id}
       callInstanceId={attempt.callInstanceId}
-      onClose={close}
+      onClose={() => void endSession()}
       onRetry={retry}
       autoRetry={attempt.id === 0}
     />

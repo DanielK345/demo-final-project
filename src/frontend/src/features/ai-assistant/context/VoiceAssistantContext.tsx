@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useNavigate } from "react-router-dom";
 import { getCurrentUser } from "@/features/auth/api";
 import { redirectToLoginIfUnauthorized } from "@/features/auth/sessionGuard";
-import { getAccessToken, getSessionId, getUserName, saveAuthSession } from "@/features/auth/storage";
+import { clearAuthSession, getAccessToken, getSessionId, getUserName, saveAuthSession } from "@/features/auth/storage";
 import {
   createRideSession,
   endRideSession,
@@ -113,21 +113,24 @@ export const VoiceAssistantProvider: React.FC<{ children: React.ReactNode }> = (
     setShowConfirmationModal(Boolean(readyToConfirm));
   }, []);
 
-  const handleEndOfTurnActions = useCallback(
-    (result: RideTurn) => {
-      if (result.action === "HANDOFF") setNotice("Yêu cầu đã được chuyển đến tổng đài viên.");
-      if (result.action === "END_SESSION") {
-        // Agent tự kết thúc hội thoại (vd khách nói "hủy"/"thôi") — chỉ reset PHIÊN
-        // HỘI THOẠI, không đăng xuất tài khoản (khác hẳn 2 việc, xem endSession()).
-        setSessionId(null);
-        localStorage.removeItem("alosm_session_id");
-        setSessionEnded(true);
-        setShowConfirmationModal(false);
-        setNotice("Phiên hội thoại đã kết thúc. Nhấn “Bắt đầu phiên mới” để đặt xe tiếp.");
-      }
-    },
-    [],
-  );
+  const handleEndOfTurnActions = useCallback((result: RideTurn) => {
+    if (result.action === "HANDOFF") setNotice("Yêu cầu đã được chuyển đến tổng đài viên.");
+  }, []);
+
+  const logoutAfterSessionEnd = useCallback(() => {
+    stopVoicePlayback();
+    discardPreparedAloSMCall(livekitCallInstanceIdRef.current);
+    livekitCallInstanceIdRef.current = null;
+    clearAuthSession();
+    setSessionId(null);
+    setSessionEnded(true);
+    setIsConversationOpen(false);
+    setIsOpen(false);
+    setLivekitCallInstanceId(null);
+    setShowConfirmationModal(false);
+    setShowSuccessModal(false);
+    navigate("/login", { replace: true });
+  }, [navigate]);
 
   // Toàn bộ popup giờ LUÔN là cuộc gọi thoại (không còn chat im lặng) — mọi câu trả
   // lời của agent, dù đến từ lượt gõ chữ (openWithPrefill/confirmBooking) hay lượt
@@ -186,6 +189,10 @@ export const VoiceAssistantProvider: React.FC<{ children: React.ReactNode }> = (
           bookingConfirmed: result.state?.booking_lifecycle_status === "SUCCESS",
           action: result.action,
         });
+        if (result.action === "END_SESSION") {
+          logoutAfterSessionEnd();
+          return;
+        }
         setStatus("idle");
       } catch (error) {
         setStatus("error");
@@ -193,7 +200,7 @@ export const VoiceAssistantProvider: React.FC<{ children: React.ReactNode }> = (
         setNotice(error instanceof Error ? error.message : "Không thể gửi tin nhắn. Vui lòng thử lại.");
       }
     },
-    [sessionId, sessionEnded, applyTurnResult, handleEndOfTurnActions, navigate, speakReply],
+    [sessionId, sessionEnded, applyTurnResult, handleEndOfTurnActions, logoutAfterSessionEnd, navigate, speakReply],
   );
 
   const handleVoiceRecorded = useCallback(
@@ -219,6 +226,10 @@ export const VoiceAssistantProvider: React.FC<{ children: React.ReactNode }> = (
           bookingConfirmed: result.state?.booking_lifecycle_status === "SUCCESS",
           action: result.action,
         }, result.tts_provider === "unavailable");
+        if (result.action === "END_SESSION") {
+          logoutAfterSessionEnd();
+          return;
+        }
         setStatus("idle");
       } catch (error) {
         setStatus("error");
@@ -226,7 +237,7 @@ export const VoiceAssistantProvider: React.FC<{ children: React.ReactNode }> = (
         setNotice(error instanceof Error ? error.message : "Không thể xử lý giọng nói. Vui lòng thử lại.");
       }
     },
-    [sessionId, sessionEnded, applyTurnResult, handleEndOfTurnActions, navigate, speakReply],
+    [sessionId, sessionEnded, applyTurnResult, handleEndOfTurnActions, logoutAfterSessionEnd, navigate, speakReply],
   );
 
   // Khởi tạo phiên hội thoại 1 LẦN khi Provider mount (ở AppLayout — ngay sau đăng
@@ -352,36 +363,26 @@ export const VoiceAssistantProvider: React.FC<{ children: React.ReactNode }> = (
   );
 
   const endSession = useCallback(async () => {
-    if (sessionId) {
-      await endRideSession(sessionId).catch(() => undefined);
+    try {
+      if (sessionId) await endRideSession(sessionId);
+    } catch {
+      // The browser must still discard credentials when hangup cannot reach the
+      // backend. Any surviving server token expires by its normal TTL.
+    } finally {
+      // Local cleanup is guaranteed even when the network disappears during hangup.
+      // On a successful request, the backend has already revoked the bearer token.
+      logoutAfterSessionEnd();
     }
-    setSessionId(null);
-    localStorage.removeItem("alosm_session_id");
-    setSessionEnded(true);
-    setShowConfirmationModal(false);
-    setShowSuccessModal(false);
-    setNotice("Phiên hội thoại đã kết thúc. Nhấn “Bắt đầu phiên mới” để đặt xe tiếp.");
-  }, [sessionId]);
+  }, [sessionId, logoutAfterSessionEnd]);
 
   const newSession = useCallback(async () => {
-    // `agent_state` (bao gồm conversation_history) chỉ thuộc về một session ở
-    // backend. Kết thúc session hiện tại rồi tạo ID mới là reset memory thật, không
-    // chỉ là xóa bubble ở UI.
-    if (sessionId) {
-      await endRideSession(sessionId).catch(() => undefined);
-    }
+    // "Đặt xe mới" là reset memory trong cùng phiên đăng nhập. Không gọi `/end`:
+    // endpoint đó mang nghĩa terminal và luôn revoke token/logout.
+    if (!sessionId || sessionEnded) return;
     try {
       stopVoicePlayback();
-      setStatus("connecting");
-      const user = await getCurrentUser();
-      const session = await createRideSession();
-      saveAuthSession({
-        access_token: getAccessToken() || "",
-        user_id: user.user_id,
-        full_name: user.full_name,
-        session_id: session.session_id,
-      });
-      setSessionId(session.session_id);
+      setStatus("processing");
+      await resetRideConversation(sessionId);
       setStatus("idle");
       resetConversationUi();
     } catch (error) {
@@ -391,9 +392,9 @@ export const VoiceAssistantProvider: React.FC<{ children: React.ReactNode }> = (
       setShowConfirmationModal(false);
       setShowSuccessModal(false);
       setStatus("error");
-      setNotice(error instanceof Error ? error.message : "Không thể tạo phiên mới.");
+      setNotice(error instanceof Error ? error.message : "Không thể bắt đầu lượt đặt xe mới.");
     }
-  }, [sessionId, navigate, resetConversationUi]);
+  }, [sessionId, sessionEnded, navigate, resetConversationUi]);
 
   const resetConversation = useCallback(async () => {
     if (!sessionId || sessionEnded || statusRef.current === "processing") return;

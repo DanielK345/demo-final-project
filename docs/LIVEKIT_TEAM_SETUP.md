@@ -431,7 +431,20 @@ Nguồn dữ liệu runtime là `data/gazetteer/place_names.json`, alias nằm t
 - Feature flag giữ legacy runtime để rollback.
 - Test backend/worker và frontend build đã pass tại baseline.
 
-## 12. Ưu điểm
+## 12. Session kết thúc và logout
+
+- Gác máy là thao tác terminal: frontend gọi
+  `POST /api/v1/sessions/{session_id}/end`, backend đánh dấu session `ENDED` và
+  revoke bearer token hiện tại.
+- Sau response, frontend xóa access token, user ID, user name và session ID khỏi
+  localStorage, sau đó chuyển về `/login`.
+- Nếu agent trả action `END_SESSION`, text và REST voice flow thực hiện cùng cleanup.
+- Với LiveKit, transition từ connected sang disconnected cuối cùng cũng logout;
+  trạng thái reconnect và disconnect có chủ đích để retry không logout.
+- Đóng popup bằng nút `X` không kết thúc session và không logout.
+- CTA “Đặt xe mới” reset conversation state; nó không dùng endpoint terminal.
+
+## 13. Ưu điểm
 
 - Giảm mạnh code tự quản lý audio transport, session và tool loop.
 - Streaming realtime có latency tốt hơn kiểu upload cả utterance.
@@ -441,7 +454,7 @@ Nguồn dữ liệu runtime là `data/gazetteer/place_names.json`, alias nằm t
 - FE/BE cũ được tái sử dụng; migration có feature flag, không cần xóa legacy ngay.
 - Log debug đủ phân biệt VAD, STT, LLM, TTS và tool mà không mặc định lưu audio/PII.
 
-## 13. Nhược điểm và giới hạn hiện tại
+## 14. Nhược điểm và giới hạn hiện tại
 
 - Baseline phụ thuộc LiveKit Cloud/Inference, Internet, quota và chi phí provider.
 - Local dev cần ba tiến trình thay vì chỉ backend/frontend.
@@ -458,7 +471,7 @@ Nguồn dữ liệu runtime là `data/gazetteer/place_names.json`, alias nằm t
   dev đã migrate.
 - Chưa có payment, live trip tracking, history/wallet và telephony SIP production.
 
-## 14. Lỗi thường gặp
+## 15. Lỗi thường gặp
 
 ### `address already in use` ở port 8000
 
@@ -491,7 +504,7 @@ hoặc business tool bị lỗi.
 Giữ `LIVEKIT_INTERRUPTION_MODE=vad`. Không bật `adaptive` cho baseline nếu chưa có
 quyết định quota/cost.
 
-## 15. Gate trước khi gửi thay đổi tiếp theo
+## 16. Gate trước khi gửi thay đổi tiếp theo
 
 ```bash
 uv run pytest -q tests/test_voice_agent \

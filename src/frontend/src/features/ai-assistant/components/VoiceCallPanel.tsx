@@ -40,7 +40,7 @@ const LegacyVoiceCallPanel: React.FC = () => {
     isMuted,
     toggleMuted,
     reportError,
-    close,
+    endSession,
     newSession,
   } = useVoiceAssistant();
   const [micMuted, setMicMuted] = useState(false);
@@ -176,7 +176,7 @@ const LegacyVoiceCallPanel: React.FC = () => {
 
           <button
             type="button"
-            onClick={close}
+            onClick={() => void endSession()}
             aria-label="Kết thúc cuộc gọi"
             title="Kết thúc cuộc gọi"
             className="group flex w-16 flex-col items-center gap-1.5 text-[10px] font-semibold text-rose-500"

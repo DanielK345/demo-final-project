@@ -279,6 +279,22 @@ class PersistenceRepository:
             if result.rowcount != 1:
                 raise ValueError("Token không hợp lệ")
 
+    async def revoke_token(self, raw_token: str) -> bool:
+        """Revoke one bearer token without storing or logging its plaintext value."""
+
+        if not raw_token:
+            return False
+        async with self.factory() as db, db.begin():
+            result = await db.execute(
+                update(AuthToken)
+                .where(
+                    AuthToken.token_hash == _token_hash(raw_token),
+                    AuthToken.revoked_at.is_(None),
+                )
+                .values(revoked_at=datetime.now(UTC))
+            )
+            return result.rowcount == 1
+
     async def update_user_security(self, user_id: str, **updates: object) -> None:
         async with self.factory() as db, db.begin():
             await db.execute(update(User).where(User.id == user_id).values(**updates, updated_at=datetime.now(UTC)))
