@@ -204,6 +204,13 @@ async def alosm_voice_session(ctx: JobContext) -> None:
         interruption_mode=settings.livekit_interruption_mode,
         interruption_min_duration=settings.livekit_interruption_min_duration_seconds,
         interruption_min_words=settings.livekit_interruption_min_words,
+        transcript_rewrite_enabled=transcript_rewriter is not None,
+        transcript_rewrite_model=(
+            transcript_rewriter.model if transcript_rewriter is not None else None
+        ),
+        transcript_rewrite_timeout_seconds=(
+            transcript_rewriter.timeout_seconds if transcript_rewriter is not None else None
+        ),
     )
     await session.start(
         room=ctx.room,

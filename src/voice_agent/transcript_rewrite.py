@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import time
 from typing import Any
@@ -14,6 +15,8 @@ from src.voice_agent.session_data import AloSMSessionData, BookingDraft
 logger = logging.getLogger(__name__)
 
 MINIMUM_ASR_CONFIDENCE = 0.45
+DEFAULT_REWRITE_TIMEOUT_SECONDS = 5.0
+REWRITE_TIMEOUT_GRACE_SECONDS = 0.25
 
 
 def _booking_step(draft: BookingDraft) -> str:
@@ -77,6 +80,10 @@ async def rewrite_livekit_user_turn(
     if not text:
         return None
     if rewriter is None or userdata is None:
+        logger.info(
+            "LiveKit transcript rewrite bypassed item_id=%s reason=disabled_or_unconfigured",
+            new_message.id,
+        )
         return TranscriptRewriteResult(
             raw_text=text,
             normalized_text=text,
@@ -95,12 +102,42 @@ async def rewrite_livekit_user_turn(
             duration_ms=0,
         )
 
-    started = time.monotonic()
+    configured_timeout = getattr(rewriter, "timeout_seconds", DEFAULT_REWRITE_TIMEOUT_SECONDS)
     try:
-        result = await rewriter.rewrite(
-            text,
-            session_context=_rewrite_context(userdata, turn_ctx),
-            session_id=userdata.app_session_id,
+        timeout_seconds = max(float(configured_timeout), 0.1)
+    except (TypeError, ValueError):
+        timeout_seconds = DEFAULT_REWRITE_TIMEOUT_SECONDS
+    hard_timeout_seconds = timeout_seconds + REWRITE_TIMEOUT_GRACE_SECONDS
+    started = time.monotonic()
+    logger.info(
+        "LiveKit transcript rewrite started item_id=%s input_length=%d confidence=%s "
+        "timeout_seconds=%.2f",
+        new_message.id,
+        len(text),
+        confidence,
+        timeout_seconds,
+    )
+    try:
+        async with asyncio.timeout(hard_timeout_seconds):
+            result = await rewriter.rewrite(
+                text,
+                session_context=_rewrite_context(userdata, turn_ctx),
+                session_id=userdata.app_session_id,
+            )
+    except TimeoutError:
+        duration_ms = int((time.monotonic() - started) * 1000)
+        logger.warning(
+            "LiveKit transcript rewrite timed out item_id=%s duration_ms=%d "
+            "hard_timeout_seconds=%.2f; using raw transcript",
+            new_message.id,
+            duration_ms,
+            hard_timeout_seconds,
+        )
+        return TranscriptRewriteResult(
+            raw_text=text,
+            normalized_text=text,
+            reason="provider_timeout",
+            duration_ms=duration_ms,
         )
     except Exception as exc:
         logger.warning(
@@ -119,13 +156,16 @@ async def rewrite_livekit_user_turn(
         non_text_content = [item for item in new_message.content if not isinstance(item, str)]
         new_message.content = [result.normalized_text, *non_text_content]
 
+    elapsed_ms = int((time.monotonic() - started) * 1000)
     logger.info(
-        "LiveKit transcript rewrite completed applied=%s reason=%s confidence=%s duration_ms=%s "
-        "input_length=%d output_length=%d",
+        "LiveKit transcript rewrite completed item_id=%s applied=%s reason=%s confidence=%s "
+        "provider_duration_ms=%s elapsed_ms=%d input_length=%d output_length=%d",
+        new_message.id,
         result.applied,
         result.reason,
         result.confidence,
         result.duration_ms,
+        elapsed_ms,
         len(text),
         len(result.normalized_text),
     )

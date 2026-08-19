@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from types import SimpleNamespace
 from typing import Any, cast
 
@@ -39,6 +40,19 @@ class _LocalParticipant:
 
     async def publish_data(self, payload: str, *, reliable: bool, topic: str) -> None:
         self.calls.append((payload, reliable, topic))
+
+
+class _HangingLocalParticipant:
+    async def publish_data(self, *_: object, **__: object) -> None:
+        await asyncio.Event().wait()
+
+
+class _HangingConnectedRoom:
+    def __init__(self) -> None:
+        self.local_participant = _HangingLocalParticipant()
+
+    def isconnected(self) -> bool:
+        return True
 
 
 class _ConnectedRoom:
@@ -94,3 +108,17 @@ async def test_publish_transcript_rewrite_includes_item_and_latency() -> None:
     assert '"duration_ms":418' in payload
     assert reliable is True
     assert topic == TRANSCRIPT_REWRITE_TOPIC
+
+
+@pytest.mark.asyncio
+async def test_publish_transcript_rewrite_timeout_does_not_block_turn(monkeypatch) -> None:
+    monkeypatch.setattr("src.voice_agent.state_sync.DATA_PUBLISH_TIMEOUT_SECONDS", 0.01)
+    result = TranscriptRewriteResult(
+        raw_text="alo",
+        normalized_text="Alo.",
+        applied=True,
+        reason="applied",
+        duration_ms=10,
+    )
+
+    assert await publish_transcript_rewrite(_session(_HangingConnectedRoom()), "item-1", result) is False

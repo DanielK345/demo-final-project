@@ -45,7 +45,7 @@ function UserTranscriptBubble({
 }) {
   const startedAtRef = useRef(performance.now());
   const [elapsedMs, setElapsedMs] = useState(0);
-  const failed = rewrite?.status === "provider_error";
+  const failed = rewrite?.status === "provider_error" || rewrite?.status === "provider_timeout";
   const skipped = rewrite?.status === "disabled_or_unconfigured" || rewrite?.status === "low_asr_confidence";
   const completed = Boolean(rewrite) && !failed && !skipped;
 

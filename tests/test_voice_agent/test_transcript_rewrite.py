@@ -1,3 +1,5 @@
+import asyncio
+import time
 from typing import Any
 
 import pytest
@@ -52,6 +54,14 @@ class _Rewriter:
 class _FailingRewriter:
     async def rewrite(self, *_: object, **__: object) -> TranscriptRewriteResult:
         raise RuntimeError("provider unavailable")
+
+
+class _HangingRewriter:
+    timeout_seconds = 0.01
+
+    async def rewrite(self, *_: object, **__: object) -> TranscriptRewriteResult:
+        await asyncio.Event().wait()
+        raise AssertionError("unreachable")
 
 
 @pytest.mark.asyncio
@@ -156,6 +166,26 @@ async def test_rewrite_provider_failure_fails_open_to_raw_transcript() -> None:
     assert result.reason == "provider_error"
     assert result.normalized_text == "alo toi muon dat xe"
     assert message.text_content == "alo toi muon dat xe"
+
+
+@pytest.mark.asyncio
+async def test_hanging_rewriter_times_out_and_fails_open(caplog) -> None:
+    message = llm.ChatMessage(role="user", content=["alo toi muon dat xe"])
+    started = time.monotonic()
+
+    result = await rewrite_livekit_user_turn(
+        rewriter=_HangingRewriter(),
+        userdata=_userdata(),
+        turn_ctx=llm.ChatContext.empty(),
+        new_message=message,
+    )
+
+    assert result is not None
+    assert result.reason == "provider_timeout"
+    assert result.normalized_text == "alo toi muon dat xe"
+    assert message.text_content == "alo toi muon dat xe"
+    assert time.monotonic() - started < 1.0
+    assert "LiveKit transcript rewrite timed out" in caplog.text
 
 
 @pytest.mark.asyncio

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 
@@ -12,6 +13,7 @@ from src.voice_agent.session_data import AloSMSessionData
 
 BOOKING_STATE_TOPIC = "alosm.booking_state.v1"
 TRANSCRIPT_REWRITE_TOPIC = "alosm.transcript_rewrite.v1"
+DATA_PUBLISH_TIMEOUT_SECONDS = 1.0
 logger = logging.getLogger(__name__)
 
 
@@ -30,12 +32,16 @@ async def publish_booking_state(session: AgentSession[AloSMSessionData]) -> bool
         separators=(",", ":"),
     )
     try:
-        await session.room_io.room.local_participant.publish_data(
-            payload,
-            reliable=True,
-            topic=BOOKING_STATE_TOPIC,
-        )
+        async with asyncio.timeout(DATA_PUBLISH_TIMEOUT_SECONDS):
+            await session.room_io.room.local_participant.publish_data(
+                payload,
+                reliable=True,
+                topic=BOOKING_STATE_TOPIC,
+            )
         return True
+    except TimeoutError:
+        logger.warning("LiveKit booking state publish timed out")
+        return False
     except Exception:
         # A disconnect can race the check above while a tool is completing. It
         # is an expected lifecycle event, not a publication defect.
@@ -71,12 +77,19 @@ async def publish_transcript_rewrite(
         separators=(",", ":"),
     )
     try:
-        await room.local_participant.publish_data(
-            payload,
-            reliable=True,
-            topic=TRANSCRIPT_REWRITE_TOPIC,
-        )
+        async with asyncio.timeout(DATA_PUBLISH_TIMEOUT_SECONDS):
+            await room.local_participant.publish_data(
+                payload,
+                reliable=True,
+                topic=TRANSCRIPT_REWRITE_TOPIC,
+            )
         return True
+    except TimeoutError:
+        logger.warning(
+            "LiveKit transcript rewrite publish timed out item_id=%s",
+            item_id,
+        )
+        return False
     except Exception:
         if not room.isconnected():
             logger.debug("skipping transcript rewrite publish during room disconnect")
