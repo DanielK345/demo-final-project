@@ -1,6 +1,6 @@
 # AloSM — LiveKit migration implementation handoff
 
-Cập nhật: **2026-08-18** · Trạng thái: **PHASE 3 HARDENING IMPLEMENTED / E2E RECHECK REQUIRED**
+Cập nhật: **2026-08-19** · Trạng thái: **PHASE 3 HARDENING + LIVEKIT TRANSCRIPT REWRITE IMPLEMENTED / E2E RECHECK REQUIRED**
 
 > Đây là tài liệu phải đọc đầu tiên trước khi code migration LiveKit. Nó chốt kiến
 > trúc đích và cách triển khai. Code hiện tại vẫn là runtime truth cho tới khi từng
@@ -41,6 +41,8 @@ Authenticated React user
 → AgentSession receives audio through RoomIO
 → LiveKit VAD/endpointing closes user turn
 → Vietnamese streaming STT
+→ finalized user turn enters `on_user_turn_completed`
+→ privacy-safe transcript rewrite modifies the final `ChatMessage` only when accepted
 → LiveKit-managed transcript/chat context
 → AloSMAgent or active BookingTask
 → LiveKit function tool
@@ -63,6 +65,7 @@ Không được thêm REST upload hoặc custom WebSocket vào flow mới.
 | Pipeline/session | LiveKit `AgentSession` | Một session cho một cuộc gọi |
 | VAD/endpointing/barge-in | LiveKit turn handling | Baseline `vad` cho tiếng Việt |
 | STT/LLM/TTS orchestration | LiveKit | Model cấu hình qua ENV |
+| Final transcript rewrite trước conversation LLM | AloSM `on_user_turn_completed` hook | Không thay streaming STT hoặc override provider node |
 | Conversation/tool loop | LiveKit Agent/tools | Không giữ loop cũ |
 | Runtime booking draft | typed `userdata` | Không coi là durable |
 | Booking workflow | `BookingTask` | Typed result, correction được hỗ trợ |
@@ -83,6 +86,7 @@ src/voice_agent/
 ├── config.py                 # LiveKit/model/recording config
 ├── session_data.py           # AloSMSessionData + BookingDraft typed models
 ├── agent.py                  # AloSMAgent duy nhất
+├── transcript_rewrite.py     # final user-turn rewrite hook + minimal business context
 ├── tasks/
 │   ├── __init__.py
 │   └── booking.py            # BookingTask + typed BookingOutcome
@@ -96,11 +100,12 @@ src/voice_agent/
 └── observability.py          # events, metrics, SessionReport persistence
 ```
 
-Baseline không tạo custom pipeline hook, không override các node STT/LLM/TTS và
-không bọc lại orchestration của LiveKit. Guardrail nghiệp vụ đặt trong prompt,
-`AgentTask`, function tool và application service đúng extension point của framework.
-Chỉ cân nhắc pipeline hook/provider adapter sau khi baseline đã đo được và benchmark
-chứng minh một yêu cầu không thể đáp ứng bằng API native.
+Baseline không override các node STT/LLM/TTS và không bọc lại orchestration của
+LiveKit. Một lifecycle hook `on_user_turn_completed` được dùng có chủ đích để rewrite
+final transcript trước LLM; partial streaming transcript, endpointing và STT provider
+vẫn do LiveKit sở hữu. Guardrail nghiệp vụ đặt trong prompt, `AgentTask`, function
+tool và application service đúng extension point của framework. Chỉ cân nhắc custom
+provider/node khác sau khi benchmark chứng minh API native không đáp ứng được.
 
 FastAPI bổ sung control-plane code, không import worker để chạy chung process:
 
@@ -283,6 +288,11 @@ LIVEKIT_RECORD_LOGS
 LIVEKIT_DEBUG_EVENT_LOG=false
 LIVEKIT_DEBUG_TRANSCRIPTS=false
 LIVEKIT_DEBUG_LOG_DIR=logs/livekit
+VOICE_TRANSCRIPT_REWRITE_ENABLED=true
+VOICE_TRANSCRIPT_REWRITE_MODEL=gpt-4o-mini
+VOICE_TRANSCRIPT_REWRITE_BASE_URL=https://api.openai.com/v1
+VOICE_TRANSCRIPT_REWRITE_TIMEOUT_SECONDS=3
+VOICE_TRANSCRIPT_REWRITE_MINIMUM_CONFIDENCE=0.85
 ```
 
 Quy tắc provider:
@@ -294,6 +304,20 @@ Quy tắc provider:
   transcript hoặc audio;
 - fake model chỉ được inject trong test;
 - pin bộ version Python/JS SDK đã test trong lockfiles.
+
+Transcript rewrite:
+
+- chỉ chạy với final `ChatMessage` trong `on_user_turn_completed`, không gọi trên
+  partial STT events;
+- cùng một rewriter instance được truyền từ `AloSMAgent` sang active `BookingTask`;
+- audio có `transcript_confidence < 0.45` không rewrite và tiếp tục đi qua guard yêu
+  cầu khách nói lại;
+- provider timeout/error phải fail-open về raw transcript, không làm mất user turn;
+- chỉ gửi current transcript cùng booking step/candidate context tối thiểu; không gửi
+  raw audio, credential hoặc durable PII không cần thiết;
+- rewrite được chấp nhận sửa trực tiếp `new_message.content` trước conversation LLM;
+  transcript partial/final mà frontend đã nhận từ STT có thể vẫn là raw transcript;
+- latency của hook nằm trong `ChatMessage.metrics.on_user_turn_completed_delay`.
 
 Turn handling baseline (LiveKit Agents 1.6.x API):
 
@@ -370,6 +394,8 @@ Subscribe và lưu tối thiểu:
 - final transcript và provider metadata được phép lưu;
 - STT latency;
 - endpointing delay;
+- transcript rewrite applied/reason/confidence/duration và
+  `on_user_turn_completed_delay`;
 - LLM time-to-first-token;
 - tool duration/status;
 - TTS time-to-first-byte/audio;
@@ -642,6 +668,29 @@ make livekit-worker
 
 Sau cuộc gọi, xem file mới trong `logs/livekit/<call_id>.jsonl`. Chỉ bật transcript
 trong local session đã được phép debug; không dùng cấu hình này làm production default.
+
+#### LiveKit final-transcript rewrite — 2026-08-19
+
+- Tích hợp `OpenAITranscriptRewriter` hiện có vào runtime LiveKit tại lifecycle hook
+  `on_user_turn_completed`, tức sau khi Deepgram hoàn tất user turn và trước khi
+  LiveKit thêm `ChatMessage` vào context của conversation LLM. Không rewrite partial
+  transcript và không override `stt_node`, `llm_node` hoặc `transcription_node`.
+- Worker tạo đúng một rewriter cho mỗi job, truyền cùng instance vào `AloSMAgent` và
+  `BookingTask`, rồi đóng async provider client trong shutdown callback của job.
+- Context rewrite được chiếu từ typed `AloSMSessionData`: booking step, candidate hiện
+  hành có ASR aliases và câu hỏi assistant gần nhất. Không nối lại legacy
+  `VoiceGateway`, `SessionBridge` hoặc Core Agent orchestration.
+- Rewrite giữ nguyên `transcript_confidence`; audio dưới `0.45` được bỏ qua để guard
+  low-confidence hiện có yêu cầu nói lại. Provider exception/timeout fail-open về câu
+  gốc để LiveKit vẫn xử lý lượt nói.
+- Khi rewrite được safety contract chấp nhận, hook chỉ thay text content của final user
+  message. Raw frontend STT display không bị trì hoãn; LLM/tool loop nhận bản đã sửa.
+- Cấu hình local/sample pin `gpt-4o-mini` qua OpenAI Responses API và timeout 3 giây
+  cho realtime. `OPENAI_API_KEY` chỉ được dùng khi
+  `VOICE_TRANSCRIPT_REWRITE_ENABLED=true`; credential/quota này tách khỏi LiveKit
+  Inference.
+- Automated coverage kiểm tra parent agent, active booking task, candidate context,
+  preservation của confidence, low-confidence skip và provider fail-open.
 
 ### Phase 4 — Evaluation và cutover
 
