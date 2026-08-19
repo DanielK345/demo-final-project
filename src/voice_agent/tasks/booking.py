@@ -5,12 +5,13 @@ from __future__ import annotations
 import json
 import re
 import unicodedata
+from collections.abc import Awaitable, Callable
 from typing import Literal
 
 from livekit.agents import AgentTask, RunContext, ToolError, function_tool, llm
 from pydantic import BaseModel, ConfigDict
 
-from src.voice.text.rewrite_contract import TranscriptRewriter
+from src.voice.text.rewrite_contract import TranscriptRewriter, TranscriptRewriteResult
 from src.voice_agent.persistence import (
     EphemeralVoiceStateStore,
     VoiceStateConflictError,
@@ -90,6 +91,7 @@ class BookingTask(AgentTask[BookingOutcome]):
         state_store: VoiceStateStore | None = None,
         session_data: AloSMSessionData | None = None,
         transcript_rewriter: TranscriptRewriter | None = None,
+        transcript_rewrite_publisher: Callable[[str, TranscriptRewriteResult], Awaitable[object]] | None = None,
     ) -> None:
         self._places = places or PlaceToolsService()
         self._quotes = quotes or QuoteToolsService()
@@ -98,6 +100,7 @@ class BookingTask(AgentTask[BookingOutcome]):
         self._state_store = state_store or EphemeralVoiceStateStore()
         self._session_data = session_data
         self._transcript_rewriter = transcript_rewriter
+        self._transcript_rewrite_publisher = transcript_rewrite_publisher
         super().__init__(
             chat_ctx=chat_ctx,
             instructions=(
@@ -125,12 +128,14 @@ class BookingTask(AgentTask[BookingOutcome]):
         turn_ctx: llm.ChatContext,
         new_message: llm.ChatMessage,
     ) -> None:
-        await rewrite_livekit_user_turn(
+        result = await rewrite_livekit_user_turn(
             rewriter=self._transcript_rewriter,
             userdata=self._session_data,
             turn_ctx=turn_ctx,
             new_message=new_message,
         )
+        if result is not None and self._transcript_rewrite_publisher is not None:
+            await self._transcript_rewrite_publisher(new_message.id, result)
 
     async def on_enter(self) -> None:
         current_state = self.session.userdata.booking_draft.conversation_summary()

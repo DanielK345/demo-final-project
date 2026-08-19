@@ -8,12 +8,17 @@ import {
   useSession,
   useSessionMessages,
 } from "@livekit/components-react";
-import { Mic, MicOff, PhoneOff, Send, Volume2, VolumeX } from "lucide-react";
+import { LoaderCircle, Mic, MicOff, PhoneOff, Send, Volume2, VolumeX } from "lucide-react";
 import { CURRENT_POLICY_VERSION } from "@/features/policies/api";
 import { useVoiceAssistant } from "@/features/ai-assistant/context/useVoiceAssistant";
 import { discardPreparedAloSMCall, prepareAloSMCall } from "./prepareCall";
 import { createAloSMTokenSource, LIVEKIT_AGENT_NAME } from "./tokenSource";
-import { BOOKING_STATE_TOPIC, type BookingState } from "./contracts";
+import {
+  BOOKING_STATE_TOPIC,
+  TRANSCRIPT_REWRITE_TOPIC,
+  type BookingState,
+  type TranscriptRewriteEvent,
+} from "./contracts";
 
 const stateLabels = {
   disconnected: "Đã ngắt kết nối",
@@ -26,6 +31,54 @@ const stateLabels = {
   speaking: "Đang trả lời",
   failed: "Kết nối thất bại",
 } as const;
+
+function formatRewriteLatency(durationMs: number): string {
+  return durationMs < 1_000 ? `${durationMs} ms` : `${(durationMs / 1_000).toFixed(1)} s`;
+}
+
+function UserTranscriptBubble({
+  rawText,
+  rewrite,
+}: {
+  rawText: string;
+  rewrite?: TranscriptRewriteEvent;
+}) {
+  const startedAtRef = useRef(performance.now());
+  const [elapsedMs, setElapsedMs] = useState(0);
+  const failed = rewrite?.status === "provider_error";
+  const skipped = rewrite?.status === "disabled_or_unconfigured" || rewrite?.status === "low_asr_confidence";
+  const completed = Boolean(rewrite) && !failed && !skipped;
+
+  useEffect(() => {
+    if (rewrite) return;
+    const intervalId = window.setInterval(() => {
+      setElapsedMs(Math.round(performance.now() - startedAtRef.current));
+    }, 100);
+    return () => window.clearInterval(intervalId);
+  }, [rewrite]);
+
+  return (
+    <div
+      className={`max-w-[85%] rounded-2xl px-4 py-2.5 text-sm transition-colors duration-300 ${
+        completed
+          ? "bg-[#007F76] text-white"
+          : "bg-slate-200 text-slate-500 dark:bg-white/10 dark:text-slate-400"
+      }`}
+    >
+      <p className="whitespace-pre-wrap break-words">{completed ? rewrite?.normalized_text : rawText}</p>
+      <p className={`mt-1 flex items-center gap-1.5 text-[10px] ${completed ? "text-white/75" : "text-slate-400"}`}>
+        {!rewrite ? <LoaderCircle className="h-3 w-3 animate-spin" aria-hidden /> : null}
+        {!rewrite
+          ? `Đang hiệu chỉnh · ${formatRewriteLatency(elapsedMs)}`
+          : completed
+            ? `${rewrite.applied ? "Đã hiệu chỉnh" : "Đã kiểm tra"} · ${formatRewriteLatency(rewrite.duration_ms ?? elapsedMs)}`
+            : failed
+              ? `Không thể hiệu chỉnh · ${formatRewriteLatency(rewrite.duration_ms ?? elapsedMs)}`
+              : "Giữ nguyên transcript"}
+      </p>
+    </div>
+  );
+}
 
 function LiveKitCallContent({
   onClose,
@@ -42,7 +95,9 @@ function LiveKitCallContent({
   const [speakerMuted, setSpeakerMuted] = useState(false);
   const [draft, setDraft] = useState("");
   const [bookingState, setBookingState] = useState<BookingState | null>(null);
+  const [transcriptRewrites, setTranscriptRewrites] = useState<Record<string, TranscriptRewriteEvent>>({});
   const { message: bookingStateMessage } = useDataChannel(BOOKING_STATE_TOPIC);
+  const { message: transcriptRewriteMessage } = useDataChannel(TRANSCRIPT_REWRITE_TOPIC);
 
   useEffect(() => {
     if (!bookingStateMessage) return;
@@ -53,6 +108,18 @@ function LiveKitCallContent({
       // Ignore malformed/older packets; conversation audio must keep running.
     }
   }, [bookingStateMessage]);
+
+  useEffect(() => {
+    if (!transcriptRewriteMessage) return;
+    try {
+      const decoded = new TextDecoder().decode(transcriptRewriteMessage.payload);
+      const rewrite = JSON.parse(decoded) as TranscriptRewriteEvent;
+      if (!rewrite.item_id || rewrite.schema_version !== "1") return;
+      setTranscriptRewrites((current) => ({ ...current, [rewrite.item_id]: rewrite }));
+    } catch {
+      // Ignore malformed/older packets; raw realtime transcript remains visible.
+    }
+  }, [transcriptRewriteMessage]);
 
   useEffect(() => {
     if (!autoRetry || agent.state !== "failed") return;
@@ -134,17 +201,25 @@ function LiveKitCallContent({
         ) : (
           messages.map((item) => {
             const isUser = item.type === "userTranscript" || item.from?.identity === localParticipant.identity;
+            const rewrite = item.type === "userTranscript"
+              ? transcriptRewrites[item.id]
+                ?? Object.values(transcriptRewrites).find((candidate) => candidate.raw_text === item.message)
+              : undefined;
             return (
               <div key={item.id} className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
-                <p
-                  className={`max-w-[85%] rounded-2xl px-4 py-2.5 text-sm ${
-                    isUser
-                      ? "bg-[#00A99D] text-white"
-                      : "bg-white text-slate-700 shadow-sm dark:bg-white/10 dark:text-slate-100"
-                  }`}
-                >
-                  {item.message}
-                </p>
+                {item.type === "userTranscript" ? (
+                  <UserTranscriptBubble rawText={item.message} rewrite={rewrite} />
+                ) : (
+                  <p
+                    className={`max-w-[85%] rounded-2xl px-4 py-2.5 text-sm ${
+                      isUser
+                        ? "bg-[#007F76] text-white"
+                        : "bg-white text-slate-700 shadow-sm dark:bg-white/10 dark:text-slate-100"
+                    }`}
+                  >
+                    {item.message}
+                  </p>
+                )}
               </div>
             );
           })

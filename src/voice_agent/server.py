@@ -16,7 +16,7 @@ from src.voice_agent.config import LiveKitVoiceSettings, get_livekit_voice_setti
 from src.voice_agent.observability import LiveKitSessionObserver, SessionEventLog
 from src.voice_agent.persistence import DatabaseVoiceStateStore, VoiceStateStore
 from src.voice_agent.session_data import AloSMSessionData, FailureCode, FallbackAction
-from src.voice_agent.state_sync import publish_booking_state
+from src.voice_agent.state_sync import publish_booking_state, publish_transcript_rewrite
 
 logger = logging.getLogger(__name__)
 
@@ -211,6 +211,11 @@ async def alosm_voice_session(ctx: JobContext) -> None:
             state_store=state_store,
             session_data=userdata,
             transcript_rewriter=transcript_rewriter,
+            transcript_rewrite_publisher=lambda item_id, result: publish_transcript_rewrite(
+                session,
+                item_id,
+                result,
+            ),
         ),
         record=settings.livekit_record_audio,
         room_options=RoomOptions(

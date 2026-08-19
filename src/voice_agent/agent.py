@@ -1,12 +1,16 @@
 """The single AloSM agent used by the LiveKit-native runtime."""
 
+from collections.abc import Awaitable, Callable
+
 from livekit.agents import Agent, function_tool, llm
 
-from src.voice.text.rewrite_contract import TranscriptRewriter
+from src.voice.text.rewrite_contract import TranscriptRewriter, TranscriptRewriteResult
 from src.voice_agent.persistence import EphemeralVoiceStateStore, VoiceStateStore
 from src.voice_agent.session_data import AloSMSessionData
 from src.voice_agent.tasks import BookingTask
 from src.voice_agent.transcript_rewrite import rewrite_livekit_user_turn
+
+TranscriptRewritePublisher = Callable[[str, TranscriptRewriteResult], Awaitable[object]]
 
 
 class AloSMAgent(Agent):
@@ -18,10 +22,12 @@ class AloSMAgent(Agent):
         state_store: VoiceStateStore | None = None,
         session_data: AloSMSessionData | None = None,
         transcript_rewriter: TranscriptRewriter | None = None,
+        transcript_rewrite_publisher: TranscriptRewritePublisher | None = None,
     ) -> None:
         self._state_store = state_store or EphemeralVoiceStateStore()
         self._session_data = session_data
         self._transcript_rewriter = transcript_rewriter
+        self._transcript_rewrite_publisher = transcript_rewrite_publisher
         recovered_context = ""
         if session_data is not None and session_data.recovered:
             recovered_context = (
@@ -47,12 +53,14 @@ class AloSMAgent(Agent):
         turn_ctx: llm.ChatContext,
         new_message: llm.ChatMessage,
     ) -> None:
-        await rewrite_livekit_user_turn(
+        result = await rewrite_livekit_user_turn(
             rewriter=self._transcript_rewriter,
             userdata=self._session_data,
             turn_ctx=turn_ctx,
             new_message=new_message,
         )
+        if result is not None and self._transcript_rewrite_publisher is not None:
+            await self._transcript_rewrite_publisher(new_message.id, result)
 
     @function_tool()
     async def start_booking(self) -> str:
@@ -66,5 +74,6 @@ class AloSMAgent(Agent):
             state_store=self._state_store,
             session_data=self.session.userdata,
             transcript_rewriter=self._transcript_rewriter,
+            transcript_rewrite_publisher=self._transcript_rewrite_publisher,
         )
         return outcome.message

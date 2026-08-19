@@ -7,9 +7,11 @@ import logging
 
 from livekit.agents import AgentSession
 
+from src.voice.text.rewrite_contract import TranscriptRewriteResult
 from src.voice_agent.session_data import AloSMSessionData
 
 BOOKING_STATE_TOPIC = "alosm.booking_state.v1"
+TRANSCRIPT_REWRITE_TOPIC = "alosm.transcript_rewrite.v1"
 logger = logging.getLogger(__name__)
 
 
@@ -41,4 +43,43 @@ async def publish_booking_state(session: AgentSession[AloSMSessionData]) -> bool
             logger.debug("skipping LiveKit booking state publish after room disconnect")
             return False
         logger.exception("failed to publish LiveKit booking state")
+        return False
+
+
+async def publish_transcript_rewrite(
+    session: AgentSession[AloSMSessionData],
+    item_id: str,
+    result: TranscriptRewriteResult,
+) -> bool:
+    """Publish the final rewrite for the matching realtime ASR bubble."""
+
+    room = session.room_io.room
+    if not room.isconnected():
+        logger.debug("skipping transcript rewrite publish after room disconnect")
+        return False
+    payload = json.dumps(
+        {
+            "schema_version": "1",
+            "item_id": item_id,
+            "raw_text": result.raw_text,
+            "normalized_text": result.normalized_text,
+            "applied": result.applied,
+            "status": result.reason,
+            "duration_ms": result.duration_ms,
+        },
+        ensure_ascii=False,
+        separators=(",", ":"),
+    )
+    try:
+        await room.local_participant.publish_data(
+            payload,
+            reliable=True,
+            topic=TRANSCRIPT_REWRITE_TOPIC,
+        )
+        return True
+    except Exception:
+        if not room.isconnected():
+            logger.debug("skipping transcript rewrite publish during room disconnect")
+            return False
+        logger.exception("failed to publish LiveKit transcript rewrite")
         return False

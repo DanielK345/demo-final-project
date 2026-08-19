@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import time
 from typing import Any
 
 from livekit.agents import llm
@@ -73,15 +74,28 @@ async def rewrite_livekit_user_turn(
 
     text = (new_message.text_content or "").strip()
     confidence = new_message.transcript_confidence
-    if rewriter is None or userdata is None or not text:
+    if not text:
         return None
+    if rewriter is None or userdata is None:
+        return TranscriptRewriteResult(
+            raw_text=text,
+            normalized_text=text,
+            reason="disabled_or_unconfigured",
+            duration_ms=0,
+        )
     if confidence is not None and confidence < MINIMUM_ASR_CONFIDENCE:
         logger.info(
             "LiveKit transcript rewrite skipped reason=low_asr_confidence confidence=%.2f",
             confidence,
         )
-        return None
+        return TranscriptRewriteResult(
+            raw_text=text,
+            normalized_text=text,
+            reason="low_asr_confidence",
+            duration_ms=0,
+        )
 
+    started = time.monotonic()
     try:
         result = await rewriter.rewrite(
             text,
@@ -94,7 +108,12 @@ async def rewrite_livekit_user_turn(
             type(exc).__name__,
             exc_info=True,
         )
-        return None
+        return TranscriptRewriteResult(
+            raw_text=text,
+            normalized_text=text,
+            reason="provider_error",
+            duration_ms=int((time.monotonic() - started) * 1000),
+        )
 
     if result.applied and result.normalized_text.strip():
         non_text_content = [item for item in new_message.content if not isinstance(item, str)]

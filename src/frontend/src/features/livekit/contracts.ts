@@ -1,4 +1,15 @@
 export const BOOKING_STATE_TOPIC = "alosm.booking_state.v1";
+export const TRANSCRIPT_REWRITE_TOPIC = "alosm.transcript_rewrite.v1";
+
+export type TranscriptRewriteEvent = {
+  schema_version: "1";
+  item_id: string;
+  raw_text: string;
+  normalized_text: string;
+  applied: boolean;
+  status: string;
+  duration_ms: number | null;
+};
 
 export type PlaceState = {
   place_id: string;

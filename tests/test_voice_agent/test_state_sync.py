@@ -5,8 +5,14 @@ from typing import Any, cast
 
 import pytest
 
+from src.voice.text.rewrite_contract import TranscriptRewriteResult
 from src.voice_agent.session_data import AloSMSessionData
-from src.voice_agent.state_sync import BOOKING_STATE_TOPIC, publish_booking_state
+from src.voice_agent.state_sync import (
+    BOOKING_STATE_TOPIC,
+    TRANSCRIPT_REWRITE_TOPIC,
+    publish_booking_state,
+    publish_transcript_rewrite,
+)
 
 
 def _userdata() -> AloSMSessionData:
@@ -68,3 +74,23 @@ async def test_publish_booking_state_uses_reliable_topic_after_connection() -> N
     assert '"confirmation_status":"not_requested"' in payload
     assert reliable is True
     assert topic == BOOKING_STATE_TOPIC
+
+
+@pytest.mark.asyncio
+async def test_publish_transcript_rewrite_includes_item_and_latency() -> None:
+    room = _ConnectedRoom()
+    result = TranscriptRewriteResult(
+        raw_text="ALO TOI MUON DAT XE",
+        normalized_text="Alo, tôi muốn đặt xe.",
+        applied=True,
+        reason="applied",
+        duration_ms=418,
+    )
+
+    assert await publish_transcript_rewrite(_session(room), "item-user-1", result) is True
+    payload, reliable, topic = room.local_participant.calls[0]
+    assert '"item_id":"item-user-1"' in payload
+    assert '"normalized_text":"Alo, tôi muốn đặt xe."' in payload
+    assert '"duration_ms":418' in payload
+    assert reliable is True
+    assert topic == TRANSCRIPT_REWRITE_TOPIC

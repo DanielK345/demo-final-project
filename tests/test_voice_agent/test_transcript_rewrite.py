@@ -75,6 +75,11 @@ async def test_parent_agent_rewrites_final_turn_before_llm_context() -> None:
 @pytest.mark.asyncio
 async def test_booking_task_uses_same_rewrite_hook_and_booking_context() -> None:
     rewriter = _Rewriter("Tôi chọn cổng trường VinUni.")
+    published: list[tuple[str, TranscriptRewriteResult]] = []
+
+    async def publish(item_id: str, result: TranscriptRewriteResult) -> None:
+        published.append((item_id, result))
+
     userdata = _userdata()
     userdata.booking_draft.set_candidates(
         "pickup",
@@ -99,7 +104,11 @@ async def test_booking_task_uses_same_rewrite_hook_and_booking_context() -> None
     turn_ctx = llm.ChatContext.empty()
     turn_ctx.add_message(role="assistant", content="Bạn muốn chọn cổng nào?")
     message = llm.ChatMessage(role="user", content=["toi chon cong a bin uni"])
-    task = BookingTask(session_data=userdata, transcript_rewriter=rewriter)
+    task = BookingTask(
+        session_data=userdata,
+        transcript_rewriter=rewriter,
+        transcript_rewrite_publisher=publish,
+    )
 
     await task.on_user_turn_completed(turn_ctx, message)
 
@@ -109,6 +118,8 @@ async def test_booking_task_uses_same_rewrite_hook_and_booking_context() -> None
     assert context["agent_state"]["conversation_history"][-1]["content"] == "Bạn muốn chọn cổng nào?"
     candidates = context["agent_state"]["collected_data"]["booking"]["pickup_candidates"]
     assert candidates[0]["asr_aliases"] == ["cổng a bin uni"]
+    assert published[0][0] == message.id
+    assert published[0][1].normalized_text == "Tôi chọn cổng trường VinUni."
 
 
 @pytest.mark.asyncio
@@ -123,7 +134,9 @@ async def test_low_confidence_audio_skips_rewrite_for_existing_clarification_gua
         new_message=message,
     )
 
-    assert result is None
+    assert result is not None
+    assert result.reason == "low_asr_confidence"
+    assert result.duration_ms == 0
     assert message.text_content == "ờ"
     assert rewriter.calls == []
 
@@ -139,5 +152,28 @@ async def test_rewrite_provider_failure_fails_open_to_raw_transcript() -> None:
         new_message=message,
     )
 
-    assert result is None
+    assert result is not None
+    assert result.reason == "provider_error"
+    assert result.normalized_text == "alo toi muon dat xe"
     assert message.text_content == "alo toi muon dat xe"
+
+
+@pytest.mark.asyncio
+async def test_parent_agent_publishes_rewrite_for_matching_message_id() -> None:
+    published: list[tuple[str, TranscriptRewriteResult]] = []
+
+    async def publish(item_id: str, result: TranscriptRewriteResult) -> None:
+        published.append((item_id, result))
+
+    agent = AloSMAgent(
+        session_data=_userdata(),
+        transcript_rewriter=_Rewriter(),
+        transcript_rewrite_publisher=publish,
+    )
+    message = llm.ChatMessage(role="user", content=["ALO TOI MUON DAT XE"])
+
+    await agent.on_user_turn_completed(llm.ChatContext.empty(), message)
+
+    assert published[0][0] == message.id
+    assert published[0][1].normalized_text == "Alo, tôi muốn đặt xe."
+    assert published[0][1].duration_ms == 12
