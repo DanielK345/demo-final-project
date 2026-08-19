@@ -7,6 +7,7 @@ import {
   useLocalParticipant,
   useSession,
   useSessionMessages,
+  useTranscriptions,
 } from "@livekit/components-react";
 import { LoaderCircle, Mic, MicOff, PhoneOff, Send, Volume2, VolumeX } from "lucide-react";
 import { CURRENT_POLICY_VERSION } from "@/features/policies/api";
@@ -32,6 +33,8 @@ const stateLabels = {
   failed: "Kết nối thất bại",
 } as const;
 
+const TRANSCRIPTION_FINAL_ATTRIBUTE = "lk.transcription_final";
+
 function formatRewriteLatency(durationMs: number): string {
   return durationMs < 1_000 ? `${durationMs} ms` : `${(durationMs / 1_000).toFixed(1)} s`;
 }
@@ -39,42 +42,50 @@ function formatRewriteLatency(durationMs: number): string {
 function UserTranscriptBubble({
   rawText,
   rewrite,
+  isFinal,
 }: {
   rawText: string;
   rewrite?: TranscriptRewriteEvent;
+  isFinal: boolean;
 }) {
   const startedAtRef = useRef(performance.now());
   const [elapsedMs, setElapsedMs] = useState(0);
   const failed = rewrite?.status === "provider_error" || rewrite?.status === "provider_timeout";
   const skipped = rewrite?.status === "disabled_or_unconfigured" || rewrite?.status === "low_asr_confidence";
-  const completed = Boolean(rewrite) && !failed && !skipped;
+  const displayText = isFinal && rewrite ? rewrite.normalized_text : rawText;
 
   useEffect(() => {
     if (rewrite) return;
+    if (isFinal) {
+      startedAtRef.current = performance.now();
+      setElapsedMs(0);
+    }
     const intervalId = window.setInterval(() => {
       setElapsedMs(Math.round(performance.now() - startedAtRef.current));
     }, 100);
     return () => window.clearInterval(intervalId);
-  }, [rewrite]);
+  }, [isFinal, rewrite]);
 
   return (
     <div
       className={`max-w-[85%] rounded-2xl px-4 py-2.5 text-sm transition-colors duration-300 ${
-        completed
+        isFinal
           ? "bg-[#007F76] text-white"
           : "bg-slate-200 text-slate-500 dark:bg-white/10 dark:text-slate-400"
       }`}
     >
-      <p className="whitespace-pre-wrap break-words">{completed ? rewrite?.normalized_text : rawText}</p>
-      <p className={`mt-1 flex items-center gap-1.5 text-[10px] ${completed ? "text-white/75" : "text-slate-400"}`}>
-        {!rewrite ? <LoaderCircle className="h-3 w-3 animate-spin" aria-hidden /> : null}
-        {!rewrite
-          ? `Đang hiệu chỉnh · ${formatRewriteLatency(elapsedMs)}`
-          : completed
-            ? `${rewrite.applied ? "Đã hiệu chỉnh" : "Đã kiểm tra"} · ${formatRewriteLatency(rewrite.duration_ms ?? elapsedMs)}`
+      <p className="whitespace-pre-wrap break-words">{displayText}</p>
+      <p className={`mt-1 flex items-center gap-1.5 text-[10px] ${isFinal ? "text-white/75" : "text-slate-400"}`}>
+        {!isFinal || !rewrite ? <LoaderCircle className="h-3 w-3 animate-spin" aria-hidden /> : null}
+        {!isFinal
+          ? `Đang nhận giọng nói · ${formatRewriteLatency(elapsedMs)}`
+          : !rewrite
+            ? `Đang hiệu chỉnh · ${formatRewriteLatency(elapsedMs)}`
             : failed
               ? `Không thể hiệu chỉnh · ${formatRewriteLatency(rewrite.duration_ms ?? elapsedMs)}`
-              : "Giữ nguyên transcript"}
+              : skipped
+                ? "Giữ nguyên transcript"
+                : `${rewrite.applied ? "Đã hiệu chỉnh" : "Đã kiểm tra"} · ${formatRewriteLatency(rewrite.duration_ms ?? elapsedMs)}`}
       </p>
     </div>
   );
@@ -91,6 +102,7 @@ function LiveKitCallContent({
 }) {
   const agent = useAgent();
   const { messages, send, isSending } = useSessionMessages();
+  const transcriptions = useTranscriptions();
   const { localParticipant, isMicrophoneEnabled } = useLocalParticipant();
   const [speakerMuted, setSpeakerMuted] = useState(false);
   const [draft, setDraft] = useState("");
@@ -98,6 +110,14 @@ function LiveKitCallContent({
   const [transcriptRewrites, setTranscriptRewrites] = useState<Record<string, TranscriptRewriteEvent>>({});
   const { message: bookingStateMessage } = useDataChannel(BOOKING_STATE_TOPIC);
   const { message: transcriptRewriteMessage } = useDataChannel(TRANSCRIPT_REWRITE_TOPIC);
+  const finalTranscriptions = useMemo(() => {
+    const states = new Map<string, boolean>();
+    for (const transcription of transcriptions) {
+      const finalAttribute = transcription.streamInfo.attributes?.[TRANSCRIPTION_FINAL_ATTRIBUTE];
+      states.set(transcription.streamInfo.id, String(finalAttribute).toLowerCase() === "true");
+    }
+    return states;
+  }, [transcriptions]);
 
   useEffect(() => {
     if (!bookingStateMessage) return;
@@ -208,7 +228,11 @@ function LiveKitCallContent({
             return (
               <div key={item.id} className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
                 {item.type === "userTranscript" ? (
-                  <UserTranscriptBubble rawText={item.message} rewrite={rewrite} />
+                  <UserTranscriptBubble
+                    rawText={item.message}
+                    rewrite={rewrite}
+                    isFinal={finalTranscriptions.get(item.id) ?? true}
+                  />
                 ) : (
                   <p
                     className={`max-w-[85%] rounded-2xl px-4 py-2.5 text-sm ${
