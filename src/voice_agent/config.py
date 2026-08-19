@@ -68,6 +68,9 @@ class LiveKitVoiceSettings(BaseSettings):
 
     livekit_connection_timeout_seconds: float = Field(default=10.0, gt=0, le=60)
     livekit_token_ttl_seconds: int = Field(default=600, ge=60, le=3600)
+    # Development mode otherwise keeps zero job processes warm. One idle process
+    # removes Python import/process startup from the first call without creating a Room.
+    livekit_num_idle_processes: int = Field(default=1, ge=0, le=16)
     livekit_critical_confidence_threshold: float = Field(default=0.65, ge=0, le=1)
 
     @property

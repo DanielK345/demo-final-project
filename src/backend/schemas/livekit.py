@@ -23,3 +23,11 @@ class LiveKitTokenRequestDTO(BaseModel):
 class LiveKitTokenResponseDTO(BaseModel):
     server_url: str
     participant_token: str
+
+
+class LiveKitPrepareRequestDTO(BaseModel):
+    call_instance_id: str
+
+
+class LiveKitPrepareResponseDTO(LiveKitTokenResponseDTO):
+    agent_prepared: bool

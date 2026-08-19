@@ -18,6 +18,36 @@ class LiveKitConnectionDetails:
     participant_token: str
 
 
+@dataclass(frozen=True, slots=True)
+class LiveKitCallTarget:
+    room_name: str
+    participant_identity: str
+    metadata: str
+
+
+def build_call_target(
+    *,
+    user_id: str,
+    app_session_id: str,
+    call_instance_id: str,
+) -> LiveKitCallTarget:
+    """Derive the same opaque Room and metadata for token and early dispatch."""
+
+    room_digest = hashlib.sha256(f"{user_id}:{app_session_id}:{call_instance_id}".encode()).hexdigest()[:24]
+    identity_digest = hashlib.sha256(user_id.encode()).hexdigest()[:20]
+    return LiveKitCallTarget(
+        room_name=f"alosm-{room_digest}",
+        participant_identity=f"customer-{identity_digest}",
+        metadata=json.dumps(
+            {
+                "schema_version": "1",
+                "app_session_id": app_session_id,
+            },
+            separators=(",", ":"),
+        ),
+    )
+
+
 def issue_connection_details(
     settings: LiveKitVoiceSettings,
     *,
@@ -29,16 +59,10 @@ def issue_connection_details(
 
     settings.require_configured()
 
-    room_digest = hashlib.sha256(f"{user_id}:{app_session_id}:{call_instance_id}".encode()).hexdigest()[:24]
-    identity_digest = hashlib.sha256(user_id.encode()).hexdigest()[:20]
-    room_name = f"alosm-{room_digest}"
-    participant_identity = f"customer-{identity_digest}"
-    metadata = json.dumps(
-        {
-            "schema_version": "1",
-            "app_session_id": app_session_id,
-        },
-        separators=(",", ":"),
+    target = build_call_target(
+        user_id=user_id,
+        app_session_id=app_session_id,
+        call_instance_id=call_instance_id,
     )
 
     token = (
@@ -46,13 +70,13 @@ def issue_connection_details(
             settings.livekit_api_key.get_secret_value(),
             settings.livekit_api_secret.get_secret_value(),
         )
-        .with_identity(participant_identity)
+        .with_identity(target.participant_identity)
         .with_name("Khách hàng AloSM")
-        .with_metadata(metadata)
+        .with_metadata(target.metadata)
         .with_grants(
             api.VideoGrants(
                 room_join=True,
-                room=room_name,
+                room=target.room_name,
                 can_publish=True,
                 can_subscribe=True,
                 can_publish_data=True,
@@ -64,7 +88,7 @@ def issue_connection_details(
                 agents=[
                     api.RoomAgentDispatch(
                         agent_name=settings.livekit_agent_name,
-                        metadata=metadata,
+                        metadata=target.metadata,
                     )
                 ]
             )

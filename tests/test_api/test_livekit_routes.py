@@ -2,6 +2,7 @@ import pytest
 
 from src.backend.services.livekit_service import (
     LiveKitConnectionDetails,
+    PreparedLiveKitConnection,
     get_livekit_token_service,
 )
 from src.main import app
@@ -23,6 +24,22 @@ class FakeLiveKitTokenService:
         return LiveKitConnectionDetails(
             server_url="wss://alosm.test.livekit.cloud",
             participant_token="signed-test-token",
+        )
+
+    async def prepare_for_user(
+        self,
+        *,
+        user_id: str,
+        app_session_id: str,
+        call_instance_id: str,
+    ) -> PreparedLiveKitConnection:
+        return PreparedLiveKitConnection(
+            details=self.issue_for_user(
+                user_id=user_id,
+                app_session_id=app_session_id,
+                call_instance_id=call_instance_id,
+            ),
+            agent_prepared=True,
         )
 
 
@@ -68,6 +85,38 @@ async def test_livekit_token_returns_standard_endpoint_contract(client, livekit_
         "server_url": "wss://alosm.test.livekit.cloud",
         "participant_token": "signed-test-token",
     }
+
+
+@pytest.mark.asyncio
+async def test_livekit_prepare_dispatches_before_room_connection(client, livekit_service_override) -> None:
+    login = await client.post(
+        "/api/v1/auth/login",
+        json={"phone": "0901234567", "password": "Password123!"},
+    )
+    token = login.json()["access_token"]
+
+    response = await client.post(
+        "/api/v1/livekit/prepare",
+        json={"call_instance_id": "11111111-1111-4111-8111-111111111111"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 201
+    assert response.json() == {
+        "server_url": "wss://alosm.test.livekit.cloud",
+        "participant_token": "signed-test-token",
+        "agent_prepared": True,
+    }
+
+
+@pytest.mark.asyncio
+async def test_livekit_prepare_requires_authentication(client, livekit_service_override) -> None:
+    response = await client.post(
+        "/api/v1/livekit/prepare",
+        json={"call_instance_id": "11111111-1111-4111-8111-111111111111"},
+    )
+
+    assert response.status_code == 401
 
 
 @pytest.mark.asyncio

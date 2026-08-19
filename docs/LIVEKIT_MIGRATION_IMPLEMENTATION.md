@@ -34,8 +34,10 @@ Cập nhật: **2026-08-19** · Trạng thái: **PHASE 3 HARDENING + LIVEKIT TRA
 
 ```text
 Authenticated React user
-→ POST FastAPI LiveKit token endpoint
-→ connect LiveKit Room and dispatch alosm-voice Agent
+→ user presses call; frontend creates one call_instance_id
+→ POST FastAPI `/livekit/prepare` performs best-effort explicit agent dispatch
+→ popup mounts and connects to the same LiveKit Room with the prepared token
+→ token RoomConfiguration dispatch remains as fallback when prepare fails
 → publish microphone audio over WebRTC
 → AgentServer receives job
 → AgentSession receives audio through RoomIO
@@ -268,6 +270,7 @@ LIVEKIT_URL
 LIVEKIT_API_KEY
 LIVEKIT_API_SECRET
 LIVEKIT_AGENT_NAME=alosm-voice
+LIVEKIT_NUM_IDLE_PROCESSES=1
 LIVEKIT_STT_MODEL
 LIVEKIT_STT_LANGUAGE=vi
 LIVEKIT_LLM_MODEL
@@ -318,6 +321,25 @@ Transcript rewrite:
 - rewrite được chấp nhận sửa trực tiếp `new_message.content` trước conversation LLM;
   transcript partial/final mà frontend đã nhận từ STT có thể vẫn là raw transcript;
 - latency của hook nằm trong `ChatMessage.metrics.on_user_turn_completed_delay`.
+
+Startup latency:
+
+- worker local/dev giữ mặc định một idle job process bằng
+  `LIVEKIT_NUM_IDLE_PROCESSES=1`; tăng giá trị theo concurrency chỉ sau khi đo memory;
+- frontend tạo `call_instance_id` ngay trong action mở cuộc gọi, trước khi lazy popup
+  hoàn tất mount;
+- khi consent đã có, frontend gọi authenticated `POST /api/v1/livekit/prepare`; lần
+  đồng ý consent đầu tiên gọi prepare ngay trước khi mount session;
+- backend tự derive opaque Room từ user/session/call ID và explicit-dispatch đúng
+  `LIVEKIT_AGENT_NAME`; client không được chọn Room, identity hoặc metadata;
+- prepare trả luôn participant token cho cùng Room. `TokenSource.custom` dùng token
+  này ở lần fetch đầu, các lần refresh/reconnect tiếp tục dùng `/livekit/token`;
+- browser chỉ chờ prepare tối đa 1.5 giây rồi dùng token endpoint fallback, tránh
+  biến tối ưu cold-start thành một blocking failure mới;
+- prepare là best-effort: token vẫn chứa `RoomConfiguration.agents`, nên nếu API
+  dispatch lỗi thì participant đầu tiên tạo Room sẽ dispatch agent như flow cũ;
+- không prepare lúc login và không bật microphone trước consent để tránh giữ Room/job
+  hoặc tiêu inference quota cho người không thực hiện cuộc gọi.
 
 Turn handling baseline (LiveKit Agents 1.6.x API):
 
@@ -691,6 +713,25 @@ trong local session đã được phép debug; không dùng cấu hình này là
   Inference.
 - Automated coverage kiểm tra parent agent, active booking task, candidate context,
   preservation của confidence, low-confidence skip và provider fail-open.
+
+#### LiveKit startup latency hardening — 2026-08-20
+
+- `AgentServer` nhận `num_idle_processes` từ `LIVEKIT_NUM_IDLE_PROCESSES`, mặc định
+  một process. Điều này sửa khác biệt của LiveKit `dev` mode vốn giữ zero idle process,
+  nhưng không tự tạo Room hoặc gọi inference khi chưa có cuộc gọi.
+- Thêm authenticated `POST /api/v1/livekit/prepare`. Endpoint dùng cùng derivation
+  opaque Room/participant/metadata với token issuer và gọi
+  `AgentDispatchService.CreateDispatch` trước khi browser kết nối.
+- Prepare không mở rộng quyền client: user/session lấy từ bearer token; request chỉ
+  nhận UUID `call_instance_id`; agent name, Room và metadata vẫn do server sở hữu.
+- Nút gọi khởi động prepare trước khi popup lazy-load hoàn tất nếu consent đã tồn tại.
+  Với consent lần đầu, prepare chỉ bắt đầu sau thao tác “Đồng ý”. Microphone vẫn chỉ
+  bật trong `session.start` sau consent.
+- Prepared token được dùng đúng một lần; token refresh/reconnect quay về endpoint
+  chuẩn. Nếu explicit dispatch lỗi, backend trả token với dispatch config cũ và cuộc
+  gọi vẫn khởi động khi participant join Room.
+- Automated coverage xác minh prepare authentication, Room trong dispatch trùng Room
+  trong JWT, success flag và fail-open token fallback.
 
 ### Phase 4 — Evaluation và cutover
 

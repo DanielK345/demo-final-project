@@ -21,6 +21,8 @@ import {
   synthesizeSpeech,
 } from "@/features/voice/api";
 import type { CompletedBooking } from "@/features/ai-assistant/components/BookingSuccessPanel";
+import { CURRENT_POLICY_VERSION } from "@/features/policies/api";
+import { discardPreparedAloSMCall, prepareAloSMCall } from "@/features/livekit/prepareCall";
 import {
   VoiceAssistantContext,
   type AssistantStatus,
@@ -36,6 +38,8 @@ export const VoiceAssistantProvider: React.FC<{ children: React.ReactNode }> = (
   const navigate = useNavigate();
 
   const [isOpen, setIsOpen] = useState(false);
+  const [livekitCallInstanceId, setLivekitCallInstanceId] = useState<string | null>(null);
+  const livekitCallInstanceIdRef = useRef<string | null>(null);
   const [isConversationOpen, setIsConversationOpen] = useState(false);
   const [status, setStatus] = useState<AssistantStatus>("connecting");
   const [sessionId, setSessionId] = useState<string | null>(null);
@@ -288,19 +292,39 @@ export const VoiceAssistantProvider: React.FC<{ children: React.ReactNode }> = (
     // không cần eslint-disable, giống hệt effect bootstrap gốc ở AssistantPage cũ.
   }, [navigate]);
 
-  const open = useCallback(() => setIsOpen(true), []);
+  const prepareLiveKitCall = useCallback(() => {
+    if (import.meta.env.VITE_VOICE_RUNTIME !== "livekit") return null;
+    if (livekitCallInstanceIdRef.current) return livekitCallInstanceIdRef.current;
+    const callInstanceId = crypto.randomUUID();
+    livekitCallInstanceIdRef.current = callInstanceId;
+    setLivekitCallInstanceId(callInstanceId);
+    const consentKey = `alosm_voice_consent_v${CURRENT_POLICY_VERSION}`;
+    if (localStorage.getItem(consentKey) === "accepted") {
+      void prepareAloSMCall(callInstanceId).catch(() => undefined);
+    }
+    return callInstanceId;
+  }, []);
+
+  const open = useCallback(() => {
+    prepareLiveKitCall();
+    setIsOpen(true);
+  }, [prepareLiveKitCall]);
   const close = useCallback(() => {
+    discardPreparedAloSMCall(livekitCallInstanceId);
+    livekitCallInstanceIdRef.current = null;
     setIsConversationOpen(false);
     setIsOpen(false);
-  }, []);
+    setLivekitCallInstanceId(null);
+  }, [livekitCallInstanceId]);
   const openConversation = useCallback(() => setIsConversationOpen(true), []);
   const closeConversation = useCallback(() => setIsConversationOpen(false), []);
 
   const openWithPrefill = useCallback((prefill: string) => {
+    prepareLiveKitCall();
     setDraft(prefill);
     setIsConversationOpen(true);
     setIsOpen(true);
-  }, []);
+  }, [prepareLiveKitCall]);
 
   const confirmBooking = useCallback(async () => {
     // Gửi đúng 1 lượt hội thoại thật ("Xác nhận đặt xe" khớp _CONFIRM_TERMS ở
@@ -410,6 +434,7 @@ export const VoiceAssistantProvider: React.FC<{ children: React.ReactNode }> = (
       isOpen,
       open,
       close,
+      livekitCallInstanceId,
       isConversationOpen,
       openConversation,
       closeConversation,
@@ -450,6 +475,7 @@ export const VoiceAssistantProvider: React.FC<{ children: React.ReactNode }> = (
       isOpen,
       open,
       close,
+      livekitCallInstanceId,
       isConversationOpen,
       openConversation,
       closeConversation,

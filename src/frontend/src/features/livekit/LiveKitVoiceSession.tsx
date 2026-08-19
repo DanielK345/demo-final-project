@@ -11,6 +11,7 @@ import {
 import { Mic, MicOff, PhoneOff, Send, Volume2, VolumeX } from "lucide-react";
 import { CURRENT_POLICY_VERSION } from "@/features/policies/api";
 import { useVoiceAssistant } from "@/features/ai-assistant/context/useVoiceAssistant";
+import { discardPreparedAloSMCall, prepareAloSMCall } from "./prepareCall";
 import { createAloSMTokenSource, LIVEKIT_AGENT_NAME } from "./tokenSource";
 import { BOOKING_STATE_TOPIC, type BookingState } from "./contracts";
 
@@ -204,17 +205,18 @@ function LiveKitCallContent({
 }
 
 function LiveKitSessionAttempt({
+  callInstanceId,
   onClose,
   onRetry,
   autoRetry,
 }: {
+  callInstanceId: string;
   onClose: () => void;
   onRetry: () => void;
   autoRetry: boolean;
 }) {
   const [connectionError, setConnectionError] = useState<string | null>(null);
-  const callInstanceId = useMemo(() => crypto.randomUUID(), []);
-  const tokenSource = useMemo(() => createAloSMTokenSource(), []);
+  const tokenSource = useMemo(() => createAloSMTokenSource(callInstanceId), [callInstanceId]);
   const session = useSession(tokenSource, {
     agentName: LIVEKIT_AGENT_NAME,
     participantAttributes: { "alosm.call_id": callInstanceId },
@@ -267,10 +269,24 @@ function LiveKitSessionAttempt({
 }
 
 export const LiveKitVoiceSession: React.FC = () => {
-  const { close } = useVoiceAssistant();
+  const { close, livekitCallInstanceId } = useVoiceAssistant();
   const consentKey = `alosm_voice_consent_v${CURRENT_POLICY_VERSION}`;
   const [consented, setConsented] = useState(() => localStorage.getItem(consentKey) === "accepted");
-  const [attempt, setAttempt] = useState(0);
+  const [attempt, setAttempt] = useState(() => ({
+    id: 0,
+    callInstanceId: livekitCallInstanceId ?? crypto.randomUUID(),
+  }));
+
+  const retry = useCallback(() => {
+    const callInstanceId = crypto.randomUUID();
+    void prepareAloSMCall(callInstanceId).catch(() => undefined);
+    setAttempt((current) => ({ id: current.id + 1, callInstanceId }));
+  }, []);
+
+  useEffect(
+    () => () => discardPreparedAloSMCall(attempt.callInstanceId),
+    [attempt.callInstanceId],
+  );
 
   if (!consented) {
     return (
@@ -282,6 +298,7 @@ export const LiveKitVoiceSession: React.FC = () => {
         <button
           type="button"
           onClick={() => {
+            void prepareAloSMCall(attempt.callInstanceId).catch(() => undefined);
             localStorage.setItem(consentKey, "accepted");
             setConsented(true);
           }}
@@ -295,10 +312,11 @@ export const LiveKitVoiceSession: React.FC = () => {
 
   return (
     <LiveKitSessionAttempt
-      key={attempt}
+      key={attempt.id}
+      callInstanceId={attempt.callInstanceId}
       onClose={close}
-      onRetry={() => setAttempt((value) => value + 1)}
-      autoRetry={attempt === 0}
+      onRetry={retry}
+      autoRetry={attempt.id === 0}
     />
   );
 };

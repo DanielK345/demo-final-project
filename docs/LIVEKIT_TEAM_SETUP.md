@@ -139,6 +139,7 @@ LIVEKIT_URL=wss://alosm-mvgefaui.livekit.cloud
 LIVEKIT_API_KEY=<lay-tu-livekit-dashboard-hoac-secret-manager>
 LIVEKIT_API_SECRET=<lay-tu-livekit-dashboard-hoac-secret-manager>
 LIVEKIT_AGENT_NAME=alosm-voice
+LIVEKIT_NUM_IDLE_PROCESSES=1
 
 LIVEKIT_STT_MODEL=deepgram/nova-3
 LIVEKIT_STT_LANGUAGE=vi
@@ -168,6 +169,8 @@ Lưu ý:
 - `LIVEKIT_URL` dùng `wss://`, không dùng URL dashboard `https://`.
 - API key/secret chỉ ở backend và worker; tuyệt đối không đặt vào biến `VITE_*`.
 - `LIVEKIT_AGENT_NAME` phải giống giữa token endpoint, frontend và worker.
+- `LIVEKIT_NUM_IDLE_PROCESSES=1` giữ sẵn một job process trong local `dev` mode;
+  đặt `0` nếu máy rất thiếu RAM, tăng chỉ sau khi đo concurrency/memory.
 - Baseline dùng `vad`, không dùng `adaptive`, để tránh quota adaptive interruption
   và giữ đúng cấu hình đã test.
 - Lệnh `make livekit-frontend` tự truyền `VITE_VOICE_RUNTIME=livekit`; biến root vẫn
@@ -254,6 +257,13 @@ make livekit-worker
 Giữ terminal này mở. Worker phải đăng ký với tên `alosm-voice`. Chỉ chạy **một**
 worker baseline cho cùng developer/project khi test để tránh nhầm job giữa nhiều
 worker.
+
+Worker không chờ popup mới “khởi động service”: process chính đăng ký ngay khi lệnh
+trên chạy và giữ một child process idle. Khi user nhấn nút gọi, frontend gọi
+`POST /api/v1/livekit/prepare` để explicit-dispatch agent vào Room trong lúc popup
+đang lazy-load. Micro chỉ bật sau consent. Nếu log báo early dispatch fail, token
+dispatch tự fallback lúc browser join Room; browser cũng ngừng chờ prepare sau 1.5
+giây để không chặn cuộc gọi.
 
 ### Terminal 3 — React frontend
 

@@ -1,6 +1,7 @@
 import json
 
 import jwt
+import pytest
 
 from src.backend.services.livekit_service import LiveKitTokenService
 from src.voice_agent.config import LiveKitVoiceSettings
@@ -90,3 +91,68 @@ def test_new_call_instance_gets_a_fresh_room() -> None:
 
     assert first["sub"] == second["sub"]
     assert first["video"]["room"] != second["video"]["room"]
+
+
+class _FakeDispatchClient:
+    def __init__(self, *, fail: bool = False) -> None:
+        self.fail = fail
+        self.requests: list[object] = []
+
+    async def create_dispatch(self, request: object) -> None:
+        self.requests.append(request)
+        if self.fail:
+            raise RuntimeError("dispatch unavailable")
+
+
+class _FakeLiveKitAPI:
+    def __init__(self, dispatch: _FakeDispatchClient) -> None:
+        self.agent_dispatch = dispatch
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *_: object) -> None:
+        return None
+
+
+@pytest.mark.asyncio
+async def test_prepare_dispatches_same_room_embedded_in_participant_token(monkeypatch) -> None:
+    dispatch = _FakeDispatchClient()
+    monkeypatch.setattr(
+        "src.backend.services.livekit_service.api.LiveKitAPI",
+        lambda **_: _FakeLiveKitAPI(dispatch),
+    )
+    service = LiveKitTokenService(_settings())
+
+    prepared = await service.prepare_for_user(
+        user_id="usr_1",
+        app_session_id="sess_1",
+        call_instance_id="11111111-1111-4111-8111-111111111111",
+    )
+
+    claims = jwt.decode(prepared.details.participant_token, options={"verify_signature": False})
+    request = dispatch.requests[0]
+    assert prepared.agent_prepared is True
+    assert request.room == claims["video"]["room"]
+    assert request.agent_name == "alosm-voice"
+    assert json.loads(request.metadata)["app_session_id"] == "sess_1"
+
+
+@pytest.mark.asyncio
+async def test_prepare_failure_returns_token_dispatch_fallback(monkeypatch) -> None:
+    dispatch = _FakeDispatchClient(fail=True)
+    monkeypatch.setattr(
+        "src.backend.services.livekit_service.api.LiveKitAPI",
+        lambda **_: _FakeLiveKitAPI(dispatch),
+    )
+    service = LiveKitTokenService(_settings())
+
+    prepared = await service.prepare_for_user(
+        user_id="usr_1",
+        app_session_id="sess_1",
+        call_instance_id="11111111-1111-4111-8111-111111111111",
+    )
+
+    claims = jwt.decode(prepared.details.participant_token, options={"verify_signature": False})
+    assert prepared.agent_prepared is False
+    assert claims["roomConfig"]["agents"][0]["agentName"] == "alosm-voice"

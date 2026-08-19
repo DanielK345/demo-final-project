@@ -162,6 +162,7 @@ server = AgentServer(
     ws_url=_server_settings.livekit_url or None,
     api_key=_server_settings.livekit_api_key.get_secret_value() or None,
     api_secret=_server_settings.livekit_api_secret.get_secret_value() or None,
+    num_idle_processes=_server_settings.livekit_num_idle_processes,
 )
 
 
