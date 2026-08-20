@@ -54,8 +54,8 @@ def test_livekit_runtime_accepts_complete_native_pipeline_configuration() -> Non
     assert config.livekit_turn_detection == "vad"
     assert config.livekit_interruption_mode == "vad"
     assert config.livekit_endpointing_mode == "fixed"
-    assert config.livekit_endpointing_min_delay_seconds == 0.8
-    assert config.livekit_endpointing_max_delay_seconds == 2.5
+    assert config.livekit_endpointing_min_delay_seconds == 2.0
+    assert config.livekit_endpointing_max_delay_seconds == 3.0
     assert config.livekit_interruption_min_duration_seconds == 0.5
     assert config.livekit_num_idle_processes == 1
     assert config.livekit_stt_language == "vi"

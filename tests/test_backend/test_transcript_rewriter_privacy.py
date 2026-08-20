@@ -126,6 +126,76 @@ def test_selection_context_includes_candidates_but_excludes_personal_data():
     assert "0901234567" not in json.dumps(compact, ensure_ascii=False)
 
 
+def test_selected_booking_places_are_included_as_exact_rewrite_context():
+    context = {
+        "current_step": "COLLECT_DESTINATION",
+        "agent_state": {
+            "collected_data": {
+                "booking": {
+                    "pickup": {
+                        "place_id": "vinuni-main-gate",
+                        "display_name": "Cổng chính VinUni",
+                    },
+                    "destination": json.dumps(
+                        {
+                            "place_id": "ho-guom",
+                            "display_name": "Hồ Gươm",
+                        }
+                    ),
+                }
+            }
+        },
+    }
+
+    compact = _minimal_context(context)
+
+    assert compact["known_booking_places"] == {
+        "pickup": "Cổng chính VinUni",
+        "destination": "Hồ Gươm",
+    }
+    assert "place_id" not in json.dumps(compact, ensure_ascii=False)
+
+
+@pytest.mark.asyncio
+async def test_selected_booking_place_is_prioritized_in_rewrite_terms():
+    client = _FakeClient(
+        _RewriteOutput(
+            normalized_text="Đón tôi ở Cổng chính VinUni",
+            meaning_preserved=True,
+            requires_clarification=False,
+            confidence=0.99,
+            change_types=["spelling", "domain_term"],
+        )
+    )
+    rewriter = OpenAITranscriptRewriter(
+        api_key="",
+        model="rewrite-test",
+        timeout_seconds=1,
+        glossary=["AloSM", "VinUni"],
+        client=client,
+    )
+    context = {
+        "current_step": "COLLECT_DESTINATION",
+        "agent_state": {
+            "collected_data": {
+                "booking": {
+                    "pickup": {"display_name": "Cổng chính VinUni"},
+                }
+            }
+        },
+    }
+
+    result = await rewriter.rewrite(
+        "Đón tôi ở cổng chính Bin Unite",
+        session_context=context,
+        session_id="sess-test",
+    )
+
+    payload = json.loads(str(client.responses.request["input"]))
+    assert payload["canonical_terms"][:2] == ["Cổng chính VinUni", "AloSM"]
+    assert result.normalized_text == "Đón tôi ở Cổng chính VinUni"
+
+
 def test_large_phonetic_repair_is_allowed_only_when_grounded_in_current_candidates():
     raw = "muon thanh mua"
     candidate = "muon cong chinh vinuni"

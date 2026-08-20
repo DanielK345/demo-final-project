@@ -82,7 +82,10 @@ def build_agent_session(
                 "resume_false_interruption": True,
             },
             "preemptive_generation": {
-                "enabled": True,
+                # Rewriting mutates the final ChatMessage. Starting the
+                # conversation LLM from partial STT can race that mutation and
+                # create duplicate replies for one interrupted utterance.
+                "enabled": False,
                 "preemptive_tts": False,
             },
         },
@@ -227,6 +230,7 @@ async def alosm_voice_session(ctx: JobContext) -> None:
         interruption_mode=settings.livekit_interruption_mode,
         interruption_min_duration=settings.livekit_interruption_min_duration_seconds,
         interruption_min_words=settings.livekit_interruption_min_words,
+        preemptive_generation_enabled=False,
         stt_final_fallback_enabled=stt_final_fallback is not None,
         stt_final_fallback_seconds=(
             settings.livekit_stt_final_fallback_seconds if stt_final_fallback is not None else None

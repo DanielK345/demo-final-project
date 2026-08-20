@@ -34,6 +34,11 @@ const stateLabels = {
 } as const;
 
 const TRANSCRIPTION_FINAL_ATTRIBUTE = "lk.transcription_final";
+const USER_TURN_COALESCE_WINDOW_MS = 2_000;
+
+function normalizeTranscriptText(text: string): string {
+  return text.trim().replace(/\s+/g, " ");
+}
 
 function formatRewriteLatency(durationMs: number): string {
   return durationMs < 1_000 ? `${durationMs} ms` : `${(durationMs / 1_000).toFixed(1)} s`;
@@ -42,45 +47,42 @@ function formatRewriteLatency(durationMs: number): string {
 function UserTranscriptBubble({
   rawText,
   rewrite,
-  isFinal,
+  isAsrFinal,
 }: {
   rawText: string;
   rewrite?: TranscriptRewriteEvent;
-  isFinal: boolean;
+  isAsrFinal: boolean;
 }) {
   const startedAtRef = useRef(performance.now());
   const [elapsedMs, setElapsedMs] = useState(0);
   const failed = rewrite?.status === "provider_error" || rewrite?.status === "provider_timeout";
   const skipped = rewrite?.status === "disabled_or_unconfigured" || rewrite?.status === "low_asr_confidence";
-  const displayText = isFinal && rewrite ? rewrite.normalized_text : rawText;
+  const committed = Boolean(rewrite);
+  const displayText = rewrite?.normalized_text ?? rawText;
 
   useEffect(() => {
     if (rewrite) return;
-    if (isFinal) {
-      startedAtRef.current = performance.now();
-      setElapsedMs(0);
-    }
     const intervalId = window.setInterval(() => {
       setElapsedMs(Math.round(performance.now() - startedAtRef.current));
     }, 100);
     return () => window.clearInterval(intervalId);
-  }, [isFinal, rewrite]);
+  }, [rewrite]);
 
   return (
     <div
       className={`max-w-[85%] rounded-2xl px-4 py-2.5 text-sm transition-colors duration-300 ${
-        isFinal
+        committed
           ? "bg-[#007F76] text-white"
           : "bg-slate-200 text-slate-500 dark:bg-white/10 dark:text-slate-400"
       }`}
     >
       <p className="whitespace-pre-wrap break-words">{displayText}</p>
-      <p className={`mt-1 flex items-center gap-1.5 text-[10px] ${isFinal ? "text-white/75" : "text-slate-400"}`}>
-        {!isFinal || !rewrite ? <LoaderCircle className="h-3 w-3 animate-spin" aria-hidden /> : null}
-        {!isFinal
+      <p className={`mt-1 flex items-center gap-1.5 text-[10px] ${committed ? "text-white/75" : "text-slate-400"}`}>
+        {!rewrite ? <LoaderCircle className="h-3 w-3 animate-spin" aria-hidden /> : null}
+        {!isAsrFinal
           ? `Đang nhận giọng nói · ${formatRewriteLatency(elapsedMs)}`
           : !rewrite
-            ? `Đang hiệu chỉnh · ${formatRewriteLatency(elapsedMs)}`
+            ? `Đang ổn định và hiệu chỉnh · ${formatRewriteLatency(elapsedMs)}`
             : failed
               ? `Không thể hiệu chỉnh · ${formatRewriteLatency(rewrite.duration_ms ?? elapsedMs)}`
               : skipped
@@ -118,6 +120,24 @@ function LiveKitCallContent({
     }
     return states;
   }, [transcriptions]);
+  const groupedMessages = useMemo(() => {
+    const groups: Array<typeof messages> = [];
+    for (const message of messages) {
+      const previousGroup = groups.at(-1);
+      const previousMessage = previousGroup?.at(-1);
+      const shouldCoalesce = Boolean(
+        message.type === "userTranscript"
+        && previousMessage?.type === "userTranscript"
+        && Math.abs(message.timestamp - previousMessage.timestamp) <= USER_TURN_COALESCE_WINDOW_MS,
+      );
+      if (shouldCoalesce && previousGroup) {
+        previousGroup.push(message);
+      } else {
+        groups.push([message]);
+      }
+    }
+    return groups;
+  }, [messages]);
 
   useEffect(() => {
     if (!bookingStateMessage) return;
@@ -216,22 +236,38 @@ function LiveKitCallContent({
       ) : null}
 
       <div className="mt-5 min-h-0 flex-1 space-y-3 overflow-y-auto rounded-2xl bg-slate-50 p-4 dark:bg-white/5">
-        {messages.length === 0 ? (
+        {groupedMessages.length === 0 ? (
           <p className="text-center text-sm text-slate-400">Transcript realtime sẽ xuất hiện tại đây.</p>
         ) : (
-          messages.map((item) => {
+          groupedMessages.map((messageGroup) => {
+            const item = messageGroup.at(-1)!;
             const isUser = item.type === "userTranscript" || item.from?.identity === localParticipant.identity;
-            const rewrite = item.type === "userTranscript"
-              ? transcriptRewrites[item.id]
-                ?? Object.values(transcriptRewrites).find((candidate) => candidate.raw_text === item.message)
+            const userTranscripts = messageGroup.filter((message) => message.type === "userTranscript");
+            const rawTranscript = normalizeTranscriptText(
+              userTranscripts.map((message) => message.message).join(" "),
+            );
+            const rewrite = userTranscripts.length > 0
+              ? [...userTranscripts]
+                .reverse()
+                .map((message) => transcriptRewrites[message.id])
+                .find(Boolean)
+                ?? Object.values(transcriptRewrites).find(
+                  (candidate) => normalizeTranscriptText(candidate.raw_text) === rawTranscript,
+                )
               : undefined;
+            const isAsrFinal = userTranscripts.length > 0 && userTranscripts.every(
+              (message) => finalTranscriptions.get(message.id) ?? false,
+            );
             return (
-              <div key={item.id} className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
-                {item.type === "userTranscript" ? (
+              <div
+                key={messageGroup.map((message) => message.id).join(":")}
+                className={`flex ${isUser ? "justify-end" : "justify-start"}`}
+              >
+                {userTranscripts.length > 0 ? (
                   <UserTranscriptBubble
-                    rawText={item.message}
+                    rawText={rawTranscript}
                     rewrite={rewrite}
-                    isFinal={finalTranscriptions.get(item.id) ?? true}
+                    isAsrFinal={isAsrFinal}
                   />
                 ) : (
                   <p

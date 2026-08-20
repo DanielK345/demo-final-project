@@ -27,11 +27,12 @@ async def test_build_agent_session_uses_livekit_native_pipeline() -> None:
     assert isinstance(session, AgentSession)
     assert session.userdata.booking_draft.public_state()["confirmation_status"] == "not_requested"
     assert session.options.endpointing["mode"] == "fixed"
-    assert session.options.endpointing["min_delay"] == 0.8
-    assert session.options.endpointing["max_delay"] == 2.5
+    assert session.options.endpointing["min_delay"] == 2.0
+    assert session.options.endpointing["max_delay"] == 3.0
     assert session.options.interruption["mode"] == "vad"
     assert session.options.interruption["min_duration"] == 0.5
     assert session.options.interruption["min_words"] == 1
+    assert session.options.preemptive_generation["enabled"] is False
     assert _settings().livekit_stt_final_fallback_enabled is True
     assert _settings().livekit_stt_final_fallback_seconds == 3.0
 

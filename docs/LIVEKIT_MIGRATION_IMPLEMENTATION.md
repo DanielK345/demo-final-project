@@ -39,8 +39,8 @@ Authenticated React user
 → publish microphone audio over WebRTC
 → AgentServer receives job
 → AgentSession receives audio through RoomIO
-→ LiveKit VAD/endpointing closes user turn
-→ Vietnamese streaming STT
+→ Vietnamese streaming STT publishes partial/provider-final fragments
+→ LiveKit VAD waits for 2 seconds of silence and closes one logical user turn
 → finalized user turn enters `on_user_turn_completed`
 → privacy-safe transcript rewrite modifies the final `ChatMessage` only when accepted
 → LiveKit-managed transcript/chat context
@@ -277,8 +277,8 @@ LIVEKIT_TTS_LANGUAGE=vi
 LIVEKIT_TURN_DETECTION=vad
 LIVEKIT_INTERRUPTION_MODE=vad
 LIVEKIT_ENDPOINTING_MODE=fixed
-LIVEKIT_ENDPOINTING_MIN_DELAY_SECONDS=0.8
-LIVEKIT_ENDPOINTING_MAX_DELAY_SECONDS=2.5
+LIVEKIT_ENDPOINTING_MIN_DELAY_SECONDS=2.0
+LIVEKIT_ENDPOINTING_MAX_DELAY_SECONDS=3.0
 LIVEKIT_INTERRUPTION_MIN_DURATION_SECONDS=0.5
 LIVEKIT_INTERRUPTION_MIN_WORDS=1
 LIVEKIT_RECORD_AUDIO=false
@@ -315,22 +315,28 @@ Transcript rewrite:
 - provider timeout/error phải fail-open về raw transcript, không làm mất user turn;
 - chỉ gửi current transcript cùng booking step/candidate context tối thiểu; không gửi
   raw audio, credential hoặc durable PII không cần thiết;
+- pickup/destination đã chọn được gửi dưới dạng canonical `known_booking_places`,
+  đúng cùng state đang hiển thị trong khung xác nhận, để sửa các biến thể như
+  `Bin Unite`/`biên Uni` thành `VinUni` khi có bằng chứng ngữ âm;
 - rewrite được chấp nhận sửa trực tiếp `new_message.content` trước conversation LLM;
-  transcript partial/final mà frontend đã nhận từ STT có thể vẫn là raw transcript;
+  frontend giữ transcript STT màu xám, gộp fragment trong cửa sổ 2 giây và chỉ đổi
+  bubble sang màu xanh bằng `normalized_text` sau khi nhận rewrite event;
 - latency của hook nằm trong `ChatMessage.metrics.on_user_turn_completed_delay`.
 
 Turn handling baseline (LiveKit Agents 1.6.x API):
 
 ```text
 turn_handling.turn_detection="vad"
-turn_handling.endpointing={mode: "fixed", min_delay: 0.8, max_delay: 2.5}
+turn_handling.endpointing={mode: "fixed", min_delay: 2.0, max_delay: 3.0}
 turn_handling.interruption={enabled: true, mode: "vad"}
-turn_handling.preemptive_generation={enabled: true, preemptive_tts: false}
+turn_handling.preemptive_generation={enabled: false, preemptive_tts: false}
 endpointing tune bằng p50/p95, không tune theo cảm giác
 ```
 
-Adaptive interruption và preemptive TTS chỉ bật sau A/B benchmark. LiveKit semantic
-turn detector không được coi là supported cho tiếng Việt ở thời điểm tài liệu này.
+Preemptive LLM generation phải tắt vì rewrite cần quyền sửa final `ChatMessage`
+trước khi conversation LLM chạy. Adaptive interruption và preemptive TTS chỉ bật
+sau A/B benchmark. LiveKit semantic turn detector không được coi là supported cho
+tiếng Việt ở thời điểm tài liệu này.
 
 ## 10. Frontend và auth
 
@@ -637,10 +643,10 @@ Gate: correction và handoff tests pass; reconnect/retry không duplicate bookin
   Resolver bổ sung reverse containment và fuzzy match bảo thủ bằng dependency
   `rapidfuzz` đã có sẵn; chỉ trả candidate khi score cao và cách biệt, mọi candidate
   vẫn phải đi qua `select_place`. Không echo free text và không cho LLM tạo place ID.
-- LiveKit VAD baseline được tune bằng native endpointing: fixed `0.8–2.5s`, barge-in
+- LiveKit VAD baseline được tune bằng native endpointing: fixed `2.0–3.0s`, barge-in
   minimum `0.5s`, một từ; greeting cho phép interruption để không drop câu nói sớm.
-  Preemptive LLM generation vẫn bật. Các giá trị đều cấu hình qua ENV để benchmark,
-  không tạo detector riêng.
+  Preemptive LLM generation tắt để conversation LLM chỉ nhận final transcript sau
+  rewrite. Các giá trị đều cấu hình qua ENV để benchmark, không tạo detector riêng.
 - `RoomOptions.audio_input` bật rõ native automatic gain control và pre-connect audio.
   Enhanced Krisp/ai-coustics chưa bật vì plugin cài riêng và có metered cost; không
   thêm dependency/quota ngầm. Cartesia voice tiếp tục pin qua ENV và cần browser A/B

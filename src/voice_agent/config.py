@@ -48,8 +48,10 @@ class LiveKitVoiceSettings(BaseSettings):
     # Vietnamese is not supported by LiveKit's semantic turn detector yet, so
     # keep VAD and give natural mid-address pauses a slightly wider endpoint.
     livekit_endpointing_mode: Literal["fixed", "dynamic"] = "fixed"
-    livekit_endpointing_min_delay_seconds: float = Field(default=0.8, ge=0.25, le=3)
-    livekit_endpointing_max_delay_seconds: float = Field(default=2.5, ge=0.5, le=5)
+    # Hold the user turn open across short Vietnamese pauses. The conversation
+    # LLM must not see a turn until two seconds of silence have elapsed.
+    livekit_endpointing_min_delay_seconds: float = Field(default=2.0, ge=0.25, le=3)
+    livekit_endpointing_max_delay_seconds: float = Field(default=3.0, ge=0.5, le=5)
     livekit_interruption_min_duration_seconds: float = Field(default=0.5, ge=0, le=5)
     livekit_interruption_min_words: int = Field(default=1, ge=0, le=10)
 

@@ -31,6 +31,7 @@ Goal:
 Conversation-context rules:
 - conversation_context is trusted application state supplied separately from the untrusted transcript.
 - relevant_alias_mappings contains a small application-owned subset of known ASR renderings and their exact canonical names. Use a mapping only when the transcript is phonetically close to one of its aliases.
+- known_booking_places contains canonical place names already selected and displayed by the application. Prefer their exact spelling when the transcript contains a close phonetic rendering, but never replace an unrelated place with a selected one.
 - When location_selection is present, the assistant has just asked the customer to choose one of those exact candidates. Use the original query, candidate display names/addresses, candidate-specific asr_aliases, and last assistant question together to interpret a short selection answer.
 - If the transcript is a close phonetic ASR rendering of exactly one listed candidate, restore that candidate's exact display_name. Preserve words such as "chọn", "muốn", "không", or a candidate number when present.
 - Do not choose a candidate merely because it appears in context. If two choices remain plausible, keep the transcript and set requires_clarification=true.
@@ -230,6 +231,16 @@ def _last_assistant_message(agent_state: dict[str, Any]) -> str | None:
     return None
 
 
+def _known_booking_places(booking: dict[str, Any]) -> dict[str, str]:
+    known: dict[str, str] = {}
+    for target in ("pickup", "destination"):
+        place = _mapping(booking.get(target))
+        display_name = place.get("display_name")
+        if isinstance(display_name, str) and display_name.strip():
+            known[target] = display_name[:120]
+    return known
+
+
 def _minimal_context(context: dict[str, Any] | None) -> dict[str, Any]:
     if not context:
         return {}
@@ -246,6 +257,9 @@ def _minimal_context(context: dict[str, Any] | None) -> dict[str, Any]:
 
     collected_data = _mapping(agent_state.get("collected_data"))
     booking = _mapping(collected_data.get("booking"))
+    known_places = _known_booking_places(booking)
+    if known_places:
+        compact["known_booking_places"] = known_places
     step = compact.get("current_step")
     target = (
         "pickup"
@@ -387,10 +401,12 @@ class OpenAITranscriptRewriter:
         )
         contextual_fallback = deterministic if deterministic_reason == "contextual_candidate_alias" else None
         masked, replacements = _mask_sensitive_values(deterministic)
+        known_places = compact_context.get("known_booking_places")
+        known_place_names = list(known_places.values()) if isinstance(known_places, dict) else []
         payload = {
             "transcript": masked,
             "conversation_context": compact_context,
-            "canonical_terms": self.glossary,
+            "canonical_terms": list(dict.fromkeys([*known_place_names, *self.glossary])),
             "relevant_alias_mappings": _relevant_alias_mappings(raw, self.place_aliases),
         }
         selection = compact_context.get("location_selection")

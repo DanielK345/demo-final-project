@@ -56,5 +56,7 @@ def test_vinuni_alias_catalog_covers_observed_livekit_misrecognitions():
     aliases = PlaceAliasCatalog.load()
 
     assert aliases.correct("Điểm đón là Bin Yuni") == "Điểm đón là VinUni"
+    assert aliases.correct("Điểm đón là Bin Unite") == "Điểm đón là VinUni"
+    assert aliases.correct("Điểm đón là biên Uni") == "Điểm đón là VinUni"
     assert aliases.correct("Điểm đón là Vinyuni") == "Điểm đón là VinUni"
     assert aliases.correct("Điểm đón là Win Uni") == "Điểm đón là VinUni"

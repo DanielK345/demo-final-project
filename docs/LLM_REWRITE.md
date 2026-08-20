@@ -9,22 +9,31 @@ it must not infer booking facts or silently turn ambiguous speech into a command
 ```text
 audio
   -> streaming STT partial (UI bubble is gray)
-  -> STT final (UI bubble becomes green)
+  -> STT provider final fragments remain gray
+  -> 2 seconds of silence closes one logical user turn
   -> Agent.on_user_turn_completed
   -> deterministic aliases and booking-language repairs
   -> privacy masking
   -> LLM structured rewrite with relevant alias mappings and booking context
   -> semantic/protected-value guards
   -> final ChatMessage used by the conversation LLM
-  -> rewrite result published to the UI
+  -> rewrite result published to the UI (the coalesced bubble becomes green)
 ```
+
+LiveKit preemptive generation is disabled for this pipeline. The conversation
+LLM and TTS therefore cannot start from a partial transcript while the rewrite
+hook is still pending. Provider-final fragments separated by less than two
+seconds are accumulated into the same turn; the frontend coalesces the matching
+fragments into one gray bubble and replaces its text with `normalized_text`
+when the rewrite result arrives. This prevents two adjacent user bubbles from
+representing one interrupted utterance.
 
 The deterministic layer runs before the model and remains available when the
 provider fails or its output is rejected. Known examples include:
 
 | ASR text | Deterministic result |
 |---|---|
-| `Vinyuni`, `Bin Yuni`, `Win Uni` | `VinUni` |
+| `Vinyuni`, `Bin Yuni`, `Bin Unite`, `biên Uni`, `Win Uni` | `VinUni` |
 | `Điểm đoán là VinUni` while collecting a location | `Điểm đón là VinUni` |
 | `cổng thành cũng`, `cũng chính bin Uni` during VinUni gate selection | `Cổng chính VinUni` |
 
@@ -40,9 +49,12 @@ Vietnamese.
   points and aliases, available only during an active candidate selection.
 
 The LLM receives canonical terms plus at most six phonetic alias mappings that
-are relevant to the current transcript. The entire alias catalog is never sent
-on every request. Candidate names, addresses, aliases, original search query and
-the last assistant selection question are included only for the active location
+are relevant to the current transcript. The exact pickup and destination names
+already selected in booking state are placed first in the canonical terms and
+sent as `known_booking_places`; this is the same canonical state displayed in
+the confirmation panel. The entire alias catalog is never sent on every
+request. Candidate names, addresses, aliases, original search query and the last
+assistant selection question are included only for the active location
 selection.
 
 ## Failure and timeout behavior
@@ -74,6 +86,9 @@ VOICE_TRANSCRIPT_REWRITE_MINIMUM_CONFIDENCE=0.85
 
 LIVEKIT_STT_FINAL_FALLBACK_ENABLED=true
 LIVEKIT_STT_FINAL_FALLBACK_SECONDS=3
+LIVEKIT_ENDPOINTING_MODE=fixed
+LIVEKIT_ENDPOINTING_MIN_DELAY_SECONDS=2.0
+LIVEKIT_ENDPOINTING_MAX_DELAY_SECONDS=3.0
 ```
 
 An OpenAI base URL selects `OPENAI_API_KEY`; an OpenRouter base URL selects
@@ -89,6 +104,7 @@ The JSONL `session_configured` event records:
 - `transcript_rewrite_disabled_reason`: `config_disabled` or `missing_api_key`
 - `transcript_rewrite_model`
 - `transcript_rewrite_timeout_seconds`
+- endpointing min/max delay and `preemptive_generation_enabled=false`
 - STT final fallback state and timeout
 
 For an active rewrite, worker logs contain a bounded lifecycle:
