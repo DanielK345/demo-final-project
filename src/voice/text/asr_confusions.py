@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
@@ -68,3 +69,51 @@ class ASRConfusionCatalog:
             }
             for entry in self.entries
         ]
+
+    def generate_variants(
+        self,
+        text: str,
+        *,
+        max_substitutions: int = 2,
+        max_variants: int = 128,
+    ) -> set[str]:
+        """Generate bounded context variants without exponential expansion."""
+
+        variants = {text}
+        frontier = {text}
+        for _ in range(max_substitutions):
+            expanded: set[str] = set()
+            for value in frontier:
+                for entry in self.entries:
+                    expanded.update(self._single_substitutions(value, entry))
+                    if len(variants) + len(expanded) >= max_variants:
+                        break
+                if len(variants) + len(expanded) >= max_variants:
+                    break
+            expanded -= variants
+            if not expanded:
+                break
+            remaining = max_variants - len(variants)
+            frontier = set(sorted(expanded)[:remaining])
+            variants.update(frontier)
+            if len(variants) >= max_variants:
+                break
+        return variants
+
+    @staticmethod
+    def _single_substitutions(text: str, entry: ASRConfusion) -> set[str]:
+        # Tone classes are useful LLM evidence but are not literal substrings.
+        if entry.scope == "tone_class":
+            return set()
+        escaped = re.escape(entry.canonical)
+        if entry.scope == "syllable_onset":
+            pattern = re.compile(rf"(?<!\w){escaped}", re.IGNORECASE)
+        elif entry.scope in {"syllable_coda", "syllable_rhyme"}:
+            pattern = re.compile(rf"{escaped}(?!\w)", re.IGNORECASE)
+        else:
+            pattern = re.compile(escaped, re.IGNORECASE)
+        variants: set[str] = set()
+        for match in pattern.finditer(text):
+            for replacement in entry.asr_variants:
+                variants.add(text[: match.start()] + replacement + text[match.end() :])
+        return variants

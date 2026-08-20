@@ -186,20 +186,7 @@ def _known_place_confusion_rewrite(
     for canonical_name in known_places.values():
         if not isinstance(canonical_name, str) or not canonical_name.strip():
             continue
-        variants = {canonical_name}
-        for confusion in catalog.entries:
-            expanded = set(variants)
-            for value in variants:
-                for asr_variant in confusion.asr_variants:
-                    expanded.add(
-                        re.sub(
-                            re.escape(confusion.canonical),
-                            asr_variant,
-                            value,
-                            flags=re.IGNORECASE,
-                        )
-                    )
-            variants = expanded
+        variants = catalog.generate_variants(canonical_name)
         for variant in sorted(variants - {canonical_name}, key=len, reverse=True):
             escaped = re.escape(variant).replace(r"\ ", r"\s+")
             corrected = re.sub(
