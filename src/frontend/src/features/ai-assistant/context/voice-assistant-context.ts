@@ -28,6 +28,7 @@ export interface VoiceAssistantValue {
   isOpen: boolean;
   open: () => void;
   close: () => void;
+  livekitCallInstanceId: string | null;
   isConversationOpen: boolean;
   openConversation: () => void;
   closeConversation: () => void;

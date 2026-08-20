@@ -52,6 +52,12 @@ class Settings(BaseSettings):
     )
     voice_provider: Literal["auto", "openai", "gemini", "zipformer"] = "auto"
     voice_stt_model: str = "gpt-4o-transcribe"
+    # Used only after the configured/local STT provider is unavailable. Whisper
+    # is an STT model, so it must never be used as a fallback for Edge TTS.
+    voice_stt_fallback_model: str = "whisper-1"
+    # OpenAI is the primary TTS path for /voice/turn. Edge remains available as
+    # a local fallback when the speech API is unavailable or no key is set.
+    voice_tts_provider: Literal["openai", "edge"] = "openai"
     voice_tts_model: str = "tts-1"
     # Tên riêng cho giọng OpenAI của pipeline `/voice/turn`. Không nhận alias
     # `VOICE_TTS_VOICE`: tên legacy đó thuộc Voice runtime Edge-TTS và từng làm
@@ -67,6 +73,10 @@ class Settings(BaseSettings):
         return self.openai_tts_voice
     voice_gemini_model: str = "gemini-2.0-flash"
     voice_timeout_seconds: float = Field(default=30.0, gt=0)
+    # Post-ASR guard for short filler/noise vocalisations that pass energy VAD.
+    voice_brief_ambiguous_sound_enabled: bool = True
+    voice_brief_ambiguous_sound_max_duration_ms: int = Field(default=700, ge=100, le=3000)
+    voice_brief_ambiguous_sound_max_confidence: float = Field(default=0.40, ge=0.0, le=1.0)
 
     # Post-ASR Vietnamese correction. Only the current transcript is sent and
     # phone/email/ID/number values are replaced with immutable placeholders.
@@ -76,6 +86,10 @@ class Settings(BaseSettings):
     voice_transcript_rewrite_timeout_seconds: float = Field(default=5.0, gt=0)
     voice_transcript_rewrite_reasoning_effort: Literal["none", "low", "medium"] = "none"
     voice_transcript_rewrite_minimum_confidence: float = Field(default=0.85, ge=0.0, le=1.0)
+    # Bounded, privacy-redacted conversational memory for ASR normalization.
+    # One turn is at most one user and one assistant message.
+    voice_transcript_rewrite_context_window_turns: int = Field(default=3, ge=0, le=8)
+    voice_transcript_rewrite_memory_max_corrections: int = Field(default=6, ge=0, le=20)
 
     # Legacy Gemini place rewriter compatibility. The active voice paths use
     # VOICE_TRANSCRIPT_REWRITE_* above; retain these fields so importing the old

@@ -1,0 +1,160 @@
+{
+  "schema_version": "2.0",
+  "generated_at": "2026-08-16T20:02:45.210408+00:00",
+  "mode": "offline_deterministic_agent_workflow",
+  "case": {
+    "id": "AGENT-006",
+    "title": "Handoff tổng đài viên",
+    "goal": "Chuyển booking context đang dở tới đúng hàng đợi người thật.",
+    "status": "passed",
+    "duration_ms": 4.858,
+    "conversation": [
+      {
+        "turn": 1,
+        "user": "Tôi muốn đặt xe 4 chỗ",
+        "assistant": {
+          "action": "ASK_USER",
+          "message": "Bạn muốn đón ở đâu và đi đến đâu?",
+          "booking": null
+        },
+        "semantic_decisions": [
+          {
+            "tool": "update_booking",
+            "arguments": {
+              "vehicle_type": "CAR_4"
+            }
+          },
+          {
+            "tool": "respond",
+            "arguments": {
+              "message": "Bạn muốn đón ở đâu và đi đến đâu?",
+              "expects_response": true
+            }
+          }
+        ],
+        "backend_tools": [],
+        "state_after_turn": {
+          "workflow": "RIDE_BOOKING",
+          "step": null,
+          "confirmation": "NOT_REQUESTED",
+          "booking": {
+            "pickup_query": null,
+            "pickup": null,
+            "destination_query": null,
+            "destination": null,
+            "vehicle_type": "CAR_4",
+            "fare_estimate_id": null,
+            "fare_amount": null,
+            "currency": null,
+            "booking_id": null,
+            "booking_status": null
+          },
+          "handoff": null
+        }
+      },
+      {
+        "turn": 2,
+        "user": "Tôi muốn gặp tổng đài viên",
+        "assistant": {
+          "action": "HANDOFF",
+          "message": "Tôi sẽ chuyển bạn tới tổng đài viên và gửi kèm nội dung đã trao đổi.",
+          "booking": null
+        },
+        "semantic_decisions": [
+          {
+            "tool": "handoff",
+            "arguments": {
+              "reason": "Khách yêu cầu gặp tổng đài viên",
+              "reason_code": "USER_REQUEST"
+            }
+          }
+        ],
+        "backend_tools": [],
+        "state_after_turn": {
+          "workflow": "HUMAN_HANDOFF",
+          "step": "HANDOFF_REQUIRED",
+          "confirmation": "NOT_REQUESTED",
+          "booking": {
+            "pickup_query": null,
+            "pickup": null,
+            "destination_query": null,
+            "destination": null,
+            "vehicle_type": "CAR_4",
+            "fare_estimate_id": null,
+            "fare_amount": null,
+            "currency": null,
+            "booking_id": null,
+            "booking_status": null
+          },
+          "handoff": {
+            "reason_code": "USER_REQUEST",
+            "source_workflow": "RIDE_BOOKING",
+            "priority": 50,
+            "severity": "NORMAL",
+            "queue": "GENERAL_OPERATOR"
+          }
+        }
+      }
+    ],
+    "assertions": [
+      {
+        "name": "booking context started",
+        "passed": true,
+        "expected": "RIDE_BOOKING",
+        "actual": "RIDE_BOOKING"
+      },
+      {
+        "name": "handoff response",
+        "passed": true,
+        "expected": "HANDOFF",
+        "actual": "HANDOFF"
+      },
+      {
+        "name": "handoff semantic tool",
+        "passed": true,
+        "expected": [
+          "handoff"
+        ],
+        "actual": [
+          "handoff"
+        ]
+      },
+      {
+        "name": "handoff workflow",
+        "passed": true,
+        "expected": "HUMAN_HANDOFF",
+        "actual": "HUMAN_HANDOFF"
+      },
+      {
+        "name": "reason code",
+        "passed": true,
+        "expected": "USER_REQUEST",
+        "actual": "USER_REQUEST"
+      },
+      {
+        "name": "original workflow transferred",
+        "passed": true,
+        "expected": "RIDE_BOOKING",
+        "actual": "RIDE_BOOKING"
+      },
+      {
+        "name": "operator queue",
+        "passed": true,
+        "expected": "GENERAL_OPERATOR",
+        "actual": "GENERAL_OPERATOR"
+      },
+      {
+        "name": "no booking side effect",
+        "passed": true,
+        "expected": [],
+        "actual": []
+      },
+      {
+        "name": "all scripted decisions consumed",
+        "passed": true,
+        "expected": 0,
+        "actual": 0
+      }
+    ]
+  }
+}

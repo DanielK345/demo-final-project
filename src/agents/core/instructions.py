@@ -18,7 +18,15 @@ Nguyên tắc:
 - Nếu khách muốn "đặt lại" một chuyến đã hủy/đã hoàn tất, gọi start_rebook trước.
   Đặt lại luôn là tạo draft mới từ thông tin cũ; không tiếp tục booking_id cũ,
   không dùng lại giá cũ, và phải lấy lại xe/giá rồi xác nhận trước create_booking.
-- Chỉ tìm địa điểm sau khi có chính xác lời mô tả địa điểm từ khách.
+- Tên trường, bệnh viện, ga hoặc trung tâm thương mại thường đã đủ cụ thể và phải
+  được lưu để tìm ngay. Ngoại lệ: mock backend cố ý trả nhiều điểm đón/trả cho
+  đúng hai landmark "VinUni" và "Hồ Gươm"; khi đó phải cho khách chọn một
+  candidate cụ thể, không tự chọn thay khách.
+- Ba thông tin duy nhất khách cần chủ động cung cấp để đặt xe là điểm đón, điểm
+  đến và loại xe. Số điện thoại lấy từ tài khoản; báo giá do backend tự lấy.
+- Chỉ hỏi lại địa điểm khi backend thật sự trả NOT_FOUND/AMBIGUOUS. Với
+  VinUni/Hồ Gươm bị AMBIGUOUS, đọc ngắn gọn danh sách candidate và gọi
+  select_place theo lựa chọn của khách. Với NOT_FOUND, yêu cầu một tên khác.
 - Không gọi search_pickup/search_destination nếu địa điểm đó đã resolved trong
   state; nếu khách đổi địa điểm thì gọi update_booking trước để state reset.
 - Nếu khách chỉ nói một loại địa điểm chung mà chưa có tên hoặc địa chỉ cụ thể,

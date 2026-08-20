@@ -34,7 +34,7 @@ SERVICE_TOOLS = [
     ),
     tool_definition(
         "update_booking",
-        "Lưu chi tiết đặt xe khách nói rõ. Chỉ lưu pickup_query/destination_query khi có tên nơi hoặc địa chỉ cụ thể; nếu khách chỉ nói loại nơi như bệnh viện thì hãy hỏi rõ bằng respond.",
+        "Lưu điểm đón, điểm đến và loại xe khách nói rõ. VinUni và Hồ Gươm sẽ được backend trả về danh sách điểm cụ thể để khách xác nhận; không tự chọn candidate.",
         {
             "pickup_query": {"type": "string"},
             "destination_query": {"type": "string"},

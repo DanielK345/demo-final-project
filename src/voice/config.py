@@ -81,6 +81,11 @@ class VoiceSettings(BaseSettings):
     # hallucination khi audio gần như im lặng (phát hiện thật, xem mustdo.md).
     voice_min_utterance_rms: float = Field(default=0.01, ge=0.0, le=1.0)
 
+    # Lớp hậu kiểm sau ASR: chặn filler/tiếng động ngắn đã vượt qua energy VAD.
+    voice_brief_ambiguous_sound_enabled: bool = True
+    voice_brief_ambiguous_sound_max_duration_ms: int = Field(default=700, ge=100, le=3000)
+    voice_brief_ambiguous_sound_max_confidence: float = Field(default=0.40, ge=0.0, le=1.0)
+
     # Ngưỡng confidence RIÊNG của Voice — chỉ áp dụng thêm 1 lớp thận trọng phía client
     # khi đang ở bước CONFIRM (BR-001), KHÔNG thay thế ngưỡng 0.55 phẳng của
     # `SessionService` (nguồn quyết định duy nhất cho các bước còn lại).

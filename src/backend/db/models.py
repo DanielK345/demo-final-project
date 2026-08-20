@@ -107,6 +107,10 @@ class RideSession(Base):
     ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     user_phone: Mapped[str | None] = mapped_column(String(20), nullable=True)
     agent_state: Mapped[dict | None] = mapped_column(JSON_DOCUMENT, nullable=True)
+    # LiveKit-native state is isolated from the legacy Core Agent document so the
+    # two rollout paths cannot deserialize or overwrite each other's schema.
+    voice_agent_state: Mapped[dict | None] = mapped_column(JSON_DOCUMENT, nullable=True)
+    voice_state_revision: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
     turn_sequence: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
     handoff_id: Mapped[str | None] = mapped_column(String(32), nullable=True)
     booking_lifecycle_status: Mapped[str | None] = mapped_column(String(30), nullable=True)

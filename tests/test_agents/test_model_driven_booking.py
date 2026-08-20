@@ -529,6 +529,37 @@ async def test_explicit_vehicle_with_resolved_route_estimates_without_asking_pas
 
 
 @pytest.mark.asyncio
+async def test_complete_route_update_keeps_explicit_vehicle_type():
+    agent = LLMAgent(
+        conversation_model=ScriptedConversationModel(
+            tool(
+                "update_booking",
+                pickup_query="VinUni",
+                destination_query="Hồ Gươm",
+                vehicle_type="CAR_4",
+            ),
+            tool("search_pickup"),
+        )
+    )
+
+    action = await agent.handle(
+        AgentInput(
+            session_id="session-hanoi-route",
+            turn_id="turn-1",
+            transcript="Cho tôi xe 4 chỗ từ VinUni tới Hồ Gươm",
+        ),
+        AgentState(session_id="session-hanoi-route"),
+    )
+
+    booking = BookingData.model_validate(action.state_updates["collected_data"]["booking"])
+    assert action.action_type is ActionType.CALL_TOOL
+    assert action.tool_call.tool_name.value == "search_place"
+    assert action.tool_call.params == {"query": "VinUni"}
+    assert booking.destination_query == "Hồ Gươm"
+    assert booking.vehicle_type == "CAR_4"
+
+
+@pytest.mark.asyncio
 async def test_complete_booking_conversation_uses_backend_tool_results():
     model = ScriptedConversationModel(
         tool(
@@ -538,11 +569,8 @@ async def test_complete_booking_conversation_uses_backend_tool_results():
             passenger_count=2,
             phone_number="0387018233",
         ),
-        tool("search_pickup"),
-        tool("search_destination"),
         tool("request_vehicle_options"),
         tool("select_vehicle", option_id="car-4"),
-        tool("request_booking_confirmation"),
         tool("confirm_booking"),
     )
     agent = LLMAgent(conversation_model=model)

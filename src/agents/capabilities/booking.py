@@ -4,13 +4,13 @@ from src.agents.capabilities.common import policy_error
 from src.agents.contracts.schemas import ActionType, AgentAction, ToolName, ToolResult, WorkflowType
 from src.agents.contracts.state import ConfirmationStatus
 from src.agents.core.booking.actions import (
+    request_booking_confirmation_action,
     request_cancel_booking_action,
     request_create_booking_action,
     request_fare_estimate_action,
     request_place_action,
     request_vehicle_options_action,
 )
-from src.agents.core.booking.messages import format_fare, passenger_confirmation, vehicle_label
 from src.agents.core.booking.state import (
     BookingData,
     BookingStep,
@@ -144,7 +144,14 @@ def _update(data: BookingData, arguments: dict) -> tuple[BookingData, str]:
             deep=True,
         )
     if location_changed or needs_changed:
+        # Route/needs changes invalidate backend-generated vehicle options, but
+        # an explicit vehicle type supplied in this same user turn remains a
+        # valid preference. Previously a complete sentence such as "xe 4 chỗ từ
+        # VinUni tới Hồ Gươm" immediately lost its freshly stored CAR_4 slot.
+        explicit_vehicle_type = values.get("vehicle_type")
         data = clear_vehicle_selection(data)
+        if explicit_vehicle_type is not None:
+            data = data.model_copy(update={"vehicle_type": explicit_vehicle_type}, deep=True)
     if vehicle_changed:
         data = data.model_copy(update={"selected_vehicle_option_id": None, "vehicle_display_name": None}, deep=True)
     if location_changed or needs_changed or vehicle_changed:
@@ -269,19 +276,10 @@ def register_booking(registry: ToolRegistry) -> None:
         if missing:
             return policy_error(f"Chưa thể xác nhận; còn thiếu: {', '.join(missing)}")
         _persist(session)
-        session.updates.update(
-            current_workflow=WorkflowType.RIDE_BOOKING,
-            current_step=BookingStep.CONFIRM.value,
-            confirmation=ConfirmationStatus.AWAITING_CONFIRMATION,
-        )
-        data = session.booking
-        return AgentAction(
-            action_type=ActionType.ASK_USER,
-            message=(f"Bạn xác nhận đặt xe đón tại {data.pickup.display_name} và đến "
-                     f"{data.destination.display_name}, loại {vehicle_label(data)}, giá dự kiến "
-                     f"{format_fare(data)}{passenger_confirmation(data)}, đúng không?"),
-            state_updates=session.updates,
-            reason="Deterministic policy produced the booking confirmation summary.",
+        action = request_booking_confirmation_action(session.booking)
+        return action.model_copy(
+            update={"state_updates": {**session.updates, **action.state_updates}},
+            deep=True,
         )
 
     def confirm(session: TurnSession, _arguments: dict):

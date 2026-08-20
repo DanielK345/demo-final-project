@@ -23,8 +23,8 @@ export const VoiceAssistantPopup: React.FC = () => {
     <div
       role="dialog"
       aria-label="Cuộc gọi với trợ lý AloSM"
-      className="fixed z-40 inset-x-0 bottom-0 md:inset-auto md:bottom-28 md:right-8
-        h-[96vh] md:h-[760px] w-full md:w-[680px] max-w-[calc(100vw-2rem)]
+      className="fixed z-40 inset-x-0 bottom-0 md:inset-auto md:bottom-6 md:right-8
+        h-[96vh] md:h-[min(900px,calc(100vh-3rem))] w-full md:w-[720px] max-w-[calc(100vw-2rem)]
         bg-white dark:bg-[#12161A] border border-slate-200/80 dark:border-white/10
         rounded-t-[32px] md:rounded-[32px] shadow-2xl flex flex-col overflow-hidden
         animate-in slide-in-from-bottom-4 fade-in duration-300"

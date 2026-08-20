@@ -36,12 +36,13 @@ async def lifespan(app: FastAPI):
     voice_settings = get_voice_settings()
     zipformer = get_zipformer_service()
     await zipformer.start()
-    if voice_settings.voice_enabled and not _RUNNING_UNDER_PYTEST:
-        # QUAN TRỌNG: chạy nền (không await/không chặn startup). Prewarm gọi Edge-TTS
-        # thật 3 lần tuần tự — đã tự đo mất ~15-18s. `await` trực tiếp ở đây từng khiến
-        # uvicorn không bind/accept connection nào suốt khoảng thời gian đó (server có
-        # vẻ "sập" từ ngoài nhìn vào, browser báo "Failed to fetch") — phát hiện thật
-        # khi debug live server, xem mustdo.md.
+    if (
+        voice_settings.voice_enabled
+        and settings.voice_tts_provider == "edge"
+        and not _RUNNING_UNDER_PYTEST
+    ):
+        # Edge-only prewarm is unnecessary when OpenAI is the primary /voice/turn
+        # TTS provider. Avoid the former 15-18 second HoaiMy background warmup.
         asyncio.create_task(prewarm_tts_cache())
     yield
     await zipformer.stop()

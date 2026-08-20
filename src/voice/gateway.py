@@ -24,6 +24,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+from src.voice.asr.brief_sound import detect_brief_ambiguous_sound
 from src.voice.audio.codec import PCM16Resampler, utterance_rms
 from src.voice.audio.vad import EndpointScorer, VADProvider, build_vad_provider
 from src.voice.schemas import (
@@ -179,6 +180,30 @@ class VoiceGateway:
         if not normalized_text.strip():
             outputs.extend(await self._reprompt(conn, REPROMPT_MESSAGE))
             return outputs
+
+        # EndpointScorer retains the trailing silence used to close an utterance.
+        # Remove that known tail so the detector sees an approximation of actual
+        # voiced time rather than the endpointing delay.
+        total_duration_ms = len(pcm16_audio) / 2 / self.settings.voice_vad_sample_rate * 1000
+        speech_duration_ms = max(0.0, total_duration_ms - self.settings.voice_vad_silence_ms)
+        if self.settings.voice_brief_ambiguous_sound_enabled:
+            brief_sound = detect_brief_ambiguous_sound(
+                normalized_text,
+                speech_duration_ms=speech_duration_ms,
+                confidence=asr_result.confidence,
+                max_duration_ms=self.settings.voice_brief_ambiguous_sound_max_duration_ms,
+                low_confidence_threshold=self.settings.voice_brief_ambiguous_sound_max_confidence,
+            )
+            if brief_sound.blocked:
+                logger.info(
+                    "Brief ambiguous ASR sound blocked session=%s duration_ms=%.0f confidence=%.2f transcript=%r",
+                    session_id,
+                    speech_duration_ms,
+                    asr_result.confidence,
+                    normalized_text,
+                )
+                outputs.extend(await self._reprompt(conn, REPROMPT_MESSAGE))
+                return outputs
 
         current = await self.session_bridge.get_session(session_id)
         rewrite = TranscriptRewriteResult(

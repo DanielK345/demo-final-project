@@ -5,8 +5,8 @@ Groq, `asr/groq_provider.py`) và `tts/pronunciation.py` (Phần 6, chưa
 implement — API ở đây đủ tổng quát để Phần 6 dùng lại, không cần sửa class
 này khi Phần 6 làm).
 
-`data/gazetteer/place_names.json` trong repo là **dữ liệu seed** (khoảng 20
-địa danh TP.HCM phổ biến, lấy làm ví dụ) — **chưa phải danh sách thật của
+`data/gazetteer/place_names.json` trong repo là **dữ liệu seed** (hơn 50
+địa danh Hà Nội phổ biến, lấy làm ví dụ) — **chưa phải danh sách thật của
 AloSM**. Xem `mustdo.md` — đội vận hành cần cung cấp danh sách
 đầy đủ trước khi dùng cho demo/production thật.
 """

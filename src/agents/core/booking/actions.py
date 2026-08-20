@@ -1,5 +1,6 @@
 from src.agents.contracts.schemas import ActionType, AgentAction, ToolCall, ToolName, WorkflowType
 from src.agents.contracts.state import AgentState, ConfirmationStatus
+from src.agents.core.booking.messages import format_fare, passenger_confirmation, vehicle_label
 from src.agents.core.booking.state import BookingData, BookingStep
 from src.agents.tools.builders import (
     CancelBookingTool,
@@ -29,6 +30,42 @@ def request_place_action(
         tool_call,
         waiting_step=waiting_step,
         reason=f"The {operation} location must be resolved.",
+    )
+
+
+def request_place_selection_action(
+    data: BookingData,
+    *,
+    target: str,
+) -> AgentAction:
+    pickup = target == "pickup"
+    candidates = data.pickup_candidates if pickup else data.destination_candidates
+    query = data.pickup_query if pickup else data.destination_query
+    assert target in {"pickup", "destination"}
+    assert len(candidates) >= 2
+
+    options = "; ".join(
+        f"{index}. {candidate.display_name} — {candidate.address or candidate.display_name}"
+        for index, candidate in enumerate(candidates, start=1)
+    )
+    location_role = "điểm đón" if pickup else "điểm đến"
+    return AgentAction(
+        action_type=ActionType.ASK_USER,
+        message=(
+            f"{query} có nhiều vị trí phù hợp. Bạn xác nhận {location_role} cụ thể nào: "
+            f"{options}?"
+        ),
+        state_updates={
+            "current_workflow": WorkflowType.RIDE_BOOKING,
+            "current_step": (
+                BookingStep.SELECT_PICKUP_CANDIDATE.value
+                if pickup
+                else BookingStep.SELECT_DESTINATION_CANDIDATE.value
+            ),
+            "confirmation": ConfirmationStatus.NOT_REQUESTED,
+            "retry_count": 0,
+        },
+        reason="A named landmark requires explicit selection of a mock pickup/drop-off point.",
     )
 
 
@@ -114,6 +151,29 @@ def request_create_booking_action(
         reason="The user explicitly confirmed the booking.",
         confirmation=ConfirmationStatus.CONFIRMED,
         reset_retry=False,
+    )
+
+
+def request_booking_confirmation_action(data: BookingData) -> AgentAction:
+    assert data.pickup is not None
+    assert data.destination is not None
+    assert data.vehicle_type is not None
+    assert data.fare_estimate_id is not None
+    assert data.phone_number is not None
+    return AgentAction(
+        action_type=ActionType.ASK_USER,
+        message=(
+            f"Bạn xác nhận đặt xe đón tại {data.pickup.display_name} và đến "
+            f"{data.destination.display_name}, loại {vehicle_label(data)}, giá dự kiến "
+            f"{format_fare(data)}{passenger_confirmation(data)}, đúng không?"
+        ),
+        state_updates={
+            "current_workflow": WorkflowType.RIDE_BOOKING,
+            "current_step": BookingStep.CONFIRM.value,
+            "confirmation": ConfirmationStatus.AWAITING_CONFIRMATION,
+            "retry_count": 0,
+        },
+        reason="Deterministic policy produced the booking confirmation summary.",
     )
 
 

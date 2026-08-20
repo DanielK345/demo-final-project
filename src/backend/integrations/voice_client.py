@@ -2,12 +2,20 @@ from __future__ import annotations
 
 import base64
 import io
+import logging
 from typing import Literal
 
 import httpx
 from openai import AsyncOpenAI, OpenAIError
 
 from src.backend.config import Settings, get_settings
+from src.voice.schemas import TTSResult
+from src.voice.tts.errors import TTSError, TTSErrorCode
+from src.voice.tts.formatter import format_for_speech, sanitize_for_speech
+from src.voice.tts.output_review import DeterministicTTSOutputReviewer, OutputDecision
+from src.voice.tts.pronunciation import apply_pronunciation_overrides
+
+logger = logging.getLogger("uvicorn.error")
 
 VoiceProviderName = Literal["openai", "gemini", "zipformer"]
 
@@ -57,11 +65,17 @@ async def _synthesize_with_unified_tts(text: str) -> bytes:
 
 
 class OpenAIVoiceClient:
-    def __init__(self, settings: Settings | None = None) -> None:
+    def __init__(
+        self,
+        settings: Settings | None = None,
+        *,
+        transcription_model: str | None = None,
+    ) -> None:
         config = settings or get_settings()
         if not config.openai_api_key:
             raise VoiceProviderError("OPENAI_API_KEY is required")
         self.settings = config
+        self.transcription_model = transcription_model or config.voice_stt_model
         self.client = AsyncOpenAI(api_key=config.openai_api_key)
 
     async def transcribe(self, audio_bytes: bytes, *, mime_type: str, prompt_hint: str = "") -> str:
@@ -70,7 +84,7 @@ class OpenAIVoiceClient:
         audio_file.name = "recording.webm"
         try:
             response = await self.client.audio.transcriptions.create(
-                model=self.settings.voice_stt_model,
+                model=self.transcription_model,
                 file=audio_file,
                 language="vi",
                 prompt=prompt_hint or None,
@@ -85,6 +99,70 @@ class OpenAIVoiceClient:
 
     async def synthesize(self, text: str) -> bytes:
         return await _synthesize_with_unified_tts(text)
+
+
+async def synthesize_with_openai_tts(
+    text: str,
+    settings: Settings | None = None,
+    *,
+    fallback_used: bool = False,
+    review_context: dict[str, object] | None = None,
+) -> TTSResult:
+    """Synthesize speech with OpenAI as either the primary or fallback provider.
+
+    This deliberately uses the OpenAI speech endpoint, not Whisper: Whisper is
+    speech-to-text and cannot generate the agent's spoken response.
+    """
+    config = settings or get_settings()
+    if not config.openai_api_key:
+        raise VoiceProviderError("OPENAI_API_KEY is required for OpenAI TTS")
+
+    review = DeterministicTTSOutputReviewer(max_chars=2000).review(
+        text,
+        context=review_context,
+    )
+    if review.decision is OutputDecision.BLOCK:
+        raise TTSError(
+            TTSErrorCode.OUTPUT_BLOCKED,
+            "TTS output was blocked",
+            status_code=422,
+        )
+    spoken_text = sanitize_for_speech(
+        format_for_speech(apply_pronunciation_overrides(review.approved_text))
+    )
+
+    client = AsyncOpenAI(api_key=config.openai_api_key, max_retries=0)
+    try:
+        response = await client.audio.speech.create(
+            model=config.voice_tts_model,
+            voice=config.openai_tts_voice,
+            input=spoken_text,
+            response_format="mp3",
+            timeout=config.voice_timeout_seconds,
+        )
+        audio = await response.aread()
+    except OpenAIError as exc:
+        raise VoiceProviderError("OpenAI TTS failed") from exc
+    if not audio:
+        raise VoiceProviderError("OpenAI TTS returned empty audio")
+
+    logger.info(
+        "OpenAI TTS succeeded model=%s voice=%s fallback=%s",
+        config.voice_tts_model,
+        config.openai_tts_voice,
+        fallback_used,
+    )
+    return TTSResult(
+        audio=audio,
+        mime_type="audio/mpeg",
+        text=text,
+        provider="openai",
+        voice=config.openai_tts_voice,
+        fallback_used=fallback_used,
+        review_decision=review.decision.value,
+        review_reason_codes=review.reason_codes,
+        spoken_text=spoken_text,
+    )
 
 
 class GeminiVoiceClient:
@@ -122,10 +200,13 @@ class GeminiVoiceClient:
             "https://generativelanguage.googleapis.com/v1beta/models/"
             f"{self.settings.voice_gemini_model}:generateContent"
         )
-        async with httpx.AsyncClient(timeout=self.settings.voice_timeout_seconds) as client:
-            response = await client.post(url, params={"key": self.api_key}, json=payload)
-            response.raise_for_status()
-            body = response.json()
+        try:
+            async with httpx.AsyncClient(timeout=self.settings.voice_timeout_seconds) as client:
+                response = await client.post(url, params={"key": self.api_key}, json=payload)
+                response.raise_for_status()
+                body = response.json()
+        except httpx.HTTPError as exc:
+            raise VoiceProviderError("Gemini transcription failed") from exc
 
         try:
             text = body["candidates"][0]["content"]["parts"][0]["text"].strip()

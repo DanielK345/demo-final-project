@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import logging
 from collections.abc import Mapping
 from datetime import UTC, datetime, timedelta
 from typing import Any
@@ -28,6 +29,8 @@ from src.backend.db.models import (
     User,
     UserSetting,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def _token_hash(token: str) -> str:
@@ -86,6 +89,8 @@ def _session_dict(row: RideSession) -> dict[str, object]:
         "current_workflow": row.current_workflow,
         "current_step": row.current_step,
         "agent_state": row.agent_state,
+        "voice_agent_state": row.voice_agent_state,
+        "voice_state_revision": row.voice_state_revision,
         "turn_sequence": row.turn_sequence,
         "version": row.version,
         "created_at": _iso(row.created_at),
@@ -162,6 +167,19 @@ class PersistenceRepository:
                 password_hash=password_hash,
                 role="CUSTOMER",
             )
+            # Flush the FK parent first. PolicyAcceptance intentionally stores only
+            # user_id and has no ORM relationship to this transient User object, so
+            # add_all() does not guarantee the dependency order on PostgreSQL.
+            db.add(user)
+            try:
+                await db.flush()
+            except IntegrityError as exc:
+                sqlstate = getattr(exc.orig, "sqlstate", None) or getattr(exc.orig, "pgcode", None)
+                if sqlstate == "23505":
+                    raise ValueError("Số điện thoại đã được đăng ký") from exc
+                logger.warning("User insert failed sqlstate=%s error_type=%s", sqlstate, type(exc.orig).__name__)
+                raise ValueError("Không thể tạo tài khoản do dữ liệu người dùng không hợp lệ") from exc
+
             acceptance = PolicyAcceptance(
                 id=f"pa_{uuid4().hex[:16]}",
                 user_id=user.id,
@@ -170,11 +188,17 @@ class PersistenceRepository:
                 source_sha256=source_sha256,
                 acceptance_channel="WEB",
             )
-            db.add_all((user, acceptance))
+            db.add(acceptance)
             try:
                 await db.flush()
             except IntegrityError as exc:
-                raise ValueError("Số điện thoại đã được đăng ký") from exc
+                sqlstate = getattr(exc.orig, "sqlstate", None) or getattr(exc.orig, "pgcode", None)
+                logger.warning(
+                    "Policy acceptance insert failed sqlstate=%s error_type=%s",
+                    sqlstate,
+                    type(exc.orig).__name__,
+                )
+                raise ValueError("Không thể lưu xác nhận điều khoản sử dụng") from exc
             await db.refresh(acceptance)
             return _user_dict(user, acceptance)
 
@@ -255,6 +279,22 @@ class PersistenceRepository:
             if result.rowcount != 1:
                 raise ValueError("Token không hợp lệ")
 
+    async def revoke_token(self, raw_token: str) -> bool:
+        """Revoke one bearer token without storing or logging its plaintext value."""
+
+        if not raw_token:
+            return False
+        async with self.factory() as db, db.begin():
+            result = await db.execute(
+                update(AuthToken)
+                .where(
+                    AuthToken.token_hash == _token_hash(raw_token),
+                    AuthToken.revoked_at.is_(None),
+                )
+                .values(revoked_at=datetime.now(UTC))
+            )
+            return result.rowcount == 1
+
     async def update_user_security(self, user_id: str, **updates: object) -> None:
         async with self.factory() as db, db.begin():
             await db.execute(update(User).where(User.id == user_id).values(**updates, updated_at=datetime.now(UTC)))
@@ -329,6 +369,48 @@ class PersistenceRepository:
         async with self.factory() as db:
             row = await db.get(RideSession, session_id)
             return _session_dict(row) if row else None
+
+    async def get_voice_agent_state(self, session_id: str) -> dict[str, object] | None:
+        """Load the isolated LiveKit business document without raw transcript/audio."""
+
+        async with self.factory() as db:
+            row = await db.get(RideSession, session_id)
+            if row is None:
+                return None
+            return {
+                "session_id": row.id,
+                "user_id": row.user_id,
+                "state": row.voice_agent_state,
+                "revision": row.voice_state_revision,
+            }
+
+    async def save_voice_agent_state(
+        self,
+        session_id: str,
+        state: Mapping[str, object],
+        *,
+        expected_revision: int,
+    ) -> dict[str, object] | None:
+        """Optimistically persist one LiveKit state revision in a short transaction."""
+
+        async with self.factory() as db, db.begin():
+            statement = (
+                update(RideSession)
+                .where(
+                    RideSession.id == session_id,
+                    RideSession.voice_state_revision == expected_revision,
+                )
+                .values(
+                    voice_agent_state=dict(state),
+                    voice_state_revision=RideSession.voice_state_revision + 1,
+                    updated_at=datetime.now(UTC),
+                )
+                .returning(RideSession.voice_state_revision)
+            )
+            revision = (await db.execute(statement)).scalar_one_or_none()
+            if revision is None:
+                return None
+            return {"session_id": session_id, "revision": int(revision)}
 
     async def update_session(
         self, session_id: str, updates: Mapping[str, object], *, expected_version: int | None = None

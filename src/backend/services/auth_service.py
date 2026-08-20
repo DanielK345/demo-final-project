@@ -139,6 +139,11 @@ class AuthService:
             return
         await self._repository.bind_token_session(token, session_id)
 
+    async def revoke_token_durable(self, token: str) -> bool:
+        if not self._durable:
+            return self.revoke_token(token)
+        return await self._repository.revoke_token(token)
+
     async def change_password_durable(self, user_id: str, old_password: str, new_password: str) -> None:
         if not self._durable:
             self.change_password(user_id, old_password, new_password)
@@ -307,6 +312,12 @@ class AuthService:
         if record is None:
             raise ValueError("Token không hợp lệ")
         record["session_id"] = session_id
+
+    def revoke_token(self, token: str) -> bool:
+        if token not in self.tokens:
+            return False
+        del self.tokens[token]
+        return True
 
     def _auth_response(self, user: dict[str, object]) -> dict[str, object]:
         session = self._session_service.create_session(

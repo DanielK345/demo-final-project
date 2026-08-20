@@ -29,37 +29,51 @@ export const LlmStatusNote: React.FC<LlmStatusNoteProps> = ({ compact = false })
     return <p className="text-xs text-slate-400 dark:text-slate-500 animate-pulse">Đang kiểm tra cấu hình LLM…</p>;
   }
 
+  const livekitSelected = import.meta.env.VITE_VOICE_RUNTIME === "livekit";
   const llmActive = status.understanding_mode === "openai";
-  const Icon = llmActive ? Sparkles : BrainCircuit;
+  const active = livekitSelected ? Boolean(status.livekit_configured) : llmActive;
+  const Icon = active ? Sparkles : BrainCircuit;
 
-  const title = llmActive
-    ? `LLM đang bật (${status.llm_provider} · ${status.llm_model})`
-    : status.llm_enabled
-      ? "LLM được bật nhưng thiếu OPENAI_API_KEY — đang dùng rule-based"
-      : "LLM đang tắt — đang dùng rule-based";
+  const title = livekitSelected
+    ? status.livekit_configured
+      ? `LiveKit Voice Agent đã cấu hình (${status.livekit_agent_name})`
+      : "LiveKit Voice Agent chưa đủ cấu hình"
+    : llmActive
+      ? `Core Agent web chat đang dùng LLM (${status.llm_provider} · ${status.llm_model})`
+      : status.llm_enabled
+        ? "Core Agent web chat thiếu OPENAI_API_KEY — đang dùng rule-based"
+        : "Core Agent web chat đang dùng rule-based";
 
-  const detail = llmActive
-    ? "Web chat đang dùng Core Agent với OpenAI hiểu ngôn ngữ."
-    : "Web chat dùng Core Agent với rule-based fallback (bật OPENAI_API_KEY để dùng LLM).";
+  const detail = livekitSelected
+    ? status.livekit_configured
+      ? `Voice realtime: ${status.livekit_stt_model} → ${status.livekit_llm_model} → ${status.livekit_tts_model}.`
+      : "Cần cấu hình LiveKit URL, API key/secret và các model trước khi gọi."
+    : llmActive
+      ? "Web chat legacy đang dùng Core Agent với OpenAI hiểu ngôn ngữ."
+      : "Web chat legacy dùng Core Agent với rule-based fallback.";
 
-  const voiceNote = status.voice_provider
-    ? status.voice_tts_enabled
-      ? `Voice: ${status.voice_provider} STT (${status.voice_stt_model}) + OpenAI TTS.`
-      : `Voice: ${status.voice_provider} STT (${status.voice_stt_model}), TTS fallback trình duyệt.`
-    : null;
+  const voiceNote = livekitSelected
+    ? llmActive
+      ? `Core Agent web chat riêng vẫn dùng ${status.llm_provider} · ${status.llm_model}.`
+      : "Core Agent web chat là runtime riêng và hiện đang dùng rule-based; điều này không tắt LLM của LiveKit Voice."
+    : status.voice_provider
+      ? status.voice_tts_enabled
+        ? `Voice legacy: ${status.voice_provider} STT (${status.voice_stt_model}) + OpenAI TTS.`
+        : `Voice legacy: ${status.voice_provider} STT (${status.voice_stt_model}), TTS fallback trình duyệt.`
+      : null;
 
   if (compact) {
     return (
       <span
         title={`${title}. ${detail}`}
         className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold ${
-          llmActive
+          active
             ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-500/10 dark:text-emerald-300"
             : "bg-amber-100 text-amber-800 dark:bg-amber-500/10 dark:text-amber-300"
         }`}
       >
         <Icon className="w-3 h-3" />
-        {llmActive ? "LLM ON" : "LLM OFF"}
+        {livekitSelected ? (active ? "LIVEKIT READY" : "LIVEKIT OFF") : llmActive ? "LLM ON" : "RULES"}
       </span>
     );
   }
@@ -67,7 +81,7 @@ export const LlmStatusNote: React.FC<LlmStatusNoteProps> = ({ compact = false })
   return (
     <div
       className={`rounded-xl border px-3 py-2 text-xs leading-5 ${
-        llmActive
+        active
           ? "border-emerald-200 bg-emerald-50 text-emerald-900 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-200"
           : "border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200"
       }`}
@@ -78,7 +92,7 @@ export const LlmStatusNote: React.FC<LlmStatusNoteProps> = ({ compact = false })
       </p>
       <p className="mt-1 opacity-90">{detail}</p>
       {voiceNote && <p className="mt-1 opacity-90">{voiceNote}</p>}
-      {!llmActive && (
+      {!livekitSelected && !llmActive && (
         <p className="mt-1 opacity-80">
           Bật trong <code className="font-mono">.env</code>:{" "}
           <code className="font-mono">AGENT_LLM_ENABLED=true</code> và{" "}

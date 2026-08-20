@@ -1,6 +1,6 @@
 # Chỉ mục tài liệu AloSM Voice
 
-Cập nhật: **2026-08-16** · Trạng thái: `CURRENT`.
+Cập nhật: **2026-08-17** · Trạng thái: `CURRENT`.
 
 ## Đọc theo thứ tự
 
@@ -13,6 +13,13 @@ Cập nhật: **2026-08-16** · Trạng thái: `CURRENT`.
 7. [../src/agents/DATAFINDING.md](../src/agents/DATAFINDING.md) — data contract và khoảng trống.
 8. [../mustdo.md](../mustdo.md) — external blockers duy nhất.
 
+Khi làm migration LiveKit, đọc thêm theo đúng thứ tự:
+
+1. [LIVEKIT_TEAM_SETUP.md](LIVEKIT_TEAM_SETUP.md) — runbook cho thành viên lấy source, cấu hình, chạy và test baseline.
+2. [LIVEKIT_MIGRATION_IMPLEMENTATION.md](LIVEKIT_MIGRATION_IMPLEMENTATION.md) — quyết định và handoff spec để code.
+3. [LIVEKIT_REFACTOR_RESEARCH.md](LIVEKIT_REFACTOR_RESEARCH.md) — căn cứ nghiên cứu và mapping cũ → mới.
+4. [GSM-08_VOICE_AGENT_SCOPE.md](GSM-08_VOICE_AGENT_SCOPE.md) — scope đã chốt với mentor.
+
 ## Tài liệu hiện hành
 
 | Nhóm | Tài liệu |
@@ -20,6 +27,7 @@ Cập nhật: **2026-08-16** · Trạng thái: `CURRENT`.
 | Product | `PRODUCT_BRIEF.md`, `PRD_AloSM_Voice.md`, `MVP.md` |
 | Architecture/API | `architecture_diagram.md`, `interface_design.md`, `database_supabase.md` |
 | Voice | [voice-ai/README.md](voice-ai/README.md) và các runbook/evidence được index tại đó |
+| LiveKit target | [LIVEKIT_MIGRATION_IMPLEMENTATION.md](LIVEKIT_MIGRATION_IMPLEMENTATION.md), [LIVEKIT_REFACTOR_RESEARCH.md](LIVEKIT_REFACTOR_RESEARCH.md) |
 | Agent | `src/agents/README.md`, `src/agents/docs/*`, `src/agents/DATAFINDING.md` |
 | Backend | `src/backend/README.md` |
 | Frontend | `src/frontend/README.md`, `src/frontend/docs/*` |

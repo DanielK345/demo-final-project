@@ -11,7 +11,13 @@ export interface AgentStatusResponse {
   llm_model: string;
   understanding_mode: "openai" | "rules";
   conversation_backend: "session_rules" | "core_agent";
-  voice_provider?: "openai" | "gemini" | null;
+  voice_provider?: string | null;
   voice_stt_model?: string;
   voice_tts_enabled?: boolean;
+  livekit_runtime?: "legacy" | "livekit";
+  livekit_configured?: boolean;
+  livekit_agent_name?: string;
+  livekit_stt_model?: string;
+  livekit_llm_model?: string;
+  livekit_tts_model?: string;
 }
