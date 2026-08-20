@@ -58,6 +58,7 @@ export type BookingState = {
   quote: QuoteState | null;
   confirmation_status: "not_requested" | "awaiting" | "confirmed";
   booking: BookingResultState | null;
+  locked_fields?: Array<"pickup" | "destination" | "vehicle_type">;
   failure?: VoiceFailureState | null;
   handoff?: HandoffState | null;
   recovered?: boolean;

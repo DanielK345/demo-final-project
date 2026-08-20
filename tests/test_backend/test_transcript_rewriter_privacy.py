@@ -196,6 +196,66 @@ async def test_selected_booking_place_is_prioritized_in_rewrite_terms():
     assert result.normalized_text == "Đón tôi ở Cổng chính VinUni"
 
 
+@pytest.mark.asyncio
+async def test_rewrite_payload_contains_redacted_context_locked_slots_and_confusion_memory():
+    client = _FakeClient(
+        _RewriteOutput(
+            normalized_text="Đón tôi ở VinUni",
+            meaning_preserved=True,
+            requires_clarification=False,
+            confidence=0.99,
+            change_types=["spelling", "domain_term"],
+        )
+    )
+    rewriter = OpenAITranscriptRewriter(
+        api_key="",
+        model="rewrite-test",
+        timeout_seconds=1,
+        client=client,
+    )
+    context = {
+        "current_step": "PRESENT_QUOTE",
+        "asr_confidence": 0.71,
+        "agent_state": {
+            "collected_data": {
+                "booking": {
+                    "pickup": {"display_name": "VinUni"},
+                    "destination": {"display_name": "Hồ Gươm"},
+                    "vehicle_type": "CAR_4",
+                    "locked_fields": ["pickup", "destination", "vehicle_type"],
+                }
+            },
+            "conversation_history": [
+                {"role": "USER", "content": "Số điện thoại 0901234567"},
+                {"role": "ASSISTANT", "content": "Bạn muốn sửa điểm nào?"},
+            ],
+            "rewrite_memory": [
+                {"raw_text": "Bin Uni", "normalized_text": "VinUni"},
+            ],
+        },
+    }
+
+    await rewriter.rewrite("Đón tôi ở Bin Uni", session_context=context)
+
+    payload = json.loads(str(client.responses.request["input"]))
+    conversation_context = payload["conversation_context"]
+    assert conversation_context["asr_confidence"] == 0.71
+    assert conversation_context["locked_booking_slots"] == {
+        "pickup": "VinUni",
+        "destination": "Hồ Gươm",
+        "vehicle_type": "CAR_4",
+    }
+    assert "0901234567" not in json.dumps(conversation_context, ensure_ascii=False)
+    assert conversation_context["recent_corrections"] == [
+        {"raw_text": "Bin Uni", "normalized_text": "VinUni"}
+    ]
+    patterns = payload["asr_confusion_memory"]["phonetic_patterns"]
+    assert {item["canonical"] for item in patterns} == {"v", "ph", "in", "ô"}
+    assert payload["asr_confusion_memory"]["recent_session_corrections"] == [
+        {"raw_text": "Bin Uni", "normalized_text": "VinUni"}
+    ]
+
+
 def test_large_phonetic_repair_is_allowed_only_when_grounded_in_current_candidates():
     raw = "muon thanh mua"
     candidate = "muon cong chinh vinuni"
@@ -293,6 +353,44 @@ async def test_gate_homophone_cannot_be_reintroduced_by_llm_output():
     )
 
     assert result.normalized_text == "Sửa điểm đón thành cổng chính VinUni"
+
+
+@pytest.mark.asyncio
+async def test_locked_place_confusion_is_canonicalized_before_bubble_commit():
+    client = _FakeClient(
+        _RewriteOutput(
+            normalized_text="Điểm đón là Cổng vụ BinhUni",
+            meaning_preserved=True,
+            requires_clarification=False,
+            confidence=0.99,
+            change_types=[],
+        )
+    )
+    rewriter = OpenAITranscriptRewriter(
+        api_key="",
+        model="rewrite-test",
+        timeout_seconds=1,
+        client=client,
+    )
+    context = {
+        "current_step": "PRESENT_QUOTE",
+        "agent_state": {
+            "collected_data": {
+                "booking": {
+                    "pickup": {"display_name": "Cổng phụ VinUni"},
+                    "locked_fields": ["pickup"],
+                }
+            }
+        },
+    }
+
+    result = await rewriter.rewrite(
+        "Điểm đón là Cổng vụ BinhUni",
+        session_context=context,
+    )
+
+    assert result.applied is True
+    assert result.normalized_text == "Điểm đón là Cổng phụ VinUni"
 
 
 def test_relevant_alias_mappings_include_phonetically_close_vinuni_aliases():

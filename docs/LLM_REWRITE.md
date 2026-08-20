@@ -63,6 +63,29 @@ request. Candidate names, addresses, aliases, original search query and the last
 assistant selection question are included only for the active location
 selection.
 
+## Bounded rewrite memory
+
+Each rewrite request uses three complementary memory sources:
+
+- authoritative `locked_booking_slots` projected from `BookingDraft`;
+- a privacy-redacted short dialogue window, bounded by
+  `VOICE_TRANSCRIPT_REWRITE_CONTEXT_WINDOW_TURNS`;
+- ASR confusion memory combining the gazetteer, relevant place aliases, the
+  curated Vietnamese patterns in
+  `data/gazetteer/vietnamese_asr_confusions.json`, and recent accepted
+  corrections from this call.
+
+The call-local correction list is bounded by
+`VOICE_TRANSCRIPT_REWRITE_MEMORY_MAX_CORRECTIONS`. It is intentionally excluded
+from durable voice state, so enabling this feature does not silently enable
+transcript retention. Phone numbers, emails, IDs and numeric text in the short
+dialogue window are redacted before the provider request.
+
+Deterministic corrections run before the confidence gate and again after model
+output. Consequently, a low-confidence turn can still receive a uniquely
+grounded alias correction, and the model cannot reintroduce a known typo before
+the normalized result is published to the green user bubble.
+
 ## Failure and timeout behavior
 
 Rewrite is fail-open: the original transcript continues through the voice agent
@@ -89,6 +112,8 @@ VOICE_TRANSCRIPT_REWRITE_BASE_URL=https://api.openai.com/v1
 VOICE_TRANSCRIPT_REWRITE_TIMEOUT_SECONDS=3
 VOICE_TRANSCRIPT_REWRITE_REASONING_EFFORT=none
 VOICE_TRANSCRIPT_REWRITE_MINIMUM_CONFIDENCE=0.85
+VOICE_TRANSCRIPT_REWRITE_CONTEXT_WINDOW_TURNS=3
+VOICE_TRANSCRIPT_REWRITE_MEMORY_MAX_CORRECTIONS=6
 
 LIVEKIT_STT_FINAL_FALLBACK_ENABLED=true
 LIVEKIT_STT_FINAL_FALLBACK_SECONDS=3
@@ -110,6 +135,8 @@ The JSONL `session_configured` event records:
 - `transcript_rewrite_disabled_reason`: `config_disabled` or `missing_api_key`
 - `transcript_rewrite_model`
 - `transcript_rewrite_timeout_seconds`
+- `transcript_rewrite_context_window_turns`
+- `transcript_rewrite_memory_max_corrections`
 - endpointing min/max delay and `preemptive_generation_enabled=false`
 - STT final fallback state and timeout
 
@@ -134,7 +161,7 @@ message did not reach conversation context within the watchdog threshold.
 
 - Phone numbers, email addresses, identifiers and numeric values are replaced
   by immutable placeholders before the provider request and restored afterward.
-- Only workflow step and minimal active booking-selection context are sent.
+- Only bounded, redacted dialogue plus minimal authoritative booking context are sent.
 - Model output is rejected when it changes protected placeholders, confirmation
   meaning, semantic content, or exceeds the configured confidence threshold.
 - Logs contain lengths, model names, statuses and latency by default; transcript

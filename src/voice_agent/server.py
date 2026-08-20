@@ -243,6 +243,12 @@ async def alosm_voice_session(ctx: JobContext) -> None:
         transcript_rewrite_timeout_seconds=(
             transcript_rewriter.timeout_seconds if transcript_rewriter is not None else None
         ),
+        transcript_rewrite_context_window_turns=(
+            transcript_rewriter.context_window_turns if transcript_rewriter is not None else None
+        ),
+        transcript_rewrite_memory_max_corrections=(
+            transcript_rewriter.memory_max_corrections if transcript_rewriter is not None else None
+        ),
     )
     await session.start(
         room=ctx.room,

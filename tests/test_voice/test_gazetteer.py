@@ -1,5 +1,6 @@
 import json
 
+from src.voice.text.asr_confusions import ASRConfusionCatalog
 from src.voice.text.gazetteer import Gazetteer
 from src.voice.text.place_aliases import PlaceAliasCatalog
 
@@ -60,3 +61,15 @@ def test_vinuni_alias_catalog_covers_observed_livekit_misrecognitions():
     assert aliases.correct("Điểm đón là biên Uni") == "Điểm đón là VinUni"
     assert aliases.correct("Điểm đón là Vinyuni") == "Điểm đón là VinUni"
     assert aliases.correct("Điểm đón là Win Uni") == "Điểm đón là VinUni"
+
+
+def test_vietnamese_asr_confusion_catalog_loads_curated_sound_pairs():
+    catalog = ASRConfusionCatalog.load()
+    memory = catalog.as_prompt_memory()
+
+    assert {(item["canonical"], tuple(item["asr_variants"])) for item in memory} == {
+        ("v", ("b",)),
+        ("ph", ("v",)),
+        ("in", ("inh",)),
+        ("ô", ("u",)),
+    }

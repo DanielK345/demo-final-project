@@ -86,6 +86,10 @@ class Settings(BaseSettings):
     voice_transcript_rewrite_timeout_seconds: float = Field(default=5.0, gt=0)
     voice_transcript_rewrite_reasoning_effort: Literal["none", "low", "medium"] = "none"
     voice_transcript_rewrite_minimum_confidence: float = Field(default=0.85, ge=0.0, le=1.0)
+    # Bounded, privacy-redacted conversational memory for ASR normalization.
+    # One turn is at most one user and one assistant message.
+    voice_transcript_rewrite_context_window_turns: int = Field(default=3, ge=0, le=8)
+    voice_transcript_rewrite_memory_max_corrections: int = Field(default=6, ge=0, le=20)
 
     # Legacy Gemini place rewriter compatibility. The active voice paths use
     # VOICE_TRANSCRIPT_REWRITE_* above; retain these fields so importing the old

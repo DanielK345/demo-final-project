@@ -39,18 +39,29 @@ def _booking_step(draft: BookingDraft) -> str:
 def _rewrite_context(
     userdata: AloSMSessionData,
     turn_ctx: llm.ChatContext,
+    *,
+    asr_confidence: float | None,
+    context_window_turns: int,
+    memory_max_corrections: int,
 ) -> dict[str, Any]:
     """Project typed LiveKit state into the rewriter's privacy-minimal contract."""
 
     step = _booking_step(userdata.booking_draft)
     history: list[dict[str, str]] = []
-    for item in reversed(turn_ctx.items):
-        if isinstance(item, llm.ChatMessage) and item.role == "assistant" and item.text_content:
-            history.append({"role": "ASSISTANT", "content": item.text_content})
-            break
+    if context_window_turns > 0:
+        messages = [
+            item
+            for item in turn_ctx.items
+            if isinstance(item, llm.ChatMessage)
+            and item.role in {"user", "assistant"}
+            and item.text_content
+        ]
+        for item in messages[-(context_window_turns * 2) :]:
+            history.append({"role": item.role.upper(), "content": item.text_content or ""})
     return {
         "current_workflow": "BOOKING",
         "current_step": step,
+        "asr_confidence": asr_confidence,
         "agent_state": {
             "current_workflow": "BOOKING",
             "current_step": step,
@@ -58,6 +69,12 @@ def _rewrite_context(
                 "booking": userdata.booking_draft.model_dump(mode="json"),
             },
             "conversation_history": history,
+            "rewrite_memory": [
+                item.model_dump(mode="json")
+                for item in userdata.rewrite_memory[-memory_max_corrections:]
+            ]
+            if memory_max_corrections > 0
+            else [],
         },
     }
 
@@ -72,16 +89,51 @@ async def rewrite_livekit_user_turn(
     """Rewrite one finalized user turn before LiveKit adds it to LLM context.
 
     Provider failures fail open to the original transcript. A low-confidence audio
-    turn is left untouched so the booking task's existing clarification guard can
-    handle it without an LLM making the words appear more certain.
+    turn may receive only a uniquely grounded deterministic correction; otherwise
+    it remains untouched for the booking task's clarification guard.
     """
 
     text = (new_message.text_content or "").strip()
     confidence = new_message.transcript_confidence
     if not text:
         return None
-    session_context = _rewrite_context(userdata, turn_ctx) if userdata is not None else {}
+    context_window_turns = max(int(getattr(rewriter, "context_window_turns", 3)), 0)
+    memory_max_corrections = max(int(getattr(rewriter, "memory_max_corrections", 6)), 0)
+    session_context = (
+        _rewrite_context(
+            userdata,
+            turn_ctx,
+            asr_confidence=confidence,
+            context_window_turns=context_window_turns,
+            memory_max_corrections=memory_max_corrections,
+        )
+        if userdata is not None
+        else {"asr_confidence": confidence}
+    )
     if confidence is not None and confidence < MINIMUM_ASR_CONFIDENCE:
+        normalized_text, deterministic_reason = apply_deterministic_transcript_rewrite(
+            text,
+            session_context,
+        )
+        if deterministic_reason is not None:
+            non_text_content = [item for item in new_message.content if not isinstance(item, str)]
+            new_message.content = [normalized_text, *non_text_content]
+            if userdata is not None:
+                userdata.remember_rewrite(text, normalized_text, limit=memory_max_corrections)
+            logger.info(
+                "LiveKit low-confidence deterministic rewrite applied item_id=%s reason=%s confidence=%.2f",
+                new_message.id,
+                deterministic_reason,
+                confidence,
+            )
+            return TranscriptRewriteResult(
+                raw_text=text,
+                normalized_text=normalized_text,
+                applied=True,
+                confidence=1.0,
+                reason=deterministic_reason,
+                duration_ms=0,
+            )
         logger.info(
             "LiveKit transcript rewrite skipped reason=low_asr_confidence confidence=%.2f",
             confidence,
@@ -100,6 +152,8 @@ async def rewrite_livekit_user_turn(
         if deterministic_reason is not None:
             non_text_content = [item for item in new_message.content if not isinstance(item, str)]
             new_message.content = [normalized_text, *non_text_content]
+            if userdata is not None:
+                userdata.remember_rewrite(text, normalized_text, limit=memory_max_corrections)
             logger.info(
                 "LiveKit deterministic transcript rewrite applied item_id=%s reason=%s",
                 new_message.id,
@@ -176,6 +230,8 @@ async def rewrite_livekit_user_turn(
     if result.applied and result.normalized_text.strip():
         non_text_content = [item for item in new_message.content if not isinstance(item, str)]
         new_message.content = [result.normalized_text, *non_text_content]
+        if userdata is not None:
+            userdata.remember_rewrite(text, result.normalized_text, limit=memory_max_corrections)
 
     elapsed_ms = int((time.monotonic() - started) * 1000)
     logger.info(

@@ -117,3 +117,13 @@ async def test_completed_booking_restores_without_creating_a_second_result() -> 
     assert restored.booking == booking
     assert restored.locked_fields == frozenset({"pickup", "destination", "vehicle_type"})
     assert booking_service.create(app_session_id=reconnected.app_session_id, draft=restored) == booking
+
+
+def test_rewrite_memory_is_bounded_and_excluded_from_durable_state() -> None:
+    userdata = _userdata()
+    userdata.remember_rewrite("Bin Uni", "VinUni", limit=1)
+    userdata.remember_rewrite("cũng chính", "cổng chính", limit=1)
+
+    assert len(userdata.rewrite_memory) == 1
+    assert userdata.rewrite_memory[0].normalized_text == "cổng chính"
+    assert "rewrite_memory" not in userdata.durable_state()

@@ -105,6 +105,15 @@ class HandoffState(BaseModel):
     reason_code: str
 
 
+class TranscriptCorrectionMemory(BaseModel):
+    """Ephemeral per-call rewrite example; deliberately excluded from durable state."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    raw_text: str = Field(max_length=500)
+    normalized_text: str = Field(max_length=500)
+
+
 class BookingDraft(BaseModel):
     """Mutable draft with deterministic dependent-field invalidation."""
 
@@ -310,6 +319,7 @@ class AloSMSessionData(BaseModel):
     consent_granted: bool = True
     recording_enabled: bool = False
     booking_draft: BookingDraft = Field(default_factory=BookingDraft)
+    rewrite_memory: list[TranscriptCorrectionMemory] = Field(default_factory=list, exclude=True, repr=False)
     last_asr_confidence: float | None = None
     handoff_requested: bool = False
     critical_confidence_threshold: float = Field(default=0.65, ge=0, le=1)
@@ -318,6 +328,22 @@ class AloSMSessionData(BaseModel):
     recovered: bool = False
     last_failure: VoiceFailure | None = None
     handoff: HandoffState | None = None
+
+    def remember_rewrite(self, raw_text: str, normalized_text: str, *, limit: int) -> None:
+        """Keep a bounded call-local correction memory without durable transcript retention."""
+
+        raw = raw_text.strip()[:500]
+        normalized = normalized_text.strip()[:500]
+        if limit <= 0 or not raw or not normalized or raw == normalized:
+            return
+        entry = TranscriptCorrectionMemory(raw_text=raw, normalized_text=normalized)
+        self.rewrite_memory = [
+            existing
+            for existing in self.rewrite_memory
+            if existing.raw_text.casefold() != raw.casefold()
+        ]
+        self.rewrite_memory.append(entry)
+        self.rewrite_memory = self.rewrite_memory[-limit:]
 
     def durable_state(self) -> dict[str, object]:
         """Return only resumable business state; never transcript or raw audio."""

@@ -25,6 +25,8 @@ class _Rewriter:
     def __init__(self, normalized_text: str = "Alo, tôi muốn đặt xe.") -> None:
         self.normalized_text = normalized_text
         self.calls: list[dict[str, Any]] = []
+        self.context_window_turns = 2
+        self.memory_max_corrections = 3
 
     async def rewrite(
         self,
@@ -80,6 +82,43 @@ async def test_parent_agent_rewrites_final_turn_before_llm_context() -> None:
     assert message.text_content == "Alo, tôi muốn đặt xe."
     assert message.transcript_confidence == 0.91
     assert rewriter.calls[0]["session_id"] == "session"
+    assert rewriter.calls[0]["session_context"]["asr_confidence"] == 0.91
+    assert userdata.rewrite_memory[-1].normalized_text == "Alo, tôi muốn đặt xe."
+
+
+@pytest.mark.asyncio
+async def test_rewrite_context_uses_bounded_recent_dialogue_and_session_corrections() -> None:
+    rewriter = _Rewriter("Cổng chính VinUni")
+    rewriter.context_window_turns = 1
+    rewriter.memory_max_corrections = 2
+    userdata = _userdata()
+    userdata.remember_rewrite("Bin Uni", "VinUni", limit=2)
+    turn_ctx = llm.ChatContext.empty()
+    turn_ctx.add_message(role="user", content="tin cũ")
+    turn_ctx.add_message(role="assistant", content="câu hỏi cũ")
+    turn_ctx.add_message(role="user", content="Sửa điểm đón")
+    turn_ctx.add_message(role="assistant", content="Bạn muốn đổi sang cổng nào?")
+    message = llm.ChatMessage(
+        role="user",
+        content=["cũng chính Bin Uni"],
+        transcript_confidence=0.72,
+    )
+
+    await rewrite_livekit_user_turn(
+        rewriter=rewriter,
+        userdata=userdata,
+        turn_ctx=turn_ctx,
+        new_message=message,
+    )
+
+    context = rewriter.calls[0]["session_context"]
+    assert [item["content"] for item in context["agent_state"]["conversation_history"]] == [
+        "Sửa điểm đón",
+        "Bạn muốn đổi sang cổng nào?",
+    ]
+    assert context["agent_state"]["rewrite_memory"] == [
+        {"raw_text": "Bin Uni", "normalized_text": "VinUni"}
+    ]
 
 
 @pytest.mark.asyncio
@@ -148,6 +187,29 @@ async def test_low_confidence_audio_skips_rewrite_for_existing_clarification_gua
     assert result.reason == "low_asr_confidence"
     assert result.duration_ms == 0
     assert message.text_content == "ờ"
+
+
+@pytest.mark.asyncio
+async def test_low_confidence_audio_still_applies_grounded_deterministic_rewrite() -> None:
+    rewriter = _Rewriter()
+    message = llm.ChatMessage(
+        role="user",
+        content=["điểm đoán là Bin Yuni"],
+        transcript_confidence=0.2,
+    )
+
+    result = await rewrite_livekit_user_turn(
+        rewriter=rewriter,
+        userdata=_userdata(),
+        turn_ctx=llm.ChatContext.empty(),
+        new_message=message,
+    )
+
+    assert result is not None
+    assert result.applied is True
+    assert result.normalized_text == "điểm đón là VinUni"
+    assert message.text_content == "điểm đón là VinUni"
+    assert rewriter.calls == []
     assert rewriter.calls == []
 
 
