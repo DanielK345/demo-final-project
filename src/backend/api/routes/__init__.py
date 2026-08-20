@@ -7,8 +7,9 @@ from src.backend.api.routes.calls import router as calls_router
 from src.backend.api.routes.handoffs import router as handoffs_router
 from src.backend.api.routes.health import router as health_router
 from src.backend.api.routes.livekit import router as livekit_router
+from src.backend.api.routes.maps import maps_router as maps_standard_router
 from src.backend.api.routes.maps import route_router as maps_route_router
-from src.backend.api.routes.maps import router as maps_router
+from src.backend.api.routes.maps import router as maps_places_router
 from src.backend.api.routes.policies import router as policies_router
 from src.backend.api.routes.quotes import router as quotes_router
 from src.backend.api.routes.sessions import router as sessions_router
@@ -30,8 +31,9 @@ router.include_router(policies_router)
 router.include_router(quotes_router)
 router.include_router(trips_router)
 router.include_router(settings_router)
-router.include_router(maps_router)
+router.include_router(maps_places_router)
 router.include_router(maps_route_router)
+router.include_router(maps_standard_router)
 
 
 @router.post("/chat", response_model=ChatResponse)

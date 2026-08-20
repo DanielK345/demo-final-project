@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { TrackingCard } from "@/features/tracking/components/TrackingCard";
 import type { TrackingTripDetails } from "@/features/tracking/types";
@@ -6,6 +6,9 @@ import { getTripStatus, TRIP_STATUS_TEXT, type TripStatusResponse } from "@/feat
 import { redirectToLoginIfUnauthorized } from "@/features/auth/sessionGuard";
 import { useVoiceAssistant } from "@/features/ai-assistant/context/useVoiceAssistant";
 import { Navigation, AlertCircle, Sparkles } from "lucide-react";
+import { RideMap } from "@/features/maps/components/RideMap";
+import { resolveTrip } from "@/features/maps/api";
+import type { LocationResult, RouteResult } from "@/features/maps/types";
 
 const POLL_INTERVAL_MS = 4000;
 
@@ -15,20 +18,6 @@ const STATUS_MAP: Record<TripStatusResponse["status"], TrackingTripDetails["stat
   ARRIVING: "arriving",
   ON_TRIP: "in_transit",
   COMPLETED: "completed",
-};
-
-// Toạ độ % thuần minh hoạ trên ảnh nền tĩnh — KHÔNG phải GPS thật (chưa có Maps
-// provider, xem mustdo.md mục 3). Trước đây marker tài xế đứng yên 1 chỗ cố định bất
-// kể trạng thái/ETA thật đổi thế nào; giờ marker DI CHUYỂN thật theo đúng trạng thái
-// thật trả về từ TripService mỗi lần poll (mô phỏng nâng cao — không cần API key).
-const PICKUP_POINT = { left: 30, top: 55 };
-const DESTINATION_POINT = { left: 76, top: 22 };
-const DRIVER_WAYPOINT: Record<TrackingTripDetails["status"], { left: number; top: number } | null> = {
-  searching: null,
-  accepted: { left: 88, top: 82 },
-  arriving: { left: 44, top: 64 },
-  in_transit: { left: 54, top: 40 },
-  completed: DESTINATION_POINT,
 };
 
 export const TrackingPage: React.FC = () => {
@@ -41,6 +30,51 @@ export const TrackingPage: React.FC = () => {
 
   const [trip, setTrip] = useState<TrackingTripDetails | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [pickupLoc, setPickupLoc] = useState<LocationResult | null>(null);
+  const [destLoc, setDestLoc] = useState<LocationResult | null>(null);
+  const [routeData, setRouteData] = useState<RouteResult | null>(null);
+
+  // Resolve trip route coordinates from pickup and destination
+  useEffect(() => {
+    const pickupQuery = routeState?.pickup || "Đại học Bách Khoa Hà Nội";
+    const destQuery = routeState?.destination || "Hồ Hoàn Kiếm, Hà Nội";
+
+    let active = true;
+    resolveTrip({
+      pickup: pickupQuery,
+      destination: destQuery,
+      sessionId: routeState?.sessionId,
+    })
+      .then((res) => {
+        if (!active) return;
+        setPickupLoc(res.pickup);
+        setDestLoc(res.destination);
+        setRouteData(res.route);
+      })
+      .catch((err) => {
+        console.warn("Map resolve trip fallback:", err);
+        if (!active) return;
+        // Graceful fallback to default Hanoi central points
+        setPickupLoc({
+          id: "p_hust",
+          name: pickupQuery,
+          display_name: pickupQuery,
+          lat: 21.0074,
+          lon: 105.8431,
+        });
+        setDestLoc({
+          id: "p_sword",
+          name: destQuery,
+          display_name: destQuery,
+          lat: 21.0285,
+          lon: 105.8542,
+        });
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [routeState?.pickup, routeState?.destination, routeState?.sessionId]);
 
   useEffect(() => {
     if (!routeState?.sessionId || !routeState?.bookingId) return;
@@ -85,8 +119,37 @@ export const TrackingPage: React.FC = () => {
     };
   }, [routeState?.sessionId, routeState?.bookingId, routeState?.pickup, routeState?.destination, navigate]);
 
-  const mapBgUrl =
-    "https://lh3.googleusercontent.com/aida-public/AB6AXuA9-JzFmj0AFqu7hGXvp5QIBGayZ8Rrag3Fm12h_x1kQKe_pXhdufywgmE5vI7IJqsWE86ZRyMAWaR8aBdxLx2GfX3QSadKDT6ry12dxcTw6bXLeLOa58DPFA9ktZeMIYIdpfRWPLjyPZsk_E0epFY73vGCx1dVFQgGYEC_yxnaFJK8XvffhhUJK7merVrPneWWBdLgXEpWwj0kum89ioxKPu_uRO-Fzy9oa1xSexiY1zO8IJhvmSrI";
+  // Compute live driver coordinates along the route geometry based on trip status
+  const driverLiveLocation = useMemo(() => {
+    if (!trip?.driver) return null;
+    const coords = routeData?.geometry?.coordinates;
+    if (!coords || coords.length === 0) {
+      if (pickupLoc) {
+        return { lat: pickupLoc.lat - 0.002, lon: pickupLoc.lon - 0.002, heading: 45 };
+      }
+      return null;
+    }
+
+    if (trip.status === "searching") return null;
+    if (trip.status === "accepted") {
+      const [lon, lat] = coords[0];
+      return { lat: lat - 0.003, lon: lon - 0.002, heading: 30 };
+    }
+    if (trip.status === "arriving") {
+      const [lon, lat] = coords[0];
+      return { lat, lon, heading: 90 };
+    }
+    if (trip.status === "in_transit") {
+      const midIdx = Math.floor(coords.length / 2);
+      const [lon, lat] = coords[midIdx];
+      return { lat, lon, heading: 60 };
+    }
+    if (trip.status === "completed") {
+      const [lon, lat] = coords[coords.length - 1];
+      return { lat, lon, heading: 0 };
+    }
+    return null;
+  }, [trip?.driver, trip?.status, routeData?.geometry?.coordinates, pickupLoc]);
 
   if (!routeState?.sessionId || !routeState?.bookingId) {
     return (
@@ -124,7 +187,7 @@ export const TrackingPage: React.FC = () => {
             Theo dõi chuyến đi
           </h1>
           <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
-            Cập nhật vị trí tài xế và hành trình di chuyển trực tiếp
+            Cập nhật vị trí tài xế và hành trình di chuyển trực tiếp trên bản đồ OpenStreetMap
           </p>
         </div>
 
@@ -136,49 +199,15 @@ export const TrackingPage: React.FC = () => {
 
       {/* Main Grid: Left Map View & Right Details */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-        {/* Left Column: Simulated Map Display */}
+        {/* Left Column: Interactive OpenStreetMap with Leaflet */}
         <div className="lg:col-span-7 h-[460px] rounded-[24px] overflow-hidden relative border border-slate-200 dark:border-white/10 shadow-md">
-          <div
-            className="w-full h-full bg-cover bg-center"
-            style={{ backgroundImage: `url(${mapBgUrl})` }}
+          <RideMap
+            pickup={pickupLoc}
+            destination={destLoc}
+            driverLocation={driverLiveLocation}
+            route={routeData}
+            className="w-full h-full"
           />
-          <div className="absolute inset-0 bg-gradient-to-t from-slate-900/40 via-transparent to-transparent pointer-events-none" />
-          <div
-            className="absolute -translate-x-1/2 -translate-y-1/2 flex flex-col items-center"
-            style={{ left: `${PICKUP_POINT.left}%`, top: `${PICKUP_POINT.top}%` }}
-          >
-            <div className="px-2.5 py-1 bg-[#191C1E] text-white text-[10px] font-bold rounded-lg shadow-md mb-1">
-              Điểm đón
-            </div>
-            <div className="w-4 h-4 bg-[#00C9B7] rounded-full border-2 border-white shadow-lg animate-ping" />
-          </div>
-          <div
-            className="absolute -translate-x-1/2 -translate-y-1/2 flex flex-col items-center"
-            style={{ left: `${DESTINATION_POINT.left}%`, top: `${DESTINATION_POINT.top}%` }}
-          >
-            <div className="px-2.5 py-1 bg-[#008F88] text-white text-[10px] font-bold rounded-lg shadow-md mb-1">
-              Điểm đến
-            </div>
-            <div className="w-4 h-4 bg-white rounded-full border-2 border-[#008F88] shadow-lg" />
-          </div>
-          {trip?.driver &&
-            (() => {
-              const point = DRIVER_WAYPOINT[trip.status];
-              if (!point) return null;
-              return (
-                <div
-                  className="absolute -translate-x-1/2 -translate-y-1/2 flex flex-col items-center transition-[left,top] duration-[1400ms] ease-in-out"
-                  style={{ left: `${point.left}%`, top: `${point.top}%` }}
-                >
-                  <div className="px-2.5 py-1 bg-[#008F88] text-white text-[10px] font-bold rounded-lg shadow-md mb-1 flex items-center gap-1">
-                    <span>Tài xế ({trip.eta})</span>
-                  </div>
-                  <div className="w-8 h-8 rounded-full bg-white shadow-xl flex items-center justify-center text-[#008F88] border-2 border-[#00C9B7]">
-                    <Navigation className="w-4 h-4 transform rotate-45" />
-                  </div>
-                </div>
-              );
-            })()}
         </div>
 
         {/* Right Column: Tracking Detail Card */}

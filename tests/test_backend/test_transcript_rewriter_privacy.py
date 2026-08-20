@@ -250,7 +250,7 @@ async def test_rewrite_payload_contains_redacted_context_locked_slots_and_confus
         {"raw_text": "Bin Uni", "normalized_text": "VinUni"}
     ]
     patterns = payload["asr_confusion_memory"]["phonetic_patterns"]
-    assert {item["canonical"] for item in patterns} == {"v", "ph", "in", "ô"}
+    assert {item["canonical"] for item in patterns} == {"v", "ph", "in", "inh", "ô"}
     assert payload["asr_confusion_memory"]["recent_session_corrections"] == [
         {"raw_text": "Bin Uni", "normalized_text": "VinUni"}
     ]

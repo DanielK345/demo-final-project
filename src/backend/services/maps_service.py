@@ -97,11 +97,19 @@ class MapsService:
             remembered.append(candidate)
         return remembered
 
-    async def search_places(self, query: str, *, session_id: str = "", limit: int | None = None) -> dict[str, Any]:
+    async def search_places(
+        self,
+        query: str,
+        *,
+        session_id: str = "",
+        limit: int | None = None,
+        city: str | None = None,
+    ) -> dict[str, Any]:
         if self._geocoding is None:
             return {
                 "query": query,
                 "status": PlaceResolutionStatus.PROVIDER_ERROR.value,
+                "results": [],
                 "candidates": [],
                 "error": "MAP_PROVIDER_NOT_CONFIGURED",
             }
@@ -109,31 +117,38 @@ class MapsService:
         started = time.monotonic()
         try:
             key = search_cache_key(
-                query,
+                f"{query}:{city or ''}",
                 country=self._settings.map_country_code,
                 provider=self._settings.geocoding_provider,
                 data_version=self._settings.osm_data_version,
             )
             result = await self._cache.get(key)
             if result is None:
-                candidates = await self._geocoding.search(query, limit=effective_limit)
+                try:
+                    candidates = await self._geocoding.search(query, limit=effective_limit, city=city)
+                except TypeError:
+                    candidates = await self._geocoding.search(query, limit=effective_limit)
                 api_candidates = [candidate.to_api_dict() for candidate in candidates]
                 result = {
                     "query": query,
                     "status": PlaceResolutionStatus.CANDIDATES.value
                     if api_candidates
                     else PlaceResolutionStatus.NOT_FOUND.value,
+                    "results": api_candidates,
                     "candidates": api_candidates,
                 }
-                await self._cache.set(key, result, ttl_seconds=300)
+                await self._cache.set(key, result, ttl_seconds=self._settings.map_cache_ttl_seconds)
             result = dict(result)
-            result["candidates"] = await self._remember_candidates(list(result.get("candidates", [])), session_id)
+            remembered = await self._remember_candidates(list(result.get("candidates", [])), session_id)
+            result["candidates"] = remembered
+            result["results"] = remembered
             return result
         except MapsDomainError as exc:
             logger.warning("maps.search_failed code=%s", exc.code)
             return {
                 "query": query,
                 "status": PlaceResolutionStatus.PROVIDER_ERROR.value,
+                "results": [],
                 "candidates": [],
                 "error": exc.code,
             }
@@ -144,6 +159,7 @@ class MapsService:
         if self._geocoding is None:
             return {
                 "status": PlaceResolutionStatus.PROVIDER_ERROR.value,
+                "results": [],
                 "candidates": [],
                 "error": "MAP_PROVIDER_NOT_CONFIGURED",
             }
@@ -152,20 +168,26 @@ class MapsService:
         try:
             candidate = await self._geocoding.reverse(lat, lon)
             candidates = [candidate.to_api_dict()] if candidate else []
-            candidates = await self._remember_candidates(candidates, session_id)
+            remembered = await self._remember_candidates(candidates, session_id)
             return {
                 "latitude": lat,
                 "longitude": lon,
+                "lat": lat,
+                "lon": lon,
                 "status": PlaceResolutionStatus.CANDIDATES.value
-                if candidates
+                if remembered
                 else PlaceResolutionStatus.NOT_FOUND.value,
-                "candidates": candidates,
+                "results": remembered,
+                "candidates": remembered,
             }
         except MapsDomainError as exc:
             return {
                 "latitude": lat,
                 "longitude": lon,
+                "lat": lat,
+                "lon": lon,
                 "status": PlaceResolutionStatus.PROVIDER_ERROR.value,
+                "results": [],
                 "candidates": [],
                 "error": exc.code,
             }
@@ -194,10 +216,12 @@ class MapsService:
             place_id=f"plc_{uuid4().hex[:16]}",
             provider=provider.casefold(),
             provider_place_id=provider_place_id,
+            name=str(candidate.get("name", "")),
             display_name=str(candidate["display_name"]),
             formatted_address=str(candidate.get("formatted_address", "")),
             latitude=lat,
             longitude=lon,
+            address=candidate.get("address"),
             types=list(candidate.get("types", [])),
             serviceable=area.serviceable,
             service_area_id=area.service_area_id,
@@ -228,6 +252,7 @@ class MapsService:
             distance_meters=float(data["distance_meters"]),
             duration_seconds=float(data["duration_seconds"]),
             geometry=data.get("geometry"),
+            legs=data.get("legs", []),
             traffic_status=TrafficDataStatus(str(data.get("traffic_status", "NONE"))),
             traffic_timestamp=data.get("traffic_timestamp"),
             provider=str(data["provider"]),
@@ -278,11 +303,117 @@ class MapsService:
         finally:
             logger.info("maps.route latency_seconds=%.3f", time.monotonic() - started)
 
+    async def create_route_coordinates(
+        self,
+        pickup_lat: float,
+        pickup_lon: float,
+        dest_lat: float,
+        dest_lon: float,
+        *,
+        profile: str = "driving",
+    ) -> RouteResult:
+        if self._routing is None:
+            raise MapProviderUnavailableError("Routing provider not configured")
+        p_lat = validate_latitude(pickup_lat)
+        p_lon = validate_longitude(pickup_lon)
+        d_lat = validate_latitude(dest_lat)
+        d_lon = validate_longitude(dest_lon)
+
+        started = time.monotonic()
+        try:
+            key = route_cache_key(
+                p_lat,
+                p_lon,
+                d_lat,
+                d_lon,
+                provider=f"{self._settings.routing_provider}:{profile}",
+                data_version=self._settings.osm_data_version,
+            )
+            cached = await self._cache.get(key)
+            if cached is not None:
+                return self._route_from_cache(cached, "", "", self._settings.map_route_ttl_seconds)
+            route = await self._routing.route(p_lat, p_lon, d_lat, d_lon, profile=profile)
+            await self._cache.set(key, route.to_snapshot_dict(), ttl_seconds=self._settings.map_route_ttl_seconds)
+            return route
+        except MapsDomainError:
+            raise
+        except Exception as exc:
+            raise MapProviderUnavailableError(f"Route calculation failed: {exc}") from exc
+        finally:
+            logger.info("maps.route_coords latency_seconds=%.3f", time.monotonic() - started)
+
+    async def resolve_trip(
+        self,
+        pickup: str | dict[str, Any],
+        destination: str | dict[str, Any],
+        *,
+        city: str = "Hà Nội",
+        session_id: str = "",
+    ) -> dict[str, Any]:
+        """Resolve pickup and destination locations and calculate the connecting road route."""
+        # 1. Resolve pickup
+        if isinstance(pickup, dict) and "lat" in pickup and "lon" in pickup:
+            p_lat, p_lon = float(pickup["lat"]), float(pickup["lon"])
+            p_res = await self.reverse_geocode(p_lat, p_lon, session_id=session_id)
+            p_item = p_res["results"][0] if p_res.get("results") else {
+                "id": f"coords:{p_lat},{p_lon}",
+                "name": f"{p_lat:.4f}, {p_lon:.4f}",
+                "display_name": f"{p_lat:.4f}, {p_lon:.4f}",
+                "lat": p_lat,
+                "lon": p_lon,
+                "latitude": p_lat,
+                "longitude": p_lon,
+                "provider": "custom",
+            }
+        else:
+            p_query = str(pickup).strip()
+            p_search = await self.search_places(p_query, session_id=session_id, city=city, limit=1)
+            if not p_search.get("results"):
+                raise PlaceNotFoundError(f"Không tìm thấy điểm đón: {p_query}")
+            p_item = p_search["results"][0]
+
+        # 2. Resolve destination
+        if isinstance(destination, dict) and "lat" in destination and "lon" in destination:
+            d_lat, d_lon = float(destination["lat"]), float(destination["lon"])
+            d_res = await self.reverse_geocode(d_lat, d_lon, session_id=session_id)
+            d_item = d_res["results"][0] if d_res.get("results") else {
+                "id": f"coords:{d_lat},{d_lon}",
+                "name": f"{d_lat:.4f}, {d_lon:.4f}",
+                "display_name": f"{d_lat:.4f}, {d_lon:.4f}",
+                "lat": d_lat,
+                "lon": d_lon,
+                "latitude": d_lat,
+                "longitude": d_lon,
+                "provider": "custom",
+            }
+        else:
+            d_query = str(destination).strip()
+            d_search = await self.search_places(d_query, session_id=session_id, city=city, limit=1)
+            if not d_search.get("results"):
+                raise PlaceNotFoundError(f"Không tìm thấy điểm đến: {d_query}")
+            d_item = d_search["results"][0]
+
+        # 3. Calculate road route
+        route = await self.create_route_coordinates(
+            pickup_lat=float(p_item["lat"]),
+            pickup_lon=float(p_item["lon"]),
+            dest_lat=float(d_item["lat"]),
+            dest_lon=float(d_item["lon"]),
+        )
+
+        return {
+            "pickup": p_item,
+            "destination": d_item,
+            "route": route.to_api_dict(),
+        }
+
     async def _get_place(self, place_id: str) -> ResolvedPlace | None:
         return await self._place_repo.get_place(place_id) if self._place_repo is not None else None
 
     async def health_check(self) -> dict[str, Any]:
+        status_value = "ok" if self._provider_configured else "not_configured"
         result: dict[str, Any] = {
+            "status": status_value,
             "maps_configured": self._provider_configured,
             "service_area_configured": self._service_area.configured,
         }

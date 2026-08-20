@@ -45,12 +45,13 @@ Bạn cần chuẩn bị hoặc đăng ký các tài khoản dịch vụ sau (t�
      postgresql://postgres.[PROJECT-REF]:[YOUR-PASSWORD]@aws-0-ap-southeast-1.pooler.supabase.com:5432/postgres
      ```
 3. **Áp dụng Migration Database:**
-   Tại máy local của bạn (đã có kết nối mạng), mở terminal và chạy lệnh:
-   ```powershell
-   $env:DATABASE_URL_MIGRATIONS="postgresql://postgres.[PROJECT-REF]:[PASSWORD]@aws-0-ap-southeast-1.pooler.supabase.com:5432/postgres"
-   .\.venv\Scripts\python.exe -m alembic upgrade head
-   ```
-   *(Kiểm tra kết quả: Output báo `0004_maps_places_routes (head)` là thành công).*
+   - **Trạng thái**: Đã được AI tự động chạy và nghiệm thu 100% PASS trên Supabase database (`db.bmnnykrmesauqaikbcot.supabase.co`) tại revision `acc88dbc1e83 (head)`.
+   - Để kiểm tra lại bất kỳ lúc nào:
+     ```powershell
+     uv run alembic current
+     uv run python scripts/verify_postgres_persistence.py
+     ```
+
 
 ---
 

@@ -1,0 +1,8 @@
+# ASR Server dependencies
+fastapi>=0.115
+uvicorn[standard]>=0.32
+websockets>=13.0
+sherpa-onnx>=1.10
+numpy>=1.24
+pydantic>=2.0
+pydantic-settings>=2.0

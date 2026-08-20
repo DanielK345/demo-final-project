@@ -64,7 +64,7 @@ def test_livekit_runtime_accepts_complete_native_pipeline_configuration() -> Non
     assert config.livekit_record_transcript is False
     assert config.livekit_debug_event_log is False
     assert config.livekit_debug_transcripts is False
-    assert str(config.livekit_debug_log_dir) == "logs/livekit"
+    assert config.livekit_debug_log_dir.as_posix() == "logs/livekit"
     config.require_ready()
 
 

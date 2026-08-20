@@ -8,8 +8,14 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+from pathlib import Path
 import secrets
+import sys
 from datetime import UTC, datetime, timedelta
+
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
 from sqlalchemy import text
 
@@ -21,7 +27,8 @@ from src.backend.repositories.persistence_repository import PersistenceRepositor
 from src.backend.services.booking_service import BookingService
 from src.backend.services.quote_service import QuoteService
 
-EXPECTED_REVISION = "0004_maps_places_routes"
+ACCEPTED_REVISIONS = ("0004_maps_places_routes", "0005_livekit_voice_state", "acc88dbc1e83")
+
 RLS_TABLES = (
     "users",
     "auth_tokens",
@@ -42,27 +49,29 @@ RLS_TABLES = (
 )
 
 
+
 async def _cleanup(ids: dict[str, str]) -> None:
     factory = get_session_factory()
     async with factory() as db, db.begin():
         statements = (
-            ("DELETE FROM route_snapshots WHERE id = :value", ids["route_id"]),
-            ("DELETE FROM places WHERE id = :value", ids["pickup_place_id"]),
-            ("DELETE FROM places WHERE id = :value", ids["destination_place_id"]),
-            ("DELETE FROM outbox_events WHERE aggregate_id = :value", ids["booking_id"]),
-            ("DELETE FROM trips WHERE booking_id = :value", ids["booking_id"]),
-            ("DELETE FROM idempotency_records WHERE resource_id = :value", ids["booking_id"]),
-            ("DELETE FROM bookings WHERE id = :value", ids["booking_id"]),
-            ("DELETE FROM fare_quotes WHERE id = :value", ids["quote_id"]),
-            ("DELETE FROM calls WHERE id = :value", ids["call_id"]),
-            ("DELETE FROM handoffs WHERE id = :value", ids["handoff_id"]),
-            ("DELETE FROM conversation_messages WHERE session_id = :value", ids["session_id"]),
-            ("DELETE FROM user_settings WHERE user_id = :value", ids["user_id"]),
-            ("DELETE FROM auth_tokens WHERE user_id = :value", ids["user_id"]),
-            ("DELETE FROM ride_sessions WHERE id = :value", ids["session_id"]),
-            ("DELETE FROM policy_acceptances WHERE user_id = :value", ids["user_id"]),
-            ("DELETE FROM users WHERE id = :value", ids["user_id"]),
+            ("DELETE FROM outbox_events WHERE aggregate_id = :value", ids.get("booking_id")),
+            ("DELETE FROM trips WHERE booking_id = :value", ids.get("booking_id")),
+            ("DELETE FROM idempotency_records WHERE resource_id = :value", ids.get("booking_id")),
+            ("DELETE FROM bookings WHERE id = :value", ids.get("booking_id")),
+            ("DELETE FROM fare_quotes WHERE id = :value", ids.get("quote_id")),
+            ("DELETE FROM route_snapshots WHERE id = :value", ids.get("route_id")),
+            ("DELETE FROM places WHERE id = :value", ids.get("pickup_place_id")),
+            ("DELETE FROM places WHERE id = :value", ids.get("destination_place_id")),
+            ("DELETE FROM calls WHERE id = :value", ids.get("call_id")),
+            ("DELETE FROM handoffs WHERE id = :value", ids.get("handoff_id")),
+            ("DELETE FROM conversation_messages WHERE session_id = :value", ids.get("session_id")),
+            ("DELETE FROM user_settings WHERE user_id = :value", ids.get("user_id")),
+            ("DELETE FROM auth_tokens WHERE user_id = :value", ids.get("user_id")),
+            ("DELETE FROM ride_sessions WHERE id = :value", ids.get("session_id")),
+            ("DELETE FROM policy_acceptances WHERE user_id = :value", ids.get("user_id")),
+            ("DELETE FROM users WHERE id = :value", ids.get("user_id")),
         )
+
         for statement, value in statements:
             if value:
                 await db.execute(text(statement), {"value": value})
@@ -79,8 +88,8 @@ async def main() -> None:
     factory = get_session_factory()
     async with factory() as db:
         revision = (await db.execute(text("SELECT version_num FROM alembic_version"))).scalar_one()
-        if revision != EXPECTED_REVISION:
-            raise SystemExit(f"Refusing acceptance: database revision is {revision}, expected {EXPECTED_REVISION}")
+        if revision not in ACCEPTED_REVISIONS:
+            raise SystemExit(f"Refusing acceptance: database revision is {revision}, expected one of {ACCEPTED_REVISIONS}")
         rows = (
             await db.execute(
                 text("""
@@ -197,12 +206,13 @@ async def main() -> None:
                 provider_version="acceptance-v1",
             )
         )
-        quote_service = QuoteService(repository=repository, settings=settings)
+        quote_service = QuoteService(repository=repository, maps_repository=maps_repository, settings=settings)
         quote = await quote_service.issue_quote(
             user_id=ids["user_id"],
             session_id=ids["session_id"],
-            pickup_place_id="acceptance_hanoi_a",
-            destination_place_id="acceptance_hanoi_b",
+            pickup_place_id=ids["pickup_place_id"],
+            destination_place_id=ids["destination_place_id"],
+            route_id=ids["route_id"],
             vehicle_type="CAR_4",
         )
         ids["quote_id"] = str(quote["quote_id"])
@@ -220,10 +230,11 @@ async def main() -> None:
             "session_id": ids["session_id"],
             "user_id": ids["user_id"],
             "idempotency_key": f"acceptance-{suffix}",
-            "pickup_place_id": "acceptance_hanoi_a",
-            "destination_place_id": "acceptance_hanoi_b",
+            "pickup_place_id": ids["pickup_place_id"],
+            "destination_place_id": ids["destination_place_id"],
             "vehicle_type": "CAR_4",
         }
+
         first, retry = await asyncio.gather(
             booking_service.create_booking_from_quote(booking_payload),
             booking_service.create_booking_from_quote(booking_payload),
@@ -254,11 +265,12 @@ async def main() -> None:
         assert (await restarted_maps.get_place(ids["pickup_place_id"])) is not None
         assert (await restarted_maps.get_route_snapshot(ids["route_id"]))["distance_meters"] == 12_300
         print("POSTGRES_PERSISTENCE_ACCEPTANCE=PASS")
-        print(f"ALEMBIC_REVISION={EXPECTED_REVISION}")
+        print(f"ALEMBIC_REVISION={revision}")
         print("QUOTE_TAMPER_REJECTION=PASS")
         print("CONCURRENT_IDEMPOTENCY=PASS")
         print("RESTART_READBACK=PASS")
         print("RLS_ENABLED=PASS")
+
     finally:
         await _cleanup(
             {

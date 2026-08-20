@@ -116,29 +116,38 @@ class Settings(BaseSettings):
     field_encryption_key: str = ""
 
     # ---- Maps / Geocoding / Routing ----
-    # Provider-neutral config. MAPS_PROVIDER selects the active stack.
-    maps_provider: str = ""  # "osm" to enable Nominatim + OSRM
-    maps_api_key: str = ""   # Not required for self-hosted Nominatim/OSRM
+    # Provider-neutral config. MAPS_PROVIDER selects the active stack ("osm" or "openstreetmap").
+    maps_provider: str = "osm"
+    maps_api_key: str = ""   # Not required for public/self-hosted Nominatim/OSRM
     maps_base_url: str = ""
 
-    # Geocoding
+    # Geocoding (Nominatim)
     geocoding_provider: str = "nominatim"
-    nominatim_base_url: str = "http://localhost:8088"
+    nominatim_base_url: str = "https://nominatim.openstreetmap.org"
+    nominatim_user_agent: str = "AloSM/1.0 (ride-hailing; ops@alosm.vn)"
+    nominatim_country_code: str = "vn"
+    nominatim_timeout_seconds: float = Field(default=5.0, gt=0, le=30)
 
-    # Routing
+    # Routing (OSRM)
     routing_provider: str = "osrm"
-    osrm_base_url: str = "http://localhost:5000"
+    osrm_base_url: str = "https://router.project-osrm.org"
+    osrm_profile: str = "driving"
+    osrm_timeout_seconds: float = Field(default=10.0, gt=0, le=30)
 
-    # Search / display
+    # Search / display / defaults
+    map_default_country: str = "Vietnam"
+    map_default_city: str = "Hà Nội"
     map_country_code: str = "vn"
     map_search_limit: int = Field(default=5, ge=1, le=20)
     map_request_timeout_seconds: float = Field(default=5.0, gt=0, le=30)
     map_candidate_ttl_seconds: int = Field(default=600, ge=60, le=3600)
     map_route_ttl_seconds: int = Field(default=300, ge=30, le=3600)
+    map_cache_enabled: bool = True
+    map_cache_ttl_seconds: int = Field(default=3600, ge=60, le=86400)
     maps_cache_backend: str = "memory"  # memory (dev/test) or redis (production)
     maps_cache_redis_url: str = ""
 
-    # Service area — EXTERNAL_BLOCKED until Product/Ops provides GeoJSON
+    # Service area — optional polygon boundary check
     maps_service_area_id: str = ""
     maps_service_area_path: str = ""  # path to GeoJSON Polygon/MultiPolygon
 
@@ -146,7 +155,7 @@ class Settings(BaseSettings):
     osm_data_version: str = ""
 
     # Tile provider — for frontend basemap rendering (separate from geocoding/routing)
-    map_tile_url: str = ""
+    map_tile_url: str = "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
     map_tile_attribution: str = "© OpenStreetMap contributors"
 
     def production_readiness_errors(self) -> list[str]:

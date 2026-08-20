@@ -1,6 +1,6 @@
 {
   "language": "vi",
-  "version": 1,
+  "version": 2,
   "confusions": [
     {
       "canonical": "v",
@@ -19,6 +19,12 @@
       "asr_variants": ["inh"],
       "scope": "syllable_rhyme",
       "examples": ["Vin -> Vinh"]
+    },
+    {
+      "canonical": "inh",
+      "asr_variants": ["in"],
+      "scope": "syllable_rhyme",
+      "examples": ["BinhUni -> BinUni (step toward VinUni)"]
     },
     {
       "canonical": "ô",

@@ -26,6 +26,24 @@ from src.voice_agent.stt_final_fallback import STTFinalFallback
 logger = logging.getLogger(__name__)
 
 
+def _build_stt(settings: LiveKitVoiceSettings, inference_credentials: dict):
+    """Return the correct STT provider based on LIVEKIT_STT_PROVIDER env."""
+    if settings.livekit_stt_provider == "zipformer":
+        from src.voice_agent.custom_stt import ZipformerSTT  # noqa: PLC0415
+        logger.info(
+            "Using Zipformer STT url=%s", settings.zipformer_ws_url
+        )
+        return ZipformerSTT(
+            url=settings.zipformer_ws_url,
+            language=settings.livekit_stt_language,
+        )
+    return inference.STT(
+        model=settings.livekit_stt_model,
+        language=settings.livekit_stt_language,
+        **inference_credentials,
+    )
+
+
 def build_agent_session(
     settings: LiveKitVoiceSettings,
     *,
@@ -51,11 +69,7 @@ def build_agent_session(
     return AgentSession(
         userdata=userdata,
         vad=inference.VAD(model="silero"),
-        stt=inference.STT(
-            model=settings.livekit_stt_model,
-            language=settings.livekit_stt_language,
-            **inference_credentials,
-        ),
+        stt=_build_stt(settings, inference_credentials),
         llm=inference.LLM(
             model=settings.livekit_llm_model,
             **inference_credentials,

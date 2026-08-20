@@ -6,7 +6,6 @@ import json
 import os
 import tempfile
 
-
 from src.backend.maps.service_area import ServiceAreaChecker, _point_in_ring
 
 

@@ -28,11 +28,12 @@ class _InMemoryQuoteService:
         *,
         user_id: str,
         session_id: str,
+        route_id: str | None = None,
         pickup_place_id: str,
         destination_place_id: str,
         vehicle_type: str,
     ) -> dict[str, object]:
-        del user_id, session_id
+        del user_id, session_id, route_id
         return self.pricing.estimate_fare(
             pickup_place_id=pickup_place_id,
             destination_place_id=destination_place_id,

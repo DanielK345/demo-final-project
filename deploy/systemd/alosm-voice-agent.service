@@ -1,0 +1,22 @@
+[Unit]
+Description=AloSM LiveKit Voice Agent Worker Service
+After=network.target alosm-backend.service alosm-asr.service
+
+[Service]
+Type=simple
+User=alosm
+Group=alosm
+WorkingDirectory=/opt/alosm
+EnvironmentFile=/opt/alosm/.env.production
+ExecStart=/opt/alosm/.venv/bin/python -m src.voice_agent.server start
+Restart=always
+RestartSec=5s
+LimitNOFILE=65536
+
+# Security sandbox
+ProtectSystem=full
+ProtectHome=true
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target

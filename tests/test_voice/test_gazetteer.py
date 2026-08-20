@@ -71,5 +71,6 @@ def test_vietnamese_asr_confusion_catalog_loads_curated_sound_pairs():
         ("v", ("b",)),
         ("ph", ("v",)),
         ("in", ("inh",)),
+        ("inh", ("in",)),
         ("ô", ("u",)),
     }

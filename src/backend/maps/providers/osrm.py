@@ -53,8 +53,8 @@ class OSRMProvider(RoutingProvider):
     def __init__(
         self,
         *,
-        base_url: str = "http://localhost:5000",
-        timeout: float = 5.0,
+        base_url: str = "https://router.project-osrm.org",
+        timeout: float = 10.0,
         source_data_version: str = "",
         route_ttl_seconds: int = 300,
     ) -> None:
@@ -62,6 +62,21 @@ class OSRMProvider(RoutingProvider):
         self._timeout = timeout
         self._source_data_version = source_data_version
         self._route_ttl_seconds = route_ttl_seconds
+        self._client: httpx.AsyncClient | None = None
+
+    async def _get_client(self) -> httpx.AsyncClient:
+        if self._client is None or self._client.is_closed:
+            self._client = httpx.AsyncClient(
+                timeout=self._timeout,
+                follow_redirects=True,
+                limits=httpx.Limits(max_keepalive_connections=20, max_connections=50),
+            )
+        return self._client
+
+    async def close(self) -> None:
+        if self._client is not None and not self._client.is_closed:
+            await self._client.aclose()
+            self._client = None
 
     # ------------------------------------------------------------------
     # HTTP helpers
@@ -74,8 +89,8 @@ class OSRMProvider(RoutingProvider):
 
         for attempt in range(_MAX_RETRIES + 1):
             try:
-                async with httpx.AsyncClient(timeout=self._timeout) as client:
-                    response = await client.get(url)
+                client = await self._get_client()
+                response = await client.get(url)
 
                 if response.status_code in _RETRYABLE_STATUS and attempt < _MAX_RETRIES:
                     logger.warning(
@@ -137,6 +152,7 @@ class OSRMProvider(RoutingProvider):
         dest_lon: float,
         *,
         profile: str = "driving",
+        steps: bool = True,
     ) -> RouteResult:
         """Calculate a route between two points.
 
@@ -149,7 +165,8 @@ class OSRMProvider(RoutingProvider):
         d_lon = validate_longitude(dest_lon)
 
         # CRITICAL: OSRM uses longitude,latitude ordering
-        path = f"/route/v1/{profile}/{p_lon},{p_lat};{d_lon},{d_lat}?overview=full&geometries=geojson&steps=false"
+        steps_param = "true" if steps else "false"
+        path = f"/route/v1/{profile}/{p_lon},{p_lat};{d_lon},{d_lat}?overview=full&geometries=geojson&steps={steps_param}&alternatives=false"
 
         data = await self._get(path)
 
@@ -178,6 +195,7 @@ class OSRMProvider(RoutingProvider):
             raise RouteProviderUnavailableError(f"OSRM malformed route data: {exc}") from exc
 
         geometry = best.get("geometry")
+        legs = best.get("legs", [])
 
         now = datetime.now(UTC)
         route_id = f"rte_{uuid4().hex[:16]}"
@@ -189,6 +207,7 @@ class OSRMProvider(RoutingProvider):
             distance_meters=distance_meters,
             duration_seconds=duration_seconds,
             geometry=geometry,
+            legs=legs,
             # Vanilla OSRM has NO live traffic data (§9)
             traffic_status=TrafficDataStatus.NONE,
             traffic_timestamp=None,
@@ -198,7 +217,6 @@ class OSRMProvider(RoutingProvider):
             created_at=now,
             expires_at=now + timedelta(seconds=self._route_ttl_seconds),
         )
-
     async def health_check(self) -> dict[str, Any]:
         """Lightweight OSRM health check."""
         try:

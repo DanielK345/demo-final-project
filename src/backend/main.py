@@ -18,6 +18,7 @@ if str(PROJECT_ROOT) not in sys.path:
 # bất kỳ route nào đã có.
 from src.backend.api.routes import health_router, router  # noqa: E402
 from src.backend.api.routes.asr import router as asr_router  # noqa: E402
+from src.backend.api.routes.maps import maps_router as maps_direct_router  # noqa: E402
 from src.backend.api.routes.voice import prewarm_tts_cache  # noqa: E402
 from src.backend.api.routes.voice import router as voice_router  # noqa: E402
 from src.backend.config import get_settings  # noqa: E402
@@ -73,6 +74,7 @@ app.add_middleware(
 )
 
 app.include_router(router, prefix="/api/v1")
+app.include_router(maps_direct_router, prefix="/api")
 app.include_router(health_router)
 app.include_router(asr_router)
 

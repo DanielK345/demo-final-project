@@ -2,10 +2,9 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useNavigate } from "react-router-dom";
 import { getCurrentUser } from "@/features/auth/api";
 import { redirectToLoginIfUnauthorized } from "@/features/auth/sessionGuard";
-import { clearAuthSession, getAccessToken, getSessionId, getUserName, saveAuthSession } from "@/features/auth/storage";
+import { getAccessToken, getSessionId, getUserName, saveAuthSession } from "@/features/auth/storage";
 import {
   createRideSession,
-  endRideSession,
   getRideSession,
   resetRideConversation,
   sendRideMessage,
@@ -117,20 +116,19 @@ export const VoiceAssistantProvider: React.FC<{ children: React.ReactNode }> = (
     if (result.action === "HANDOFF") setNotice("Yêu cầu đã được chuyển đến tổng đài viên.");
   }, []);
 
-  const logoutAfterSessionEnd = useCallback(() => {
+  const closeVoiceSession = useCallback(() => {
     stopVoicePlayback();
     discardPreparedAloSMCall(livekitCallInstanceIdRef.current);
     livekitCallInstanceIdRef.current = null;
-    clearAuthSession();
-    setSessionId(null);
-    setSessionEnded(true);
+    setLivekitCallInstanceId(null);
     setIsConversationOpen(false);
     setIsOpen(false);
-    setLivekitCallInstanceId(null);
     setShowConfirmationModal(false);
     setShowSuccessModal(false);
-    navigate("/login", { replace: true });
-  }, [navigate]);
+    resetConversationUi();
+    setStatus("idle");
+    setSessionEnded(false);
+  }, [resetConversationUi]);
 
   // Toàn bộ popup giờ LUÔN là cuộc gọi thoại (không còn chat im lặng) — mọi câu trả
   // lời của agent, dù đến từ lượt gõ chữ (openWithPrefill/confirmBooking) hay lượt
@@ -190,7 +188,7 @@ export const VoiceAssistantProvider: React.FC<{ children: React.ReactNode }> = (
           action: result.action,
         });
         if (result.action === "END_SESSION") {
-          logoutAfterSessionEnd();
+          closeVoiceSession();
           return;
         }
         setStatus("idle");
@@ -200,7 +198,7 @@ export const VoiceAssistantProvider: React.FC<{ children: React.ReactNode }> = (
         setNotice(error instanceof Error ? error.message : "Không thể gửi tin nhắn. Vui lòng thử lại.");
       }
     },
-    [sessionId, sessionEnded, applyTurnResult, handleEndOfTurnActions, logoutAfterSessionEnd, navigate, speakReply],
+    [sessionId, sessionEnded, applyTurnResult, handleEndOfTurnActions, closeVoiceSession, navigate, speakReply],
   );
 
   const handleVoiceRecorded = useCallback(
@@ -227,7 +225,7 @@ export const VoiceAssistantProvider: React.FC<{ children: React.ReactNode }> = (
           action: result.action,
         }, result.tts_provider === "unavailable");
         if (result.action === "END_SESSION") {
-          logoutAfterSessionEnd();
+          closeVoiceSession();
           return;
         }
         setStatus("idle");
@@ -237,7 +235,7 @@ export const VoiceAssistantProvider: React.FC<{ children: React.ReactNode }> = (
         setNotice(error instanceof Error ? error.message : "Không thể xử lý giọng nói. Vui lòng thử lại.");
       }
     },
-    [sessionId, sessionEnded, applyTurnResult, handleEndOfTurnActions, logoutAfterSessionEnd, navigate, speakReply],
+    [sessionId, sessionEnded, applyTurnResult, handleEndOfTurnActions, closeVoiceSession, navigate, speakReply],
   );
 
   // Khởi tạo phiên hội thoại 1 LẦN khi Provider mount (ở AppLayout — ngay sau đăng
@@ -364,16 +362,13 @@ export const VoiceAssistantProvider: React.FC<{ children: React.ReactNode }> = (
 
   const endSession = useCallback(async () => {
     try {
-      if (sessionId) await endRideSession(sessionId);
+      if (sessionId) await resetRideConversation(sessionId);
     } catch {
-      // The browser must still discard credentials when hangup cannot reach the
-      // backend. Any surviving server token expires by its normal TTL.
+      // Bỏ qua lỗi mạng khi cúp máy
     } finally {
-      // Local cleanup is guaranteed even when the network disappears during hangup.
-      // On a successful request, the backend has already revoked the bearer token.
-      logoutAfterSessionEnd();
+      closeVoiceSession();
     }
-  }, [sessionId, logoutAfterSessionEnd]);
+  }, [sessionId, closeVoiceSession]);
 
   const newSession = useCallback(async () => {
     // "Đặt xe mới" là reset memory trong cùng phiên đăng nhập. Không gọi `/end`:

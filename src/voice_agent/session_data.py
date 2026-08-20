@@ -46,12 +46,14 @@ class PlaceCandidate(BaseModel):
     display_name: str
     address: str
     provider: str
+    lat: float | None = None
+    lon: float | None = None
     city: str | None = None
     asr_aliases: tuple[str, ...] = ()
 
 
 class QuoteSnapshot(BaseModel):
-    model_config = ConfigDict(extra="forbid", frozen=True)
+    model_config = ConfigDict(extra="ignore", frozen=True)
 
     quote_id: str
     pickup_place_id: str
@@ -62,6 +64,8 @@ class QuoteSnapshot(BaseModel):
     distance_km: float = Field(ge=0)
     eta_minutes: int = Field(ge=0)
     expires_at: str
+    route_id: str | None = None
+    route_geometry: dict[str, object] | None = None
     estimated: bool = True
 
     @property

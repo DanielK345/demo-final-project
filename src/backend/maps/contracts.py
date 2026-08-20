@@ -54,10 +54,12 @@ class PlaceCandidate:
 
     __slots__ = (
         "provider_place_id",
+        "name",
         "display_name",
         "formatted_address",
         "latitude",
         "longitude",
+        "address",
         "types",
         "provider",
         "provider_payload_version",
@@ -71,27 +73,43 @@ class PlaceCandidate:
         formatted_address: str,
         latitude: float,
         longitude: float,
+        name: str = "",
+        address: dict[str, Any] | None = None,
         types: list[str] | None = None,
         provider: str = "nominatim",
         provider_payload_version: str = "",
     ) -> None:
         self.provider_place_id = provider_place_id
+        self.name = name or (display_name.split(",")[0].strip() if display_name else "")
         self.display_name = display_name
         self.formatted_address = formatted_address
         self.latitude = latitude
         self.longitude = longitude
+        self.address = address or {
+            "road": None,
+            "ward": None,
+            "district": None,
+            "city": None,
+            "province": None,
+            "country": "Việt Nam",
+        }
         self.types = types or []
         self.provider = provider
         self.provider_payload_version = provider_payload_version
 
     def to_api_dict(self) -> dict[str, Any]:
-        """Serialise for public API response — no internal DB fields exposed."""
+        """Serialise for public API response — normalized & backward-compatible."""
         return {
-            "provider_place_id": self.provider_place_id,
+            "id": f"osm:{self.provider_place_id}",
+            "name": self.name,
             "display_name": self.display_name,
-            "formatted_address": self.formatted_address,
+            "lat": self.latitude,
+            "lon": self.longitude,
             "latitude": self.latitude,
             "longitude": self.longitude,
+            "address": self.address,
+            "formatted_address": self.formatted_address,
+            "provider_place_id": self.provider_place_id,
             "types": self.types,
             "provider": self.provider,
         }
@@ -108,10 +126,12 @@ class ResolvedPlace:
         "place_id",
         "provider",
         "provider_place_id",
+        "name",
         "display_name",
         "formatted_address",
         "latitude",
         "longitude",
+        "address",
         "types",
         "serviceable",
         "service_area_id",
@@ -129,6 +149,8 @@ class ResolvedPlace:
         formatted_address: str,
         latitude: float,
         longitude: float,
+        name: str = "",
+        address: dict[str, Any] | None = None,
         types: list[str] | None = None,
         serviceable: bool | None = None,
         service_area_id: str | None = None,
@@ -138,10 +160,19 @@ class ResolvedPlace:
         self.place_id = place_id
         self.provider = provider
         self.provider_place_id = provider_place_id
+        self.name = name or (display_name.split(",")[0].strip() if display_name else "")
         self.display_name = display_name
         self.formatted_address = formatted_address
         self.latitude = latitude
         self.longitude = longitude
+        self.address = address or {
+            "road": None,
+            "ward": None,
+            "district": None,
+            "city": None,
+            "province": None,
+            "country": "Việt Nam",
+        }
         self.types = types or []
         self.serviceable = serviceable
         self.service_area_id = service_area_id
@@ -150,11 +181,16 @@ class ResolvedPlace:
 
     def to_api_dict(self) -> dict[str, Any]:
         return {
+            "id": self.place_id,
             "place_id": self.place_id,
+            "name": self.name,
             "display_name": self.display_name,
-            "formatted_address": self.formatted_address,
+            "lat": self.latitude,
+            "lon": self.longitude,
             "latitude": self.latitude,
             "longitude": self.longitude,
+            "address": self.address,
+            "formatted_address": self.formatted_address,
             "types": self.types,
             "serviceable": self.serviceable,
             "service_area_id": self.service_area_id,
@@ -177,6 +213,7 @@ class RouteResult:
         "distance_meters",
         "duration_seconds",
         "geometry",
+        "legs",
         "traffic_status",
         "traffic_timestamp",
         "provider",
@@ -195,6 +232,7 @@ class RouteResult:
         distance_meters: float,
         duration_seconds: float,
         geometry: dict[str, Any] | None = None,
+        legs: list[dict[str, Any]] | None = None,
         traffic_status: TrafficDataStatus = TrafficDataStatus.NONE,
         traffic_timestamp: str | None = None,
         provider: str = "osrm",
@@ -209,6 +247,7 @@ class RouteResult:
         self.distance_meters = distance_meters
         self.duration_seconds = duration_seconds
         self.geometry = geometry
+        self.legs = legs or []
         self.traffic_status = traffic_status
         self.traffic_timestamp = traffic_timestamp
         self.provider = provider
@@ -218,12 +257,19 @@ class RouteResult:
         self.expires_at = expires_at
 
     def to_api_dict(self) -> dict[str, Any]:
-        """Public API representation — no internal DB IDs leaked."""
+        """Public API representation — normalized & backward-compatible."""
+        dist_m = float(self.distance_meters)
+        dur_s = float(self.duration_seconds)
         return {
             "route_id": self.route_id,
-            "distance_meters": self.distance_meters,
-            "duration_seconds": self.duration_seconds,
+            "distance_m": dist_m,
+            "distance_km": round(dist_m / 1000.0, 2),
+            "duration_s": dur_s,
+            "duration_minutes": max(1, round(dur_s / 60.0)),
+            "distance_meters": dist_m,
+            "duration_seconds": dur_s,
             "geometry": self.geometry,
+            "legs": self.legs,
             "traffic_status": self.traffic_status.value,
             "provider": self.provider,
             "created_at": self.created_at.isoformat() if self.created_at else None,
@@ -239,6 +285,7 @@ class RouteResult:
             "distance_meters": self.distance_meters,
             "duration_seconds": self.duration_seconds,
             "geometry": self.geometry,
+            "legs": self.legs,
             "traffic_status": self.traffic_status.value,
             "traffic_timestamp": self.traffic_timestamp,
             "provider": self.provider,
@@ -247,6 +294,7 @@ class RouteResult:
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "expires_at": self.expires_at.isoformat() if self.expires_at else None,
         }
+
 
 
 # ---------------------------------------------------------------------------

@@ -33,6 +33,10 @@ class LiveKitVoiceSettings(BaseSettings):
 
     livekit_stt_model: str = ""
     livekit_stt_language: str = "vi"
+    # "cloud" uses livekit_stt_model via inference.STT
+    # "zipformer" uses local Zipformer ASR WebSocket server
+    livekit_stt_provider: Literal["cloud", "zipformer"] = "cloud"
+    zipformer_ws_url: str = "ws://localhost:9000/v1/stt"
     livekit_llm_model: str = ""
     livekit_tts_model: str = ""
     livekit_tts_voice: str = ""

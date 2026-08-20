@@ -54,20 +54,38 @@ class NominatimProvider(GeocodingProvider):
     def __init__(
         self,
         *,
-        base_url: str = "http://localhost:8088",
+        base_url: str = "https://nominatim.openstreetmap.org",
         timeout: float = 5.0,
         country_code: str = "vn",
         language: str = "vi",
+        user_agent: str = "AloSM/1.0 (ride-hailing; ops@alosm.vn)",
     ) -> None:
         self._base_url = base_url.rstrip("/")
         self._timeout = timeout
         self._country_code = country_code
         self._language = language
+        self._user_agent = user_agent
         # Respect OSM usage policy (§51) — identify the application
         self._headers = {
-            "User-Agent": "AloSM/1.0 (ride-hailing; contact: ops@alosm.vn)",
+            "User-Agent": user_agent,
             "Accept-Language": language,
         }
+        self._client: httpx.AsyncClient | None = None
+
+    async def _get_client(self) -> httpx.AsyncClient:
+        if self._client is None or self._client.is_closed:
+            self._client = httpx.AsyncClient(
+                timeout=self._timeout,
+                headers=self._headers,
+                follow_redirects=True,
+                limits=httpx.Limits(max_keepalive_connections=20, max_connections=50),
+            )
+        return self._client
+
+    async def close(self) -> None:
+        if self._client is not None and not self._client.is_closed:
+            await self._client.aclose()
+            self._client = None
 
     # ------------------------------------------------------------------
     # Input validation
@@ -96,11 +114,8 @@ class NominatimProvider(GeocodingProvider):
 
         for attempt in range(_MAX_RETRIES + 1):
             try:
-                async with httpx.AsyncClient(
-                    timeout=self._timeout,
-                    headers=self._headers,
-                ) as client:
-                    response = await client.get(url, params=params)
+                client = await self._get_client()
+                response = await client.get(url, params=params)
 
                 if response.status_code in _RETRYABLE_STATUS and attempt < _MAX_RETRIES:
                     logger.warning(
@@ -152,15 +167,54 @@ class NominatimProvider(GeocodingProvider):
         except (KeyError, ValueError, TypeError):
             return None
 
-        display_name = str(raw.get("display_name", ""))
+        display_name = str(raw.get("display_name", "")).strip()
         if not display_name:
             return None
 
-        # Build formatted address from addressdetails when available
+        name = str(raw.get("name", "")).strip()
+        if not name:
+            name = display_name.split(",")[0].strip()
+
+        # Build formatted address and structured address object from addressdetails
         address_parts = raw.get("address", {})
-        formatted = display_name  # fallback to display_name
-        if address_parts:
+        formatted = display_name
+        structured_address: dict[str, Any] = {
+            "road": None,
+            "ward": None,
+            "district": None,
+            "city": None,
+            "province": None,
+            "country": "Việt Nam",
+        }
+        if isinstance(address_parts, dict) and address_parts:
             parts = []
+            house_num = address_parts.get("house_number")
+            road_val = address_parts.get("road")
+            if house_num and road_val:
+                structured_address["road"] = f"{house_num} {road_val}"
+            elif road_val:
+                structured_address["road"] = str(road_val)
+
+            ward_val = address_parts.get("suburb") or address_parts.get("quarter") or address_parts.get("neighbourhood")
+            if ward_val:
+                structured_address["ward"] = str(ward_val)
+
+            district_val = address_parts.get("city_district") or address_parts.get("district") or address_parts.get("county")
+            if district_val:
+                structured_address["district"] = str(district_val)
+
+            city_val = address_parts.get("city") or address_parts.get("town") or address_parts.get("municipality")
+            if city_val:
+                structured_address["city"] = str(city_val)
+
+            state_val = address_parts.get("state") or address_parts.get("province")
+            if state_val:
+                structured_address["province"] = str(state_val)
+
+            country_val = address_parts.get("country")
+            if country_val:
+                structured_address["country"] = str(country_val)
+
             for key in (
                 "house_number",
                 "road",
@@ -192,10 +246,12 @@ class NominatimProvider(GeocodingProvider):
 
         return PlaceCandidate(
             provider_place_id=provider_place_id,
+            name=name,
             display_name=display_name,
             formatted_address=formatted,
             latitude=lat,
             longitude=lon,
+            address=structured_address,
             types=types,
             provider="nominatim",
             provider_payload_version="jsonv2",
@@ -205,8 +261,8 @@ class NominatimProvider(GeocodingProvider):
     # Public API
     # ------------------------------------------------------------------
 
-    async def search(self, query: str, *, limit: int = 5) -> list[PlaceCandidate]:
-        """Search for places matching *query* (§14)."""
+    async def search(self, query: str, *, limit: int = 5, city: str | None = None) -> list[PlaceCandidate]:
+        """Search for places matching *query* (§14) with context fallback."""
         clean_query = self._validate_query(query)
 
         params: dict[str, str] = {
@@ -219,17 +275,33 @@ class NominatimProvider(GeocodingProvider):
 
         data = await self._get("/search", params)
 
-        if not isinstance(data, list):
-            logger.warning("Nominatim search returned non-list: %s", type(data))
-            return []
+        if isinstance(data, list) and data:
+            candidates: list[PlaceCandidate] = []
+            for raw in data:
+                candidate = self._to_candidate(raw)
+                if candidate is not None:
+                    candidates.append(candidate)
+            if candidates:
+                return candidates
 
-        candidates: list[PlaceCandidate] = []
-        for raw in data:
-            candidate = self._to_candidate(raw)
-            if candidate is not None:
-                candidates.append(candidate)
+        # Fallback query with city context if initial query yielded no candidates
+        if city and city.strip() and city.casefold() not in clean_query.casefold():
+            fallback_query = f"{clean_query}, {city.strip()}"
+            fallback_params = dict(params, q=fallback_query)
+            try:
+                fallback_data = await self._get("/search", fallback_params)
+                if isinstance(fallback_data, list) and fallback_data:
+                    candidates = []
+                    for raw in fallback_data:
+                        candidate = self._to_candidate(raw)
+                        if candidate is not None:
+                            candidates.append(candidate)
+                    if candidates:
+                        return candidates
+            except Exception:
+                pass
 
-        return candidates
+        return []
 
     async def reverse(self, latitude: float, longitude: float) -> PlaceCandidate | None:
         """Reverse-geocode coordinates to the nearest place (§15)."""

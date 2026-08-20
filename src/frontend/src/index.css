@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "leaflet/dist/leaflet.css";
 
 /* Bật biến thể `dark:` theo class thay vì theo prefers-color-scheme của hệ điều
    hành — toggle "Giao diện tối" trong Settings là lựa chọn chủ động của người
