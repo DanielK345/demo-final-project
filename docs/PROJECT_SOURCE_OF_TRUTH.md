@@ -1,6 +1,7 @@
 # AloSM Voice — nguồn sự thật và trình tự hoàn thiện project
 
-Cập nhật: **2026-08-17**. Tài liệu này là điểm bắt đầu duy nhất để xác định tài liệu
+Cập nhật: **2026-08-20**. Tài liệu này là nguồn trạng thái toàn project. Với công
+việc LiveKit, điểm bắt đầu là `docs/CODING_AGENT_HANDOFF.md`. Tài liệu này xác định
 nào có thẩm quyền, dữ liệu nào đang là demo, contract nào đang chạy và phải hoàn
 thiện project theo thứ tự nào. Không dùng báo cáo tiến trình hoặc kế hoạch cũ để
 suy ra trạng thái runtime.
@@ -22,8 +23,10 @@ Khi hai nguồn mâu thuẫn, áp dụng thứ tự sau:
 | Contract Agent | `src/agents/README.md`, `src/agents/docs/BACKEND_INTEGRATION.md` |
 | Trạng thái Core Agent | `src/agents/docs/CORE_AGENT_STATUS.md` |
 | Data production cần gì? | `src/agents/DATAFINDING.md`, `data/catalog.json` |
-| Voice runtime | `docs/voice-ai/voice_local_dev.md` và các báo cáo live tương ứng |
-| Target refactor LiveKit | `docs/LIVEKIT_MIGRATION_IMPLEMENTATION.md`, sau đó `docs/LIVEKIT_REFACTOR_RESEARCH.md` |
+| Voice runtime hiện tại | `docs/CODING_AGENT_HANDOFF.md`, `docs/LIVEKIT_TEAM_SETUP.md` |
+| LiveKit architecture/history | `docs/LIVEKIT_MIGRATION_IMPLEMENTATION.md` |
+| Voice evaluation/cutover | `docs/PHASE4_EVALUATION_PLAN.md` |
+| Legacy voice rollback/evidence | `docs/voice-ai/README.md` |
 | Việc AI/code không thể tự hoàn tất | `mustdo.md` |
 | Cần truy vết tài liệu đã thay thế | Git history; không giữ duplicate trong cây hiện hành |
 
@@ -48,19 +51,22 @@ mục 8.
 
 ```text
 Browser React
-  -> FastAPI API/WS
-     -> Auth + Session + domain services
-     -> Core Agent (quyết định, không side effect)
-     -> Backend tool executor (side effect/provider adapter)
-     -> Voice: ASR -> transcript review -> Agent -> output review -> TTS
-     -> persistence/observability
+  -> FastAPI auth/session + LiveKit token control plane
+  -> LiveKit Room/WebRTC
+  -> local alosm-voice AgentServer
+  -> AgentSession: VAD -> STT -> AloSMAgent/BookingTask/tools -> TTS
+  -> AloSM application services + durable ride_sessions state
+  -> LiveKit audio/transcript/structured booking state -> React
 ```
+
+Legacy REST/WebSocket voice code vẫn tồn tại chỉ để rollback và Phase 4 A/B; không
+được mở rộng hoặc gọi từ LiveKit happy path.
 
 | Boundary | Owner dữ liệu | Không được làm |
 |---|---|---|
 | Frontend | UI state, playback state, token phiên browser | Tự tính giá/voucher hoặc tự xác nhận booking |
 | Backend | auth/session, orchestration, idempotency, provider execution | Tin dữ liệu client chưa validate |
-| Core Agent | `AgentState`, semantic action, pending tool state | Gọi network/DB hoặc tạo fare/place/booking ID |
+| LiveKit Agent/Task | runtime chat context + typed `AloSMSessionData` | Tự tạo fare/place/booking ID hoặc gọi legacy tool loop |
 | Maps/Route | place, route, ETA có provenance | Echo free text thành địa điểm đã resolve |
 | Pricing/Promotion | quote/version/eligibility | Để frontend tự áp rule |
 | Fleet/Dispatch | availability/assignment có timestamp | Lộ vị trí/ID tài xế chưa assign |
@@ -75,18 +81,19 @@ Catalog máy đọc được nằm tại `data/catalog.json`; giải thích các
 | Miền | Nguồn runtime hiện tại | Trạng thái | Đích production |
 |---|---|---|---|
 | Identity/settings | dict trong service | `DEMO` | Postgres + password hash chuẩn + token expiry/revocation |
-| Session/AgentState | dict trong `SessionService` + typed Agent state | `DEMO` | repository transaction + optimistic concurrency |
+| Session/Voice state | `ride_sessions` + versioned `voice_agent_state` | `IMPLEMENTED` | Phase 4 concurrent/reconnect evaluation |
 | Place | gazetteer seed/free text | `DEMO` | provider Place contract + serviceability + provenance |
 | Route/ETA | deterministic pricing helper | `DEMO` | routing provider có traffic timestamp |
 | Vehicle catalog/fleet | frontend catalog tĩnh, chưa dispatch | `DEMO` | catalog approved + availability TTL/privacy |
 | Fare | bảng giá code + route không thật | `DEMO` | quote versioned, expiring, gắn `estimate_id` |
 | Promotion | UI demo, chưa có service eligibility | `DEMO` | backend eligibility/ranking có version |
-| Booking/trip | idempotency có, process-memory | `STAGING_ONLY` | DB transaction + provider reconciliation |
+| Booking/trip | durable/idempotent demo integration | `STAGING_ONLY` | provider dispatch thật + reconciliation |
 | Policy/RAG | owner-approved catalog + checksum/citation retrieval | `STAGING_ONLY` | AloSM legal identity/contact + durable consent + production eval |
-| Handoff | typed lifecycle/queue có, chưa transfer thật | `STAGING_ONLY` | operator routing + telephony + SLA/disposition |
-| ASR ZipFormer | runtime và benchmark thật | `RELEASE_GATED` | license + corpus telephony + production hardware |
-| Transcript rewrite | live OpenRouter check + semantic guard | `STAGING_ONLY` | rotated key + consent/data controls + release eval |
-| TTS | orchestrator/validator/fallback, live Edge check | `RELEASE_GATED` | human listening + provider SLA + device matrix |
+| Handoff | LiveKit tool + durable record + redacted context/UI | `STAGING_ONLY` | operator accept/join/takeover + telephony SLA |
+| LiveKit STT | Google Chirp 2 qua official plugin | `STAGING_ONLY` | WER/CER/entity corpus theo accent/noise |
+| LiveKit LLM | GPT-4.1 mini qua official plugin | `STAGING_ONLY` | behavioral/model/cost A/B |
+| LiveKit TTS | Cartesia Sonic 3 qua LiveKit Inference | `STAGING_ONLY` | human listening, device matrix, cost/SLA |
+| Legacy ZipFormer/rewrite/TTS | rollback + historical evidence | `RELEASE_GATED` | chỉ dùng Phase 4 đối chứng nếu cần |
 | Payment/notification | chưa có provider | `EXTERNAL_BLOCKED` | merchant/webhook/reconciliation + consented messaging |
 
 ## 5. Chuỗi dữ liệu chuẩn của một booking
@@ -124,6 +131,13 @@ Mọi implementation mới phải giữ đúng thứ tự và ID liên kết sau
   frontend, backend và Agent.
 
 ## 7. Trình tự hoàn thiện project
+
+> **Không nhầm hai hệ phase:** các phase trong mục này là roadmap production của
+> toàn bộ AloSM (Maps, Fleet, Telephony, Policy...). “Phase 4” trong
+> [`LIVEKIT_MIGRATION_IMPLEMENTATION.md`](LIVEKIT_MIGRATION_IMPLEMENTATION.md) và
+> [`PHASE4_EVALUATION_PLAN.md`](PHASE4_EVALUATION_PLAN.md) là phase đánh giá/cutover
+> riêng của nhánh refactor LiveKit. Baseline LiveKit hiện đã hoàn tất implementation
+> Phase 3 nhưng toàn project vẫn còn các dependency external ở roadmap dưới đây.
 
 ### Phase 0 — khóa contract và baseline
 
@@ -223,21 +237,19 @@ Khi thay đổi contract/runtime:
 
 ## 10. Trạng thái hiện hành
 
-- Core Agent: `IMPLEMENTED`, release provider eval vẫn tách riêng.
-- Backend nghiệp vụ: `DEMO/STAGING_ONLY` do service còn process-memory và provider
-  business chưa phải production.
+- LiveKit Voice Agent: Phase 3 `IMPLEMENTED`; Phase 4 evaluation/cutover chưa đạt.
+- Backend nghiệp vụ: persistence đã nối; Maps/pricing/fleet/dispatch provider vẫn
+  `DEMO/STAGING_ONLY` và chưa phải production truth.
 - Frontend: route và API client chính đã có; booking catalog/payment/map/fleet còn
   phần demo hoặc chưa có provider production.
-- ZipFormer ASR: `RELEASE_GATED`.
-- Transcript rewrite: `STAGING_ONLY`, đã live validate nhưng cần key rotation/data approval.
-- TTS: `RELEASE_GATED`, đã có orchestrator/live technical validation.
+- Current model baseline: Google Chirp 2 STT, OpenAI GPT-4.1 mini LLM và LiveKit
+  Inference Cartesia Sonic 3 TTS.
 - Policy/RAG: `STAGING_ONLY`, catalog owner-approved đã tích hợp; còn pháp nhân/liên hệ AloSM và durable consent.
 - Supabase connectivity/migration: `LIVE_VALIDATED`; service repository wiring vẫn là internal `STAGING_ONLY`.
 - Telephony, maps business truth, backup/PITR/retention, Redis decision và payment: `EXTERNAL_BLOCKED`.
-- LiveKit migration: baseline xuyên suốt React → LiveKit Room → AgentSession →
-  application tools → persistence đã implement tới Phase 3 hardening; vẫn cần E2E
-  recheck cho lỗi thỉnh thoảng bỏ sót lượt nói. Runtime legacy tiếp tục được giữ sau
-  feature flag cho tới khi acceptance gate hoàn tất. Chi tiết và runbook nằm tại
-  `docs/LIVEKIT_MIGRATION_IMPLEMENTATION.md`.
+- LiveKit migration: React → Room → AgentSession → native tools → persistence đã
+  implement tới Phase 3. Known issue thỉnh thoảng bỏ sót lượt nói/không có final
+  transcript trong noise phải được đo ở Phase 4. Legacy chỉ giữ để rollback/A/B cho
+  tới cutover gate.
 
 Các blocker chi tiết và cách verify nằm duy nhất trong `mustdo.md`.

@@ -5,7 +5,9 @@ export interface RideSession {
   session_id: string;
   status: string;
   channel: string;
-  created_at: string;
+  created_at?: string;
+  has_resumable_voice_state?: boolean;
+  voice_session_terminal?: boolean;
 }
 
 export interface BookingFieldProgress {

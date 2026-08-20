@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+from datetime import UTC, datetime
 from typing import Protocol
 
 from src.backend.repositories.persistence_repository import PersistenceRepository
@@ -30,6 +31,14 @@ class VoiceStateRepository(Protocol):
         expected_revision: int,
     ) -> dict[str, object] | None: ...
 
+    async def update_session(
+        self,
+        session_id: str,
+        updates: Mapping[str, object],
+        *,
+        expected_version: int | None = None,
+    ) -> dict[str, object] | None: ...
+
 
 class DatabaseVoiceStateStore:
     def __init__(self, repository: VoiceStateRepository | None = None) -> None:
@@ -40,11 +49,20 @@ class DatabaseVoiceStateStore:
         if row is None:
             userdata.persistence_enabled = False
             return False
+        if row.get("status") not in {None, "ACTIVE"}:
+            userdata.persistence_enabled = False
+            return False
+        state = row.get("state")
+        if isinstance(state, dict):
+            draft = state.get("booking_draft")
+            draft = draft if isinstance(draft, dict) else {}
+            if state.get("lifecycle_status") in {"completed", "cancelled"} or draft.get("booking"):
+                userdata.persistence_enabled = False
+                return False
 
         # The trusted session row, not client/job metadata, owns the account ID.
         userdata.user_id = str(row["user_id"])
         userdata.persistence_revision = int(row["revision"])
-        state = row.get("state")
         if not isinstance(state, dict):
             return False
         userdata.restore(state, userdata.persistence_revision)
@@ -61,6 +79,16 @@ class DatabaseVoiceStateStore:
         if result is None:
             raise VoiceStateConflictError("VOICE_STATE_CONFLICT")
         userdata.persistence_revision = int(result["revision"])
+        if userdata.lifecycle_status in {"completed", "cancelled"}:
+            reason = "BOOKING_COMPLETED" if userdata.lifecycle_status == "completed" else "USER_CANCELLED"
+            await self._repository.update_session(
+                userdata.app_session_id,
+                {
+                    "status": "ENDED",
+                    "end_reason": reason,
+                    "ended_at": datetime.now(UTC),
+                },
+            )
 
 
 class EphemeralVoiceStateStore:

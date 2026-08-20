@@ -67,6 +67,31 @@ def _user_dict(user: User, acceptance: PolicyAcceptance | None = None) -> dict[s
 
 
 def _session_dict(row: RideSession) -> dict[str, object]:
+    voice_state = row.voice_agent_state if isinstance(row.voice_agent_state, dict) else {}
+    booking_draft = voice_state.get("booking_draft")
+    booking_draft = booking_draft if isinstance(booking_draft, dict) else {}
+    lifecycle = str(voice_state.get("lifecycle_status") or "active")
+    has_completed_booking = bool(booking_draft.get("booking"))
+    voice_session_terminal = (
+        row.status != "ACTIVE"
+        or lifecycle in {"completed", "cancelled"}
+        or has_completed_booking
+    )
+    resumable_fields = (
+        "pickup_query",
+        "pickup",
+        "destination_query",
+        "destination",
+        "vehicle_type",
+        "quote",
+        "booking",
+    )
+    has_resumable_voice_state = (
+        row.status == "ACTIVE"
+        and lifecycle == "active"
+        and not has_completed_booking
+        and any(booking_draft.get(field) for field in resumable_fields)
+    )
     return {
         "session_id": row.id,
         "call_id": row.call_id,
@@ -91,6 +116,8 @@ def _session_dict(row: RideSession) -> dict[str, object]:
         "agent_state": row.agent_state,
         "voice_agent_state": row.voice_agent_state,
         "voice_state_revision": row.voice_state_revision,
+        "has_resumable_voice_state": has_resumable_voice_state,
+        "voice_session_terminal": voice_session_terminal,
         "turn_sequence": row.turn_sequence,
         "version": row.version,
         "created_at": _iso(row.created_at),
@@ -364,6 +391,7 @@ class PersistenceRepository:
             return {
                 "session_id": row.id,
                 "user_id": row.user_id,
+                "status": row.status,
                 "state": row.voice_agent_state,
                 "revision": row.voice_state_revision,
             }
@@ -421,6 +449,8 @@ class PersistenceRepository:
             "handoff_id",
             "booking_lifecycle_status",
             "feedback",
+            "voice_agent_state",
+            "voice_state_revision",
         }
         values = {key: value for key, value in updates.items() if key in allowed}
         values["updated_at"] = datetime.now(UTC)

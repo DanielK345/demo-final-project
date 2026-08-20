@@ -41,6 +41,35 @@ async def test_adaptive_interruption_requires_explicit_configuration() -> None:
     assert session.options.interruption["mode"] == "adaptive"
 
 
+@pytest.mark.asyncio
+async def test_build_agent_session_can_use_openai_plugin_without_changing_voice_pipeline() -> None:
+    session = build_agent_session(
+        _settings(
+            livekit_llm_provider="openai",
+            livekit_llm_model="gpt-4.1-mini",
+            openai_api_key="test-openai-key",
+        )
+    )
+
+    assert isinstance(session, AgentSession)
+    assert session.llm.model == "gpt-4.1-mini"
+
+
+@pytest.mark.asyncio
+async def test_build_agent_session_can_use_openai_tts_plugin() -> None:
+    session = build_agent_session(
+        _settings(
+            livekit_tts_provider="openai",
+            livekit_tts_model="gpt-4o-mini-tts",
+            livekit_tts_voice="ash",
+            openai_api_key="test-openai-key",
+        )
+    )
+
+    assert isinstance(session, AgentSession)
+    assert session.tts.model == "gpt-4o-mini-tts"
+
+
 def test_build_agent_session_fails_closed_before_worker_start() -> None:
     with pytest.raises(ValueError, match="LIVEKIT_STT_MODEL_REQUIRED"):
         build_agent_session(_settings(livekit_stt_model=""))

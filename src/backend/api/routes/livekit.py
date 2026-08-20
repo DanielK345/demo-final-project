@@ -9,6 +9,7 @@ from fastapi import APIRouter, Depends, Header, HTTPException, status
 from src.backend.api.routes.auth import service as auth_service
 from src.backend.schemas.livekit import LiveKitTokenRequestDTO, LiveKitTokenResponseDTO
 from src.backend.services.livekit_service import LiveKitTokenService, get_livekit_token_service
+from src.backend.services.session_service import SessionService
 
 router = APIRouter(prefix="/livekit", tags=["livekit"])
 
@@ -38,6 +39,18 @@ async def create_livekit_token(
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="Chưa có phiên hội thoại AloSM đang hoạt động",
+        )
+    try:
+        app_session = await SessionService().get_session_durable(app_session_id)
+    except KeyError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Phiên hội thoại không còn tồn tại; hãy bắt đầu phiên mới",
+        ) from exc
+    if app_session.get("status") != "ACTIVE" or app_session.get("voice_session_terminal"):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Phiên hội thoại đã kết thúc; hãy bắt đầu phiên mới",
         )
 
     # Identity, room, metadata and deployment are security boundaries. The client

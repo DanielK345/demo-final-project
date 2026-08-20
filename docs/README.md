@@ -1,24 +1,18 @@
 # Chỉ mục tài liệu AloSM Voice
 
-Cập nhật: **2026-08-17** · Trạng thái: `CURRENT`.
+Cập nhật: **2026-08-20** · Trạng thái: `CURRENT`.
 
 ## Đọc theo thứ tự
 
-1. [PROJECT_SOURCE_OF_TRUTH.md](PROJECT_SOURCE_OF_TRUTH.md) — authority, trạng thái và roadmap.
-2. [PRODUCT_BRIEF.md](PRODUCT_BRIEF.md) — tóm tắt mục tiêu và giá trị sản phẩm.
-3. [PRD_AloSM_Voice.md](PRD_AloSM_Voice.md) — yêu cầu sản phẩm chuẩn v1.2.
-4. [MVP.md](MVP.md) — phạm vi và điều kiện nghiệm thu theo F1–F9.
-5. [architecture_diagram.md](architecture_diagram.md) — kiến trúc runtime thực tế.
-6. [interface_design.md](interface_design.md) — HTTP, WebSocket và Agent boundary.
-7. [../src/agents/DATAFINDING.md](../src/agents/DATAFINDING.md) — data contract và khoảng trống.
-8. [../mustdo.md](../mustdo.md) — external blockers duy nhất.
+1. [CODING_AGENT_HANDOFF.md](CODING_AGENT_HANDOFF.md) — trạng thái LiveKit và việc tiếp theo.
+2. [LIVEKIT_TEAM_SETUP.md](LIVEKIT_TEAM_SETUP.md) — cài, chạy, test và troubleshooting.
+3. [LIVEKIT_MIGRATION_IMPLEMENTATION.md](LIVEKIT_MIGRATION_IMPLEMENTATION.md) — kiến trúc/implementation record.
+4. [PHASE4_EVALUATION_PLAN.md](PHASE4_EVALUATION_PLAN.md) — reliability, benchmark và cutover.
+5. [PROJECT_SOURCE_OF_TRUTH.md](PROJECT_SOURCE_OF_TRUTH.md) — trạng thái toàn project/external blockers.
+6. [PRODUCT_BRIEF.md](PRODUCT_BRIEF.md), [PRD_AloSM_Voice.md](PRD_AloSM_Voice.md), [MVP.md](MVP.md) — product requirements.
+7. [../mustdo.md](../mustdo.md) — việc bắt buộc cần owner/hạ tầng.
 
-Khi làm migration LiveKit, đọc thêm theo đúng thứ tự:
-
-1. [LIVEKIT_TEAM_SETUP.md](LIVEKIT_TEAM_SETUP.md) — runbook cho thành viên lấy source, cấu hình, chạy và test baseline.
-2. [LIVEKIT_MIGRATION_IMPLEMENTATION.md](LIVEKIT_MIGRATION_IMPLEMENTATION.md) — quyết định và handoff spec để code.
-3. [LIVEKIT_REFACTOR_RESEARCH.md](LIVEKIT_REFACTOR_RESEARCH.md) — căn cứ nghiên cứu và mapping cũ → mới.
-4. [GSM-08_VOICE_AGENT_SCOPE.md](GSM-08_VOICE_AGENT_SCOPE.md) — scope đã chốt với mentor.
+Scope mentor gốc được giữ tại [GSM-08_VOICE_AGENT_SCOPE.md](GSM-08_VOICE_AGENT_SCOPE.md).
 
 ## Tài liệu hiện hành
 
@@ -26,8 +20,9 @@ Khi làm migration LiveKit, đọc thêm theo đúng thứ tự:
 |---|---|
 | Product | `PRODUCT_BRIEF.md`, `PRD_AloSM_Voice.md`, `MVP.md` |
 | Architecture/API | `architecture_diagram.md`, `interface_design.md`, `database_supabase.md` |
-| Voice | [voice-ai/README.md](voice-ai/README.md) và các runbook/evidence được index tại đó |
-| LiveKit target | [LIVEKIT_MIGRATION_IMPLEMENTATION.md](LIVEKIT_MIGRATION_IMPLEMENTATION.md), [LIVEKIT_REFACTOR_RESEARCH.md](LIVEKIT_REFACTOR_RESEARCH.md) |
+| LiveKit current | `CODING_AGENT_HANDOFF.md`, `LIVEKIT_TEAM_SETUP.md`, `LIVEKIT_MIGRATION_IMPLEMENTATION.md` |
+| Evaluation | `PHASE4_EVALUATION_PLAN.md`, `logs/livekit/*.jsonl` local evidence |
+| Legacy Voice/evidence | [voice-ai/README.md](voice-ai/README.md) — rollback/reference, không phải target để mở rộng |
 | Agent | `src/agents/README.md`, `src/agents/docs/*`, `src/agents/DATAFINDING.md` |
 | Backend | `src/backend/README.md` |
 | Frontend | `src/frontend/README.md`, `src/frontend/docs/*` |
@@ -36,14 +31,13 @@ Khi làm migration LiveKit, đọc thêm theo đúng thứ tự:
 | Performance | [performance/latency-remediation-plan.md](performance/latency-remediation-plan.md) |
 | Policy | [policies/policy-integration-plan.md](policies/policy-integration-plan.md) |
 | Verification/readiness | [verification/README.md](verification/README.md) |
-| Documentation maintenance | [DOCUMENTATION_REMEDIATION_PROMPT.md](DOCUMENTATION_REMEDIATION_PROMPT.md) |
 
 ## Reference tách biệt
 
 `docs/guide/` và `specification_documents/` chỉ chứa tài liệu khóa học/template tham khảo,
 không phải runtime status hoặc contract của AloSM. `presentation/` là khu vực deliverable trình bày.
-Các kế hoạch, prompt tích hợp, báo cáo tiến trình và nguồn trùng đã được loại khỏi cây hiện hành;
-dùng Git history khi cần truy vết.
+Proposal/prompt/TODO đã bị implementation hoặc `mustdo.md` thay thế được loại khỏi
+cây hiện hành; dùng Git history khi cần truy vết.
 
 Mọi thay đổi runtime phải cập nhật contract/status liên quan trong cùng PR. Không tạo progress diary
 hoặc duplicate TODO; blocker ngoài repository chỉ ghi tại `mustdo.md`.

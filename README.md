@@ -2,7 +2,13 @@
 
 Web MVP đặt xe bằng **text hoặc voice**. Phạm vi chính gồm Login/Auth và Homepage với AloSM Assistant; chưa gồm live tracking, trip history, payment hoặc wallet.
 
-Kiến trúc: [`docs/MVP_ARCHITECTURE.md`](docs/MVP_ARCHITECTURE.md) · Runtime truth: [`docs/PROJECT_SOURCE_OF_TRUTH.md`](docs/PROJECT_SOURCE_OF_TRUTH.md)
+Agent coding mới nên bắt đầu tại
+[`docs/CODING_AGENT_HANDOFF.md`](docs/CODING_AGENT_HANDOFF.md), sau đó đọc
+[`docs/LIVEKIT_TEAM_SETUP.md`](docs/LIVEKIT_TEAM_SETUP.md) và
+[`docs/PHASE4_EVALUATION_PLAN.md`](docs/PHASE4_EVALUATION_PLAN.md).
+
+Kiến trúc tổng thể: [`docs/MVP_ARCHITECTURE.md`](docs/MVP_ARCHITECTURE.md) ·
+Runtime truth: [`docs/PROJECT_SOURCE_OF_TRUTH.md`](docs/PROJECT_SOURCE_OF_TRUTH.md)
 
 Setup LiveKit chi tiết cho thành viên mới, mức độ tích hợp BE/FE/DB, catalog địa
 điểm, ưu/nhược điểm và troubleshooting:

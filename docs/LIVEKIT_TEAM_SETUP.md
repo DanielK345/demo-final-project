@@ -1,11 +1,13 @@
 # AloSM LiveKit baseline — hướng dẫn setup cho team
 
-Cập nhật: **2026-08-18** · Branch baseline: `feature/agentic-ai` · Commit đầu tiên:
-`54a764e`
+Cập nhật: **2026-08-20** · Branch làm việc: `feature/agentic-ai`.
 
 Tài liệu này dành cho thành viên mới cần lấy source, chạy lại đúng baseline LiveKit
 đang có và biết chính xác phần nào đã nối thật, phần nào vẫn là demo. Không đưa
 credential vào Git, ticket, ảnh chụp màn hình hoặc nhóm chat.
+
+Coding agent phải đọc [`CODING_AGENT_HANDOFF.md`](CODING_AGENT_HANDOFF.md) trước;
+benchmark/cutover dùng [`PHASE4_EVALUATION_PLAN.md`](PHASE4_EVALUATION_PLAN.md).
 
 ## 1. Baseline hiện tại là gì?
 
@@ -22,7 +24,7 @@ React Login/Homepage/VoiceCallPanel hiện có
 → LiveKit data channel cập nhật booking state về React
 ```
 
-LiveKit quản lý media realtime, room, session lifecycle, VAD/endpointing,
+LiveKit quản lý media realtime, room/call lifecycle, VAD/endpointing,
 interruption, transcript, tool loop và audio output. Code AloSM chỉ bổ sung nghiệp
 vụ tại các extension point chính thức: `Agent`, `AgentTask`, `function_tool`, typed
 `userdata`, application service và repository.
@@ -135,16 +137,24 @@ APP_ENV=development
 VOICE_RUNTIME=livekit
 VITE_VOICE_RUNTIME=livekit
 
-LIVEKIT_URL=wss://alosm-mvgefaui.livekit.cloud
+LIVEKIT_URL=wss://<project-name>.livekit.cloud
 LIVEKIT_API_KEY=<lay-tu-livekit-dashboard-hoac-secret-manager>
 LIVEKIT_API_SECRET=<lay-tu-livekit-dashboard-hoac-secret-manager>
 LIVEKIT_AGENT_NAME=alosm-voice
 
-LIVEKIT_STT_MODEL=deepgram/nova-3
-LIVEKIT_STT_LANGUAGE=vi
-LIVEKIT_LLM_MODEL=google/gemma-4-31b-it
+LIVEKIT_STT_PROVIDER=google
+LIVEKIT_STT_MODEL=chirp_2
+LIVEKIT_STT_LANGUAGE=vi-VN
+GOOGLE_APPLICATION_CREDENTIALS=/absolute/path/to/google-credentials.json
+GOOGLE_CLOUD_PROJECT=<google-cloud-project-id>
+GOOGLE_STT_LOCATION=asia-southeast1
+# `openai` uses OPENAI_API_KEY directly and does not consume LiveKit LLM credits.
+LIVEKIT_LLM_PROVIDER=openai
+LIVEKIT_LLM_MODEL=gpt-4.1-mini
+# Keep the team-tested Vietnamese voice on LiveKit Inference / Cartesia.
+LIVEKIT_TTS_PROVIDER=livekit
 LIVEKIT_TTS_MODEL=cartesia/sonic-3
-LIVEKIT_TTS_VOICE=<voice-id-dev-da-duoc-team-chot>
+LIVEKIT_TTS_VOICE=9626c31c-bec5-4cca-baa8-f8ba9e84c8bc
 LIVEKIT_TTS_LANGUAGE=vi
 
 LIVEKIT_TURN_DETECTION=vad
@@ -162,6 +172,20 @@ LIVEKIT_RECORD_LOGS=false
 LIVEKIT_DEBUG_EVENT_LOG=false
 LIVEKIT_DEBUG_TRANSCRIPTS=false
 ```
+
+`OPENAI_API_KEY` is required when `LIVEKIT_LLM_PROVIDER=openai`. Google STT còn yêu
+cầu Speech-to-Text API và Application Default Credentials/service-account hợp lệ.
+To move the LLM
+back to LiveKit Inference after quota is available, use:
+
+```env
+LIVEKIT_LLM_PROVIDER=livekit
+LIVEKIT_LLM_MODEL=google/gemma-4-31b-it
+```
+
+The current dependency lock uses LiveKit's OpenAI Chat Completions integration.
+Do not upgrade only `livekit-plugins-openai`: the Responses integration requires
+a newer OpenAI SDK than the repository's current `aider-chat` dependency allows.
 
 Lưu ý:
 
@@ -422,6 +446,19 @@ Nguồn dữ liệu runtime là `data/gazetteer/place_names.json`, alias nằm t
 - Feature flag giữ legacy runtime để rollback.
 - Test backend/worker và frontend build đã pass tại baseline.
 
+### Vòng đời session khi test
+
+- `ride_session` là phiên nghiệp vụ AloSM; LiveKit room/call chỉ là một lần kết nối
+  realtime thuộc phiên đó.
+- Đóng cuộc gọi không tự xóa draft. Khi mở lại một phiên còn thông tin chưa hoàn tất,
+  UI hỏi **Tiếp tục phiên trước** hoặc **Bắt đầu cuộc gọi mới** trước khi nối room.
+- Tạo cuộc gọi mới kết thúc session cũ, tạo `ride_session` mới và bind access token
+  sang session mới.
+- Booking hoàn tất hoặc khách hủy flow sẽ đánh dấu session `ENDED`; token endpoint
+  không dispatch agent vào session terminal.
+- Nút reset xóa cả legacy agent state và `voice_agent_state` của LiveKit trong cùng
+  session. Audio vẫn không được lưu mặc định.
+
 ## 12. Ưu điểm
 
 - Giảm mạnh code tự quản lý audio transport, session và tool loop.
@@ -443,7 +480,8 @@ Nguồn dữ liệu runtime là `data/gazetteer/place_names.json`, alias nằm t
 - Kết quả `demo_*` được giữ trong voice state, chưa tạo một booking production qua
   `BookingService`/bảng `bookings`.
 - Handoff mới tạo record, chưa chuyển audio vào operator room thực tế.
-- Có thể gặp cold start/agent join chậm ở lần đầu; UI chỉ retry tự động một lần.
+- Worker dev giữ một idle process để giảm cold start; agent vẫn không thể join nếu
+  worker chưa registered hoặc provider khởi tạo lỗi. UI chỉ retry tự động một lần.
 - LiveKit frontend chunk tương đối lớn; production build có cảnh báo chunk trên 500 kB.
 - Fresh SQLite migration chain còn limitation cũ; full persistence nên dùng PostgreSQL
   dev đã migrate.

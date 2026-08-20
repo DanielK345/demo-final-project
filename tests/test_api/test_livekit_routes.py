@@ -132,3 +132,30 @@ async def test_livekit_token_requires_valid_call_instance(client, livekit_servic
 
     assert missing.status_code == 400
     assert malformed.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_livekit_token_rejects_ended_application_session(client, livekit_service_override) -> None:
+    login = await client.post(
+        "/api/v1/auth/login",
+        json={"phone": "0901234567", "password": "Password123!"},
+    )
+    token = login.json()["access_token"]
+    session_id = login.json()["session_id"]
+    await client.post(
+        f"/api/v1/sessions/{session_id}/end",
+        json={"reason": "USER_ENDED"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    response = await client.post(
+        "/api/v1/livekit/token",
+        json={
+            "agent_name": "alosm-voice",
+            "participant_attributes": {"alosm.call_id": "11111111-1111-4111-8111-111111111111"},
+        },
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 409
+    assert "đã kết thúc" in response.json()["detail"]

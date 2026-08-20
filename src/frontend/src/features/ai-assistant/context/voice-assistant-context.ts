@@ -45,7 +45,7 @@ export interface VoiceAssistantValue {
   sendText: (value: string) => Promise<void>;
   handleVoiceRecorded: (audio: Blob) => Promise<void>;
   endSession: () => Promise<void>;
-  newSession: () => Promise<void>;
+  newSession: () => Promise<boolean>;
   resetConversation: () => Promise<void>;
 
   // Tiến trình đặt xe (đổ trực tiếp từ state thật trả về mỗi lượt — không tự bịa field)

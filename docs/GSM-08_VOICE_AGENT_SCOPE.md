@@ -313,8 +313,10 @@ Không giữ đồng thời LiveKit tool loop và `SessionService`/`AgentToolExe
 loop trong cùng cuộc gọi. Kiến trúc đích là full LiveKit-native, nhưng migration
 thực hiện theo vertical slice, benchmark xong mới xóa runtime cũ.
 
-Phân tích chi tiết, mapping source và acceptance gate nằm tại
-[`LIVEKIT_REFACTOR_RESEARCH.md`](./LIVEKIT_REFACTOR_RESEARCH.md).
+Kiến trúc đã chốt, mapping source và acceptance gate nằm tại
+[`LIVEKIT_MIGRATION_IMPLEMENTATION.md`](./LIVEKIT_MIGRATION_IMPLEMENTATION.md); trạng
+thái hiện tại và đường đọc cho coding agent nằm tại
+[`CODING_AGENT_HANDOFF.md`](./CODING_AGENT_HANDOFF.md).
 
 Quyết định cuối cùng và thứ tự dành cho coding agent nằm tại
 [`LIVEKIT_MIGRATION_IMPLEMENTATION.md`](./LIVEKIT_MIGRATION_IMPLEMENTATION.md). Kiến

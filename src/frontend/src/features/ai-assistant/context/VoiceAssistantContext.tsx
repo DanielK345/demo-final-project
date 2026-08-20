@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useNavigate } from "react-router-dom";
 import { getCurrentUser } from "@/features/auth/api";
 import { redirectToLoginIfUnauthorized } from "@/features/auth/sessionGuard";
-import { getAccessToken, getSessionId, getUserName, saveAuthSession } from "@/features/auth/storage";
+import { clearSessionId, getAccessToken, getSessionId, getUserName, saveAuthSession } from "@/features/auth/storage";
 import {
   createRideSession,
   endRideSession,
@@ -62,6 +62,11 @@ export const VoiceAssistantProvider: React.FC<{ children: React.ReactNode }> = (
   // `status` vào dependency array chỉ để đọc giá trị tức thời.
   const statusRef = useRef(status);
   statusRef.current = status;
+
+  // A double click, two mounted call surfaces, or a development remount must all
+  // share one request. Otherwise two sessions are created and the last request
+  // rebinds the token, immediately making the first session stale.
+  const newSessionRequestRef = useRef<Promise<boolean> | null>(null);
 
   const resetConversationUi = useCallback(() => {
     setMessages([{ id: "welcome", role: "assistant", text: buildWelcomeMessage(getUserName()) }]);
@@ -241,9 +246,12 @@ export const VoiceAssistantProvider: React.FC<{ children: React.ReactNode }> = (
           setSessionId(cachedSessionId);
           setStatus("idle");
           return;
-        } catch (error) {
+        } catch {
           if (cancelled) return;
-          if (redirectToLoginIfUnauthorized(error, navigate)) return;
+          // A session request can fail because another tab/call already rebound
+          // this still-valid token. Do not log the user out yet: /auth/me below is
+          // the source of truth for authentication and the currently bound session.
+          clearSessionId();
         }
       }
 
@@ -332,43 +340,57 @@ export const VoiceAssistantProvider: React.FC<{ children: React.ReactNode }> = (
       await endRideSession(sessionId).catch(() => undefined);
     }
     setSessionId(null);
-    localStorage.removeItem("alosm_session_id");
+    clearSessionId();
     setSessionEnded(true);
     setShowConfirmationModal(false);
     setShowSuccessModal(false);
     setNotice("Phiên hội thoại đã kết thúc. Nhấn “Bắt đầu phiên mới” để đặt xe tiếp.");
   }, [sessionId]);
 
-  const newSession = useCallback(async () => {
-    // `agent_state` (bao gồm conversation_history) chỉ thuộc về một session ở
-    // backend. Kết thúc session hiện tại rồi tạo ID mới là reset memory thật, không
-    // chỉ là xóa bubble ở UI.
-    if (sessionId) {
-      await endRideSession(sessionId).catch(() => undefined);
-    }
-    try {
-      stopVoicePlayback();
-      setStatus("connecting");
-      const user = await getCurrentUser();
-      const session = await createRideSession();
-      saveAuthSession({
-        access_token: getAccessToken() || "",
-        user_id: user.user_id,
-        full_name: user.full_name,
-        session_id: session.session_id,
-      });
-      setSessionId(session.session_id);
-      setStatus("idle");
-      resetConversationUi();
-    } catch (error) {
-      if (redirectToLoginIfUnauthorized(error, navigate)) return;
-      setSessionId(null);
-      setSessionEnded(true);
-      setShowConfirmationModal(false);
-      setShowSuccessModal(false);
-      setStatus("error");
-      setNotice(error instanceof Error ? error.message : "Không thể tạo phiên mới.");
-    }
+  const newSession = useCallback((): Promise<boolean> => {
+    if (newSessionRequestRef.current) return newSessionRequestRef.current;
+
+    let request: Promise<boolean>;
+    request = (async () => {
+      // `agent_state` (bao gồm conversation_history) chỉ thuộc về một session ở
+      // backend. Kết thúc session hiện tại rồi tạo ID mới là reset memory thật, không
+      // chỉ là xóa bubble ở UI. Hỏi auth source-of-truth trước để không gửi `/end`
+      // cho session cache cũ đã bị tab/cuộc gọi khác rebind.
+      try {
+        stopVoicePlayback();
+        setStatus("connecting");
+        const user = await getCurrentUser();
+        if (sessionId && user.session_id === sessionId) {
+          await endRideSession(sessionId).catch(() => undefined);
+        }
+        const session = await createRideSession();
+        saveAuthSession({
+          access_token: getAccessToken() || "",
+          user_id: user.user_id,
+          full_name: user.full_name,
+          session_id: session.session_id,
+        });
+        setSessionId(session.session_id);
+        setStatus("idle");
+        resetConversationUi();
+        return true;
+      } catch (error) {
+        if (redirectToLoginIfUnauthorized(error, navigate)) return false;
+        setSessionId(null);
+        setSessionEnded(true);
+        setShowConfirmationModal(false);
+        setShowSuccessModal(false);
+        setStatus("error");
+        setNotice(error instanceof Error ? error.message : "Không thể tạo phiên mới.");
+        clearSessionId();
+        return false;
+      }
+    })().finally(() => {
+      if (newSessionRequestRef.current === request) newSessionRequestRef.current = null;
+    });
+
+    newSessionRequestRef.current = request;
+    return request;
   }, [sessionId, navigate, resetConversationUi]);
 
   const resetConversation = useCallback(async () => {

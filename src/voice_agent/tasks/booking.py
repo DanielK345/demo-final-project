@@ -298,6 +298,7 @@ class BookingTask(AgentTask[BookingOutcome]):
                 draft=draft,
             )
             draft.set_booking(booking)
+            context.userdata.lifecycle_status = "completed"
         except ValueError as exc:
             raise ToolError(str(exc)) from exc
         except Exception as exc:
@@ -365,12 +366,18 @@ class BookingTask(AgentTask[BookingOutcome]):
         return None
 
     @function_tool()
-    async def cancel_booking_flow(self, reason: str) -> None:
+    async def cancel_booking_flow(
+        self,
+        context: RunContext[AloSMSessionData],
+        reason: str,
+    ) -> None:
         """End this booking task when the customer explicitly cancels the flow.
 
         Args:
             reason: Short reason stated by the customer.
         """
+        context.userdata.lifecycle_status = "cancelled"
+        await self._commit(context)
         outcome = BookingOutcome(status="cancelled", message=f"Đã dừng đặt xe: {reason}.")
         if not self.done():
             self.complete(outcome)

@@ -111,7 +111,37 @@ async def test_session_message_requires_valid_session(client):
         json={"message": "Xin chào", "source": "TEXT"},
         headers={"Authorization": f"Bearer {token}"},
     )
-    assert response.status_code == 401
+    # Authentication is valid; only the cached session id is stale/mismatched.
+    assert response.status_code == 409
+
+
+@pytest.mark.asyncio
+async def test_create_session_rebinds_token_without_logging_user_out(client):
+    login = await client.post(
+        "/api/v1/auth/login",
+        json={"phone": "0901234567", "password": "Password123!"},
+    )
+    token = login.json()["access_token"]
+    old_session_id = login.json()["session_id"]
+    headers = {"Authorization": f"Bearer {token}"}
+
+    created = await client.post(
+        "/api/v1/sessions",
+        json={"channel": "WEB_VOICE", "device_id": "browser"},
+        headers=headers,
+    )
+    assert created.status_code == 201
+    new_session_id = created.json()["session_id"]
+    assert new_session_id != old_session_id
+
+    stale = await client.get(f"/api/v1/sessions/{old_session_id}", headers=headers)
+    current = await client.get(f"/api/v1/sessions/{new_session_id}", headers=headers)
+    me = await client.get("/api/v1/auth/me", headers=headers)
+
+    assert stale.status_code == 409
+    assert current.status_code == 200
+    assert me.status_code == 200
+    assert me.json()["session_id"] == new_session_id
 
 
 @pytest.mark.asyncio

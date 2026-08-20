@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import os
 
 from livekit.agents import AgentServer, AgentSession, JobContext, cli, inference
 from livekit.agents.voice.events import ErrorEvent
@@ -16,8 +17,88 @@ from src.voice_agent.observability import LiveKitSessionObserver, SessionEventLo
 from src.voice_agent.persistence import DatabaseVoiceStateStore, VoiceStateStore
 from src.voice_agent.session_data import AloSMSessionData, FailureCode, FallbackAction
 from src.voice_agent.state_sync import publish_booking_state
+from src.voice_agent.tts_text import vietnamese_currency_tts_transform
 
 logger = logging.getLogger(__name__)
+
+
+def _build_stt(settings: LiveKitVoiceSettings):
+    if settings.livekit_stt_provider == "google":
+        try:
+            from livekit.plugins import google
+        except ImportError as exc:  # pragma: no cover - depends on optional plugin
+            raise RuntimeError(
+                "LIVEKIT_STT_PROVIDER=google requires the livekit-plugins-google package."
+            ) from exc
+        # BaseSettings reads .env without exporting values to process-wide
+        # environment variables. Google Auth uses this official variable to
+        # resolve the Speech v2 recognizer's project path.
+        os.environ["GOOGLE_CLOUD_PROJECT"] = settings.google_cloud_project
+        return google.STT(
+            model=settings.livekit_stt_model,
+            languages=settings.livekit_stt_language,
+            location=settings.google_stt_location,
+            spoken_punctuation=False,
+        )
+
+    return inference.STT(
+        model=settings.livekit_stt_model,
+        language=settings.livekit_stt_language,
+        api_key=settings.livekit_api_key.get_secret_value(),
+        api_secret=settings.livekit_api_secret.get_secret_value(),
+    )
+
+
+def _build_llm(settings: LiveKitVoiceSettings):
+    """Build an LLM through a supported LiveKit provider integration."""
+
+    if settings.livekit_llm_provider == "openai":
+        try:
+            from livekit.plugins import openai
+        except ImportError as exc:  # pragma: no cover - depends on optional plugin
+            raise RuntimeError(
+                "LIVEKIT_LLM_PROVIDER=openai requires the livekit-plugins-openai package."
+            ) from exc
+        # The repository currently pins OpenAI SDK 2.20 through aider-chat.
+        # Plugin 1.5's Responses event schema is no longer compatible with the
+        # current OpenAI wire response, while Chat Completions remains supported
+        # and preserves LiveKit function-tool behavior.
+        return openai.LLM(
+            model=settings.livekit_llm_model,
+            api_key=settings.openai_api_key.get_secret_value(),
+        )
+
+    return inference.LLM(
+        model=settings.livekit_llm_model,
+        api_key=settings.livekit_api_key.get_secret_value(),
+        api_secret=settings.livekit_api_secret.get_secret_value(),
+    )
+
+
+def _build_tts(settings: LiveKitVoiceSettings):
+    """Build TTS through LiveKit Inference or its official OpenAI plugin."""
+
+    if settings.livekit_tts_provider == "openai":
+        try:
+            from livekit.plugins import openai
+        except ImportError as exc:  # pragma: no cover - depends on optional plugin
+            raise RuntimeError(
+                "LIVEKIT_TTS_PROVIDER=openai requires the livekit-plugins-openai package."
+            ) from exc
+        return openai.TTS(
+            model=settings.livekit_tts_model,
+            voice=settings.livekit_tts_voice,
+            api_key=settings.openai_api_key.get_secret_value(),
+            instructions="Nói tiếng Việt tự nhiên, rõ ràng, thân thiện và với âm lượng ổn định.",
+        )
+
+    return inference.TTS(
+        model=settings.livekit_tts_model,
+        voice=settings.livekit_tts_voice,
+        language=settings.livekit_tts_language,
+        api_key=settings.livekit_api_key.get_secret_value(),
+        api_secret=settings.livekit_api_secret.get_secret_value(),
+    )
 
 
 def build_agent_session(
@@ -36,30 +117,17 @@ def build_agent_session(
         recording_enabled=settings.livekit_record_audio,
         critical_confidence_threshold=settings.livekit_critical_confidence_threshold,
     )
-    api_key = settings.livekit_api_key.get_secret_value()
-    api_secret = settings.livekit_api_secret.get_secret_value()
-    inference_credentials = {
-        "api_key": api_key,
-        "api_secret": api_secret,
-    }
     return AgentSession(
         userdata=userdata,
         vad=inference.VAD(model="silero"),
-        stt=inference.STT(
-            model=settings.livekit_stt_model,
-            language=settings.livekit_stt_language,
-            **inference_credentials,
-        ),
-        llm=inference.LLM(
-            model=settings.livekit_llm_model,
-            **inference_credentials,
-        ),
-        tts=inference.TTS(
-            model=settings.livekit_tts_model,
-            voice=settings.livekit_tts_voice,
-            language=settings.livekit_tts_language,
-            **inference_credentials,
-        ),
+        stt=_build_stt(settings),
+        llm=_build_llm(settings),
+        tts=_build_tts(settings),
+        tts_text_transforms=[
+            "filter_emoji",
+            "filter_markdown",
+            vietnamese_currency_tts_transform,
+        ],
         turn_handling={
             "turn_detection": settings.livekit_turn_detection,
             "endpointing": {
@@ -161,6 +229,7 @@ server = AgentServer(
     ws_url=_server_settings.livekit_url or None,
     api_key=_server_settings.livekit_api_key.get_secret_value() or None,
     api_secret=_server_settings.livekit_api_secret.get_secret_value() or None,
+    num_idle_processes=_server_settings.livekit_num_idle_processes,
 )
 
 
@@ -188,7 +257,9 @@ async def alosm_voice_session(ctx: JobContext) -> None:
         "session_configured",
         stt_model=settings.livekit_stt_model,
         stt_language=settings.livekit_stt_language,
+        llm_provider=settings.livekit_llm_provider,
         llm_model=settings.livekit_llm_model,
+        tts_provider=settings.livekit_tts_provider,
         tts_model=settings.livekit_tts_model,
         tts_voice=settings.livekit_tts_voice,
         tts_language=settings.livekit_tts_language,

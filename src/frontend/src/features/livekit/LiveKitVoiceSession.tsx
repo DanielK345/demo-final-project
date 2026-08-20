@@ -9,8 +9,10 @@ import {
   useSessionMessages,
 } from "@livekit/components-react";
 import { Mic, MicOff, PhoneOff, Send, Volume2, VolumeX } from "lucide-react";
+import { getCurrentUser } from "@/features/auth/api";
 import { CURRENT_POLICY_VERSION } from "@/features/policies/api";
 import { useVoiceAssistant } from "@/features/ai-assistant/context/useVoiceAssistant";
+import { getRideSession } from "@/features/ride/api";
 import { createAloSMTokenSource, LIVEKIT_AGENT_NAME } from "./tokenSource";
 import { BOOKING_STATE_TOPIC, type BookingState } from "./contracts";
 
@@ -42,6 +44,7 @@ function LiveKitCallContent({
   const [draft, setDraft] = useState("");
   const [bookingState, setBookingState] = useState<BookingState | null>(null);
   const { message: bookingStateMessage } = useDataChannel(BOOKING_STATE_TOPIC);
+  const agentFailure = agent.failureReasons?.join("; ") ?? "";
 
   useEffect(() => {
     if (!bookingStateMessage) return;
@@ -54,10 +57,14 @@ function LiveKitCallContent({
   }, [bookingStateMessage]);
 
   useEffect(() => {
-    if (!autoRetry || agent.state !== "failed") return;
+    // StrictMode intentionally runs the session cleanup once in development.
+    // That transient end may briefly expose `failed` without a real LiveKit agent
+    // failure. Retrying it creates a second room. Only retry actionable failures
+    // reported by the Session API itself.
+    if (!autoRetry || agent.state !== "failed" || !agentFailure) return;
     const timeoutId = window.setTimeout(onRetry, 1_500);
     return () => window.clearTimeout(timeoutId);
-  }, [agent.state, autoRetry, onRetry]);
+  }, [agent.state, agentFailure, autoRetry, onRetry]);
 
   const toggleMicrophone = useCallback(async () => {
     await localParticipant.setMicrophoneEnabled(!isMicrophoneEnabled);
@@ -267,10 +274,69 @@ function LiveKitSessionAttempt({
 }
 
 export const LiveKitVoiceSession: React.FC = () => {
-  const { close } = useVoiceAssistant();
+  const { close, sessionId, newSession } = useVoiceAssistant();
   const consentKey = `alosm_voice_consent_v${CURRENT_POLICY_VERSION}`;
   const [consented, setConsented] = useState(() => localStorage.getItem(consentKey) === "accepted");
   const [attempt, setAttempt] = useState(0);
+  const [resumeState, setResumeState] = useState<"checking" | "prompt" | "ready" | "needs-new" | "error">(
+    "checking",
+  );
+  const [resumeError, setResumeError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!consented) return;
+    if (!sessionId) {
+      setResumeState("needs-new");
+      return;
+    }
+    let active = true;
+    setResumeState("checking");
+    setResumeError(null);
+    void (async () => {
+      // The provider may stay mounted while another tab/call rebinds this token.
+      // Check the authoritative binding before touching the cached session so a
+      // normal stale-cache recovery does not generate a backend 409.
+      const user = await getCurrentUser();
+      if (!active) return;
+      if (!user.session_id || user.session_id !== sessionId) {
+        setResumeState("needs-new");
+        return;
+      }
+
+      const session = await getRideSession(sessionId);
+      if (!active) return;
+      if (session.status !== "ACTIVE" || session.voice_session_terminal) {
+        setResumeState("needs-new");
+      } else if (session.has_resumable_voice_state) {
+        setResumeState("prompt");
+      } else {
+        setResumeState("ready");
+      }
+    })()
+      .catch((error: unknown) => {
+        if (!active) return;
+        setResumeError(error instanceof Error ? error.message : "Không thể kiểm tra phiên trước.");
+        setResumeState("error");
+      });
+    return () => {
+      active = false;
+    };
+  }, [consented, sessionId]);
+
+  const startNewSession = useCallback(async () => {
+    setResumeState("checking");
+    setResumeError(null);
+    try {
+      const created = await newSession();
+      if (!created) {
+        setResumeError("Không thể tạo phiên mới.");
+        setResumeState("error");
+      }
+    } catch (error) {
+      setResumeError(error instanceof Error ? error.message : "Không thể tạo phiên mới.");
+      setResumeState("error");
+    }
+  }, [newSession]);
 
   if (!consented) {
     return (
@@ -288,6 +354,59 @@ export const LiveKitVoiceSession: React.FC = () => {
           className="mt-5 rounded-xl bg-[#00A99D] px-5 py-2.5 font-semibold text-white"
         >
           Đồng ý và bắt đầu
+        </button>
+      </div>
+    );
+  }
+
+  if (resumeState === "checking") {
+    return (
+      <div className="flex h-full items-center justify-center rounded-3xl bg-white p-6 text-center dark:bg-slate-950">
+        <p className="text-sm text-slate-500 dark:text-slate-400">Đang chuẩn bị phiên cuộc gọi…</p>
+      </div>
+    );
+  }
+
+  if (resumeState === "prompt") {
+    return (
+      <div className="flex h-full flex-col items-center justify-center rounded-3xl bg-white p-6 text-center dark:bg-slate-950">
+        <h2 className="text-lg font-bold text-slate-900 dark:text-white">Tiếp tục chuyến đang đặt?</h2>
+        <p className="mt-2 max-w-sm text-sm text-slate-500 dark:text-slate-400">
+          Phiên trước còn thông tin đặt xe chưa hoàn tất. Bạn có thể tiếp tục hoặc bắt đầu một phiên riêng.
+        </p>
+        <div className="mt-5 flex flex-wrap justify-center gap-3">
+          <button
+            type="button"
+            onClick={() => setResumeState("ready")}
+            className="rounded-xl bg-[#00A99D] px-5 py-2.5 font-semibold text-white"
+          >
+            Tiếp tục phiên trước
+          </button>
+          <button
+            type="button"
+            onClick={() => void startNewSession()}
+            className="rounded-xl border border-slate-300 px-5 py-2.5 font-semibold text-slate-700 dark:border-white/20 dark:text-white"
+          >
+            Bắt đầu cuộc gọi mới
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (resumeState === "needs-new" || resumeState === "error") {
+    return (
+      <div className="flex h-full flex-col items-center justify-center rounded-3xl bg-white p-6 text-center dark:bg-slate-950">
+        <h2 className="text-lg font-bold text-slate-900 dark:text-white">
+          {resumeState === "error" ? "Không thể kiểm tra phiên" : "Phiên trước đã kết thúc"}
+        </h2>
+        {resumeError ? <p className="mt-2 text-sm text-rose-600">{resumeError}</p> : null}
+        <button
+          type="button"
+          onClick={() => void startNewSession()}
+          className="mt-5 rounded-xl bg-[#00A99D] px-5 py-2.5 font-semibold text-white"
+        >
+          Bắt đầu cuộc gọi mới
         </button>
       </div>
     );

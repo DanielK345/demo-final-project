@@ -1,6 +1,10 @@
-# Voice AI — Chạy thử ở local (project thật, có BE/FE/agentic)
+# Legacy Voice AI — local rollback runbook
 
-Hướng dẫn chạy runtime hiện hành. Kiến trúc: [voice-runtime-architecture.md](voice-runtime-architecture.md).
+> Trạng thái `LEGACY_ROLLBACK`. Để chạy LiveKit baseline, dùng
+> [`../LIVEKIT_TEAM_SETUP.md`](../LIVEKIT_TEAM_SETUP.md). Không dùng runbook này cho
+> Phase 4 trừ khi chạy flow cũ làm đối chứng A/B.
+
+Hướng dẫn chạy legacy runtime. Kiến trúc: [voice-runtime-architecture.md](voice-runtime-architecture.md).
 External/release blockers: [mustdo.md](../../mustdo.md).
 
 ## 1. Cài đặt

@@ -33,7 +33,13 @@ class LiveKitVoiceSettings(BaseSettings):
 
     livekit_stt_model: str = ""
     livekit_stt_language: str = "vi"
+    livekit_stt_provider: Literal["deepgram", "google"] = "deepgram"
+    google_cloud_project: str = ""
+    google_stt_location: str = "asia-southeast1"
+    livekit_llm_provider: Literal["livekit", "openai"] = "livekit"
     livekit_llm_model: str = ""
+    openai_api_key: SecretStr = SecretStr("")
+    livekit_tts_provider: Literal["livekit", "openai"] = "livekit"
     livekit_tts_model: str = ""
     livekit_tts_voice: str = ""
     livekit_tts_language: str = "vi"
@@ -69,6 +75,9 @@ class LiveKitVoiceSettings(BaseSettings):
     livekit_connection_timeout_seconds: float = Field(default=10.0, gt=0, le=60)
     livekit_token_ttl_seconds: int = Field(default=600, ge=60, le=3600)
     livekit_critical_confidence_threshold: float = Field(default=0.65, ge=0, le=1)
+    # LiveKit dev mode otherwise keeps zero warm job processes, adding a process
+    # spawn to the first participant-to-agent dispatch path.
+    livekit_num_idle_processes: int = Field(default=1, ge=0, le=16)
 
     @property
     def enabled(self) -> bool:
@@ -82,6 +91,7 @@ class LiveKitVoiceSettings(BaseSettings):
             "LIVEKIT_API_KEY_REQUIRED": self.livekit_api_key.get_secret_value(),
             "LIVEKIT_API_SECRET_REQUIRED": self.livekit_api_secret.get_secret_value(),
             "LIVEKIT_AGENT_NAME_REQUIRED": self.livekit_agent_name,
+            "LIVEKIT_STT_PROVIDER_REQUIRED": self.livekit_stt_provider,
             "LIVEKIT_STT_MODEL_REQUIRED": self.livekit_stt_model,
             "LIVEKIT_LLM_MODEL_REQUIRED": self.livekit_llm_model,
             "LIVEKIT_TTS_MODEL_REQUIRED": self.livekit_tts_model,
@@ -94,6 +104,14 @@ class LiveKitVoiceSettings(BaseSettings):
             errors.append("LIVEKIT_ENDPOINTING_MAX_MUST_NOT_BE_LOWER_THAN_MIN")
         if self.livekit_debug_transcripts and not self.livekit_debug_event_log:
             errors.append("LIVEKIT_DEBUG_TRANSCRIPTS_REQUIRES_EVENT_LOG")
+        if self.livekit_stt_provider == "google" and not self.google_cloud_project.strip():
+            errors.append("GOOGLE_CLOUD_PROJECT_REQUIRED_FOR_GOOGLE_STT")
+        if self.livekit_stt_provider == "google" and not self.google_stt_location.strip():
+            errors.append("GOOGLE_STT_LOCATION_REQUIRED_FOR_GOOGLE_STT")
+        if (
+            self.livekit_llm_provider == "openai" or self.livekit_tts_provider == "openai"
+        ) and not self.openai_api_key.get_secret_value().strip():
+            errors.append("OPENAI_API_KEY_REQUIRED_FOR_OPENAI_PROVIDER")
         return errors
 
     def readiness_errors(self) -> list[str]:

@@ -44,3 +44,8 @@ export function clearAuthSession(): void {
   localStorage.removeItem(USER_NAME_KEY);
   localStorage.removeItem(SESSION_ID_KEY);
 }
+
+/** Clear only stale conversation state while preserving the valid login. */
+export function clearSessionId(): void {
+  localStorage.removeItem(SESSION_ID_KEY);
+}

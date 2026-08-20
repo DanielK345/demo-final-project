@@ -11,11 +11,14 @@ class FakePersistenceRepository:
     def __init__(self) -> None:
         self.state: dict[str, object] | None = None
         self.revision = 0
+        self.status = "ACTIVE"
+        self.session_updates: list[dict[str, object]] = []
 
     async def get_voice_agent_state(self, session_id: str) -> dict[str, object]:
         return {
             "session_id": session_id,
             "user_id": "user-real",
+            "status": self.status,
             "state": self.state,
             "revision": self.revision,
         }
@@ -32,6 +35,17 @@ class FakePersistenceRepository:
         self.state = dict(state)
         self.revision += 1
         return {"session_id": session_id, "revision": self.revision}
+
+    async def update_session(
+        self,
+        session_id: str,
+        updates: Mapping[str, object],
+        *,
+        expected_version: int | None = None,
+    ) -> dict[str, object]:
+        self.session_updates.append(dict(updates))
+        self.status = str(updates.get("status") or self.status)
+        return {"session_id": session_id, **updates}
 
 
 def _userdata() -> AloSMSessionData:
@@ -81,7 +95,7 @@ async def test_voice_state_rejects_stale_concurrent_writer() -> None:
 
 
 @pytest.mark.asyncio
-async def test_completed_booking_restores_without_creating_a_second_result() -> None:
+async def test_completed_booking_from_older_state_is_not_restored() -> None:
     repository = FakePersistenceRepository()
     store = DatabaseVoiceStateStore(repository)
     original = _userdata()
@@ -112,7 +126,21 @@ async def test_completed_booking_restores_without_creating_a_second_result() -> 
     await store.save(original)
 
     reconnected = _userdata()
-    assert await store.restore(reconnected) is True
-    restored = reconnected.booking_draft
-    assert restored.booking == booking
-    assert booking_service.create(app_session_id=reconnected.app_session_id, draft=restored) == booking
+    assert await store.restore(reconnected) is False
+    assert reconnected.persistence_enabled is False
+
+
+@pytest.mark.asyncio
+async def test_terminal_voice_state_ends_application_session_and_is_not_restored() -> None:
+    repository = FakePersistenceRepository()
+    store = DatabaseVoiceStateStore(repository)
+    completed = _userdata()
+    completed.lifecycle_status = "completed"
+
+    await store.save(completed)
+
+    assert repository.session_updates[-1]["status"] == "ENDED"
+    assert repository.session_updates[-1]["end_reason"] == "BOOKING_COMPLETED"
+    reconnected = _userdata()
+    assert await store.restore(reconnected) is False
+    assert reconnected.persistence_enabled is False

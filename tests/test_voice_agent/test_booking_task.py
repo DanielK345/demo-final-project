@@ -11,8 +11,24 @@ from src.voice_agent.tasks.booking import (
 from src.voice_agent.tools import PlaceToolsService
 
 
-def test_agent_exposes_one_booking_task_entrypoint() -> None:
-    assert [tool.id for tool in AloSMAgent().tools] == ["start_booking"]
+def test_agent_exposes_native_booking_entrypoint_and_authoritative_status_tool() -> None:
+    assert {tool.id for tool in AloSMAgent().tools} == {"start_booking", "get_booking_status"}
+
+
+@pytest.mark.asyncio
+async def test_parent_booking_status_never_invents_a_booking_id() -> None:
+    userdata = AloSMSessionData(
+        app_session_id="session",
+        call_id="call",
+        user_id="user",
+        participant_identity="participant",
+    )
+
+    status = await AloSMAgent(session_data=userdata).get_booking_status()
+
+    assert '"created": false' in status
+    assert '"booking_id": null' in status
+    assert "Chuyến chưa được tạo" in status
 
 
 def test_recovered_booking_is_available_to_the_parent_agent_without_full_history() -> None:

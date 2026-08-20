@@ -101,7 +101,7 @@ class SessionService:
         current = await self.get_session_durable(session_id)
         if current.get("status") != "ACTIVE":
             raise ValueError("Chỉ có thể đặt lại một phiên hội thoại đang hoạt động")
-        fields = {"intent": None, "pickup": None, "destination": None, "vehicle_type": None, "confirmation_status": "pending", "failed_count": 0, "booking_id": None, "handoff_triggered": False, "handoff_id": None, "booking_lifecycle_status": None, "feedback": None, "current_workflow": None, "current_step": None, "agent_state": None, "turn_sequence": 0}
+        fields = {"intent": None, "pickup": None, "destination": None, "vehicle_type": None, "confirmation_status": "pending", "failed_count": 0, "booking_id": None, "handoff_triggered": False, "handoff_id": None, "booking_lifecycle_status": None, "feedback": None, "current_workflow": None, "current_step": None, "agent_state": None, "voice_agent_state": None, "voice_state_revision": 0, "turn_sequence": 0}
         await self.update_session_durable(session_id, fields)
         return {"session_id": session_id, "status": "ACTIVE", "reset_at": datetime.now(UTC).isoformat()}
 
@@ -222,6 +222,8 @@ class SessionService:
                 "current_workflow": None,
                 "current_step": None,
                 "agent_state": None,
+                "voice_agent_state": None,
+                "voice_state_revision": 0,
                 "turn_sequence": 0,
             }
         )

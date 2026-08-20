@@ -52,6 +52,8 @@ def test_livekit_runtime_accepts_complete_native_pipeline_configuration() -> Non
     assert config.readiness_errors() == []
     assert config.configuration_errors() == []
     assert config.livekit_turn_detection == "vad"
+    assert config.livekit_llm_provider == "livekit"
+    assert config.livekit_tts_provider == "livekit"
     assert config.livekit_interruption_mode == "vad"
     assert config.livekit_endpointing_mode == "fixed"
     assert config.livekit_endpointing_min_delay_seconds == 0.8
@@ -100,3 +102,15 @@ def test_debug_transcripts_require_explicit_event_log_opt_in() -> None:
     config = settings(livekit_debug_transcripts=True)
 
     assert "LIVEKIT_DEBUG_TRANSCRIPTS_REQUIRES_EVENT_LOG" in config.configuration_errors()
+
+
+def test_openai_llm_provider_requires_its_own_api_key() -> None:
+    config = settings(livekit_llm_provider="openai", openai_api_key="")
+
+    assert "OPENAI_API_KEY_REQUIRED_FOR_OPENAI_PROVIDER" in config.configuration_errors()
+
+
+def test_openai_tts_provider_requires_its_own_api_key() -> None:
+    config = settings(livekit_tts_provider="openai", openai_api_key="")
+
+    assert "OPENAI_API_KEY_REQUIRED_FOR_OPENAI_PROVIDER" in config.configuration_errors()
