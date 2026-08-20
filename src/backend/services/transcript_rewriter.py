@@ -30,6 +30,7 @@ Goal:
 
 Conversation-context rules:
 - conversation_context is trusted application state supplied separately from the untrusted transcript.
+- relevant_alias_mappings contains a small application-owned subset of known ASR renderings and their exact canonical names. Use a mapping only when the transcript is phonetically close to one of its aliases.
 - When location_selection is present, the assistant has just asked the customer to choose one of those exact candidates. Use the original query, candidate display names/addresses, candidate-specific asr_aliases, and last assistant question together to interpret a short selection answer.
 - If the transcript is a close phonetic ASR rendering of exactly one listed candidate, restore that candidate's exact display_name. Preserve words such as "chọn", "muốn", "không", or a candidate number when present.
 - Do not choose a candidate merely because it appears in context. If two choices remain plausible, keep the transcript and set requires_clarification=true.
@@ -71,6 +72,14 @@ _SENSITIVE = re.compile(
 )
 _PLACEHOLDER = re.compile(r"<(?:NUM|EMAIL|ID)_\d+>")
 _NON_WORD = re.compile(r"[^\w\s]", flags=re.UNICODE)
+_LOCATION_COLLECTION_STEPS = {
+    "COLLECT_PICKUP",
+    "COLLECT_DESTINATION",
+    "SELECT_PICKUP_CANDIDATE",
+    "SELECT_DESTINATION_CANDIDATE",
+}
+_MISHEARD_PICKUP_LABEL = re.compile(r"\bđiểm\s+đoán\b", re.IGNORECASE)
+_MISHEARD_PICKUP_VERB = re.compile(r"\bđoán\s+(?=(?:tôi|mình|ở|tại)\b)", re.IGNORECASE)
 
 
 def _mask_sensitive_values(text: str) -> tuple[str, dict[str, str]]:
@@ -99,6 +108,62 @@ def _fold(text: str) -> str:
     decomposed = unicodedata.normalize("NFD", text.lower()).replace("đ", "d")
     without_marks = "".join(char for char in decomposed if unicodedata.category(char) != "Mn")
     return " ".join(_NON_WORD.sub(" ", without_marks).split())
+
+
+def _preserve_initial_case(source: str, replacement: str) -> str:
+    return replacement.capitalize() if source[:1].isupper() else replacement
+
+
+def _contextual_booking_language_rewrite(text: str, compact_context: dict[str, Any]) -> str:
+    """Repair narrow ride-booking homophones only while collecting a location."""
+
+    if compact_context.get("current_step") not in _LOCATION_COLLECTION_STEPS:
+        return text
+    corrected = _MISHEARD_PICKUP_LABEL.sub(
+        lambda match: _preserve_initial_case(match.group(0), "điểm đón"),
+        text,
+    )
+    return _MISHEARD_PICKUP_VERB.sub(
+        lambda match: _preserve_initial_case(match.group(0), "đón "),
+        corrected,
+    )
+
+
+def _relevant_alias_mappings(
+    text: str,
+    catalog: PlaceAliasCatalog,
+    *,
+    limit: int = 6,
+) -> list[dict[str, object]]:
+    """Select a small, phonetic alias subset instead of sending the full catalog."""
+
+    raw_tokens = _fold(text).split()
+    if not raw_tokens:
+        return []
+    scored: list[tuple[float, str, tuple[str, ...]]] = []
+    for entry in catalog.entries:
+        best_score = 0.0
+        for alias in entry.asr_aliases:
+            alias_tokens = _fold(alias).split()
+            if not alias_tokens:
+                continue
+            alias_compact = "".join(alias_tokens)
+            window_sizes = {max(1, len(alias_tokens) - 1), len(alias_tokens), len(alias_tokens) + 1}
+            for size in window_sizes:
+                for start in range(max(1, len(raw_tokens) - size + 1)):
+                    window = "".join(raw_tokens[start : start + size])
+                    if window:
+                        best_score = max(best_score, SequenceMatcher(None, alias_compact, window).ratio())
+        if best_score >= 0.72:
+            scored.append((best_score, entry.canonical_name, entry.asr_aliases))
+    scored.sort(key=lambda item: item[0], reverse=True)
+    return [
+        {
+            "canonical_name": canonical_name,
+            "asr_aliases": list(aliases[:12]),
+        }
+        for _, canonical_name, aliases in scored[:limit]
+    ]
 
 
 def _confirmation_surface(text: str) -> str:
@@ -260,6 +325,23 @@ def _contextual_candidate_alias_rewrite(text: str, compact_context: dict[str, An
     return corrected if count else display_name
 
 
+def apply_deterministic_transcript_rewrite(
+    text: str,
+    session_context: dict[str, Any] | None = None,
+    *,
+    place_aliases: PlaceAliasCatalog | None = None,
+) -> tuple[str, str | None]:
+    """Apply application-owned corrections without requiring an LLM provider."""
+
+    compact_context = _minimal_context(session_context)
+    corrected = (place_aliases or PlaceAliasCatalog.load()).correct(text)
+    corrected = _contextual_booking_language_rewrite(corrected, compact_context)
+    contextual = _contextual_candidate_alias_rewrite(corrected, compact_context)
+    if contextual is not None:
+        return contextual, "contextual_candidate_alias"
+    return corrected, "deterministic_alias" if corrected != text else None
+
+
 class OpenAITranscriptRewriter:
     def __init__(
         self,
@@ -270,6 +352,7 @@ class OpenAITranscriptRewriter:
         reasoning_effort: str = "none",
         base_url: str | None = None,
         glossary: list[str] | None = None,
+        place_aliases: PlaceAliasCatalog | None = None,
         minimum_confidence: float = 0.85,
         client: AsyncOpenAI | None = None,
     ) -> None:
@@ -280,6 +363,7 @@ class OpenAITranscriptRewriter:
         self.reasoning_effort = reasoning_effort
         self.minimum_confidence = minimum_confidence
         self.glossary = [term.strip() for term in (glossary or []) if term.strip()][:120]
+        self.place_aliases = place_aliases or PlaceAliasCatalog.load()
         self.client = client or AsyncOpenAI(api_key=api_key, base_url=base_url, max_retries=0)
 
     async def rewrite(
@@ -295,13 +379,19 @@ class OpenAITranscriptRewriter:
         if len(raw) > 2000:
             return TranscriptRewriteResult(raw_text=raw, normalized_text=raw, reason="too_long")
 
-        masked, replacements = _mask_sensitive_values(raw)
         compact_context = _minimal_context(session_context)
-        contextual_fallback = _contextual_candidate_alias_rewrite(raw, compact_context)
+        deterministic, deterministic_reason = apply_deterministic_transcript_rewrite(
+            raw,
+            session_context,
+            place_aliases=self.place_aliases,
+        )
+        contextual_fallback = deterministic if deterministic_reason == "contextual_candidate_alias" else None
+        masked, replacements = _mask_sensitive_values(deterministic)
         payload = {
             "transcript": masked,
             "conversation_context": compact_context,
             "canonical_terms": self.glossary,
+            "relevant_alias_mappings": _relevant_alias_mappings(raw, self.place_aliases),
         }
         selection = compact_context.get("location_selection")
         logger.info(
@@ -341,6 +431,13 @@ class OpenAITranscriptRewriter:
                     duration_ms=int((time.monotonic() - started) * 1000),
                     upstream_reason="provider_error",
                 )
+            if deterministic != raw:
+                return self._deterministic_result(
+                    raw,
+                    deterministic,
+                    duration_ms=int((time.monotonic() - started) * 1000),
+                    upstream_reason="provider_error",
+                )
             return TranscriptRewriteResult(
                 raw_text=raw,
                 normalized_text=raw,
@@ -361,8 +458,21 @@ class OpenAITranscriptRewriter:
                 duration_ms=duration_ms,
                 upstream_reason="llm_completed",
             )
-        rejection = self._rejection_reason(raw, masked, candidate_masked, parsed, session_context)
+        rejection = self._rejection_reason(
+            deterministic,
+            masked,
+            candidate_masked,
+            parsed,
+            session_context,
+        )
         if rejection:
+            if deterministic != raw:
+                return self._deterministic_result(
+                    raw,
+                    deterministic,
+                    duration_ms=duration_ms,
+                    upstream_reason=rejection,
+                )
             return TranscriptRewriteResult(
                 raw_text=raw,
                 normalized_text=raw,
@@ -381,6 +491,29 @@ class OpenAITranscriptRewriter:
             applied=applied,
             confidence=parsed.confidence,
             reason="applied" if applied else "unchanged",
+            model=self.model,
+            duration_ms=duration_ms,
+        )
+
+    def _deterministic_result(
+        self,
+        raw: str,
+        rewritten: str,
+        *,
+        duration_ms: int,
+        upstream_reason: str,
+    ) -> TranscriptRewriteResult:
+        logger.info(
+            "Transcript deterministic alias applied model=%s upstream_reason=%s",
+            self.model,
+            upstream_reason,
+        )
+        return TranscriptRewriteResult(
+            raw_text=raw,
+            normalized_text=rewritten,
+            applied=True,
+            confidence=1.0,
+            reason="deterministic_alias",
             model=self.model,
             duration_ms=duration_ms,
         )
@@ -451,11 +584,12 @@ def build_transcript_rewriter(
     gazetteer: Gazetteer | None = None,
 ) -> OpenAITranscriptRewriter | None:
     config = settings or get_settings()
-    api_key = config.llm_api_key_for(config.voice_transcript_rewrite_base_url)
-    if not config.voice_transcript_rewrite_enabled or not api_key:
+    if transcript_rewriter_disabled_reason(config) is not None:
         return None
+    api_key = config.llm_api_key_for(config.voice_transcript_rewrite_base_url)
     places = (gazetteer or Gazetteer.load()).entries
-    hanoi_places = PlaceAliasCatalog.load().canonical_names
+    place_aliases = PlaceAliasCatalog.load()
+    hanoi_places = place_aliases.canonical_names
     return OpenAITranscriptRewriter(
         api_key=api_key,
         model=config.voice_transcript_rewrite_model,
@@ -466,5 +600,16 @@ def build_transcript_rewriter(
         # common V/B and U/Y ASR confusions; the legacy seed gazetteer remains a
         # secondary source of hints.
         glossary=["AloSM", "Xanh SM", "Green SM", *hanoi_places, *places],
+        place_aliases=place_aliases,
         minimum_confidence=config.voice_transcript_rewrite_minimum_confidence,
     )
+
+
+def transcript_rewriter_disabled_reason(settings: Settings) -> str | None:
+    """Return a secret-free reason suitable for readiness logs."""
+
+    if not settings.voice_transcript_rewrite_enabled:
+        return "config_disabled"
+    if not settings.llm_api_key_for(settings.voice_transcript_rewrite_base_url):
+        return "missing_api_key"
+    return None

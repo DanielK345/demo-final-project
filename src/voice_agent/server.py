@@ -10,13 +10,18 @@ from livekit.agents import AgentServer, AgentSession, JobContext, cli, inference
 from livekit.agents.voice.events import ErrorEvent
 from livekit.agents.voice.room_io import AudioInputOptions, RoomOptions
 
-from src.backend.services.transcript_rewriter import build_transcript_rewriter
+from src.backend.services.transcript_rewriter import (
+    build_transcript_rewriter,
+    transcript_rewriter_disabled_reason,
+)
+from src.config import Settings
 from src.voice_agent.agent import AloSMAgent
 from src.voice_agent.config import LiveKitVoiceSettings, get_livekit_voice_settings
 from src.voice_agent.observability import LiveKitSessionObserver, SessionEventLog
 from src.voice_agent.persistence import DatabaseVoiceStateStore, VoiceStateStore
 from src.voice_agent.session_data import AloSMSessionData, FailureCode, FallbackAction
 from src.voice_agent.state_sync import publish_booking_state, publish_transcript_rewrite
+from src.voice_agent.stt_final_fallback import STTFinalFallback
 
 logger = logging.getLogger(__name__)
 
@@ -173,12 +178,30 @@ async def alosm_voice_session(ctx: JobContext) -> None:
     settings = get_livekit_voice_settings()
     userdata = build_session_data(ctx, settings)
     state_store = DatabaseVoiceStateStore()
-    transcript_rewriter = build_transcript_rewriter()
+    # Read rewrite settings per job. LiveKit keeps idle worker processes warm,
+    # so using the shared settings cache here could preserve a stale pre-fork
+    # view of .env even though a new Room session has started.
+    rewrite_settings = Settings()
+    transcript_rewrite_disabled_reason = transcript_rewriter_disabled_reason(rewrite_settings)
+    transcript_rewriter = build_transcript_rewriter(rewrite_settings)
+    if transcript_rewrite_disabled_reason is not None:
+        logger.warning(
+            "LiveKit transcript rewrite unavailable reason=%s",
+            transcript_rewrite_disabled_reason,
+        )
     if transcript_rewriter is not None:
         ctx.add_shutdown_callback(transcript_rewriter.client.close)
     recovered = await restore_session_data(userdata, state_store)
     session = build_agent_session(settings, userdata=userdata)
     register_provider_failure_sync(session, state_store)
+    stt_final_fallback: STTFinalFallback | None = None
+    if settings.livekit_stt_final_fallback_enabled:
+        stt_final_fallback = STTFinalFallback(
+            session,
+            delay_seconds=settings.livekit_stt_final_fallback_seconds,
+        )
+        stt_final_fallback.register()
+        ctx.add_shutdown_callback(stt_final_fallback.aclose)
     event_log = SessionEventLog(
         enabled=settings.livekit_debug_event_log,
         include_transcripts=settings.livekit_debug_transcripts,
@@ -204,7 +227,12 @@ async def alosm_voice_session(ctx: JobContext) -> None:
         interruption_mode=settings.livekit_interruption_mode,
         interruption_min_duration=settings.livekit_interruption_min_duration_seconds,
         interruption_min_words=settings.livekit_interruption_min_words,
+        stt_final_fallback_enabled=stt_final_fallback is not None,
+        stt_final_fallback_seconds=(
+            settings.livekit_stt_final_fallback_seconds if stt_final_fallback is not None else None
+        ),
         transcript_rewrite_enabled=transcript_rewriter is not None,
+        transcript_rewrite_disabled_reason=transcript_rewrite_disabled_reason,
         transcript_rewrite_model=(
             transcript_rewriter.model if transcript_rewriter is not None else None
         ),

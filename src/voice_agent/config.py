@@ -72,6 +72,10 @@ class LiveKitVoiceSettings(BaseSettings):
     # removes Python import/process startup from the first call without creating a Room.
     livekit_num_idle_processes: int = Field(default=1, ge=0, le=16)
     livekit_critical_confidence_threshold: float = Field(default=0.65, ge=0, le=1)
+    # Deepgram can rarely end a VAD segment after partial text without sending a
+    # final transcript. Reprompt safely instead of committing partial text.
+    livekit_stt_final_fallback_enabled: bool = True
+    livekit_stt_final_fallback_seconds: float = Field(default=3.0, ge=0.5, le=10)
 
     @property
     def enabled(self) -> bool:

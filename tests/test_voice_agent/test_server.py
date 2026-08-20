@@ -32,6 +32,8 @@ async def test_build_agent_session_uses_livekit_native_pipeline() -> None:
     assert session.options.interruption["mode"] == "vad"
     assert session.options.interruption["min_duration"] == 0.5
     assert session.options.interruption["min_words"] == 1
+    assert _settings().livekit_stt_final_fallback_enabled is True
+    assert _settings().livekit_stt_final_fallback_seconds == 3.0
 
 
 @pytest.mark.asyncio

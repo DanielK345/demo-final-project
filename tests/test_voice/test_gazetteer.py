@@ -50,3 +50,11 @@ def test_default_seed_file_loads_and_is_nonempty():
 
 def test_hanoi_seed_and_alias_catalog_have_the_same_canonical_places():
     assert set(Gazetteer.load().entries) == set(PlaceAliasCatalog.load().canonical_names)
+
+
+def test_vinuni_alias_catalog_covers_observed_livekit_misrecognitions():
+    aliases = PlaceAliasCatalog.load()
+
+    assert aliases.correct("Điểm đón là Bin Yuni") == "Điểm đón là VinUni"
+    assert aliases.correct("Điểm đón là Vinyuni") == "Điểm đón là VinUni"
+    assert aliases.correct("Điểm đón là Win Uni") == "Điểm đón là VinUni"

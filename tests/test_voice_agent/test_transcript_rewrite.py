@@ -152,6 +152,68 @@ async def test_low_confidence_audio_skips_rewrite_for_existing_clarification_gua
 
 
 @pytest.mark.asyncio
+async def test_deterministic_vinuni_alias_runs_without_llm_provider() -> None:
+    message = llm.ChatMessage(
+        role="user",
+        content=["Điểm đoán là Bin Yuni"],
+        transcript_confidence=0.9,
+    )
+
+    result = await rewrite_livekit_user_turn(
+        rewriter=None,
+        userdata=_userdata(),
+        turn_ctx=llm.ChatContext.empty(),
+        new_message=message,
+    )
+
+    assert result is not None
+    assert result.reason == "deterministic_alias"
+    assert result.normalized_text == "Điểm đón là VinUni"
+    assert message.text_content == "Điểm đón là VinUni"
+
+
+@pytest.mark.asyncio
+async def test_candidate_alias_runs_without_llm_provider() -> None:
+    userdata = _userdata()
+    userdata.booking_draft.set_candidates(
+        "pickup",
+        "VinUni",
+        [
+            PlaceCandidate(
+                place_id="gate-a",
+                display_name="Cổng chính VinUni",
+                address="VinUni",
+                provider="test",
+                asr_aliases=("cũng chính bin Uni",),
+            ),
+            PlaceCandidate(
+                place_id="gate-b",
+                display_name="Cổng phụ VinUni",
+                address="VinUni",
+                provider="test",
+            ),
+        ],
+    )
+    message = llm.ChatMessage(
+        role="user",
+        content=["Tôi chọn cũng chính bin Uni"],
+        transcript_confidence=0.9,
+    )
+
+    result = await rewrite_livekit_user_turn(
+        rewriter=None,
+        userdata=userdata,
+        turn_ctx=llm.ChatContext.empty(),
+        new_message=message,
+    )
+
+    assert result is not None
+    assert result.reason == "contextual_candidate_alias"
+    assert result.normalized_text == "Tôi chọn Cổng chính VinUni"
+    assert message.text_content == "Tôi chọn Cổng chính VinUni"
+
+
+@pytest.mark.asyncio
 async def test_rewrite_provider_failure_fails_open_to_raw_transcript() -> None:
     message = llm.ChatMessage(role="user", content=["alo toi muon dat xe"])
 

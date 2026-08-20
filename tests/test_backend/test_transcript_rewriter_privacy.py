@@ -6,13 +6,16 @@ import pytest
 from src.backend.services.transcript_rewriter import (
     OpenAITranscriptRewriter,
     _confirmation_surface,
+    _contextual_booking_language_rewrite,
     _contextual_candidate_alias_rewrite,
     _is_context_grounded_selection,
     _mask_sensitive_values,
     _minimal_context,
+    _relevant_alias_mappings,
     _restore_sensitive_values,
     _RewriteOutput,
 )
+from src.voice.text.place_aliases import PlaceAliasCatalog
 
 
 def _selection_context() -> dict[str, object]:
@@ -139,6 +142,30 @@ def test_contextual_candidate_alias_only_applies_in_active_selection_state():
     assert _contextual_candidate_alias_rewrite("không chọn cổng thành cũng", compact) is None
 
 
+def test_booking_language_rewrite_repairs_pickup_homophone_only_in_location_step():
+    assert (
+        _contextual_booking_language_rewrite(
+            "Điểm đoán là VinUni",
+            {"current_step": "COLLECT_PICKUP"},
+        )
+        == "Điểm đón là VinUni"
+    )
+    assert (
+        _contextual_booking_language_rewrite(
+            "Tôi đang đoán kết quả",
+            {"current_step": "COLLECT_VEHICLE"},
+        )
+        == "Tôi đang đoán kết quả"
+    )
+
+
+def test_relevant_alias_mappings_include_phonetically_close_vinuni_aliases():
+    mappings = _relevant_alias_mappings("Điểm đón là Pinn Yuni", PlaceAliasCatalog.load())
+
+    assert mappings[0]["canonical_name"] == "VinUni"
+    assert "Bin Yuni" in mappings[0]["asr_aliases"]
+
+
 @pytest.mark.asyncio
 async def test_contextual_alias_overrides_wrong_llm_candidate_selection():
     client = _FakeClient(
@@ -167,6 +194,36 @@ async def test_contextual_alias_overrides_wrong_llm_candidate_selection():
     assert result.normalized_text == "Cổng chính VinUni"
     assert result.reason == "contextual_candidate_alias"
     assert result.confidence == 1.0
+
+
+@pytest.mark.asyncio
+async def test_deterministic_alias_survives_a_rejected_llm_candidate():
+    client = _FakeClient(
+        _RewriteOutput(
+            normalized_text="Một địa điểm khác",
+            meaning_preserved=False,
+            requires_clarification=False,
+            confidence=0.2,
+            change_types=["domain_term"],
+        )
+    )
+    rewriter = OpenAITranscriptRewriter(
+        api_key="",
+        model="rewrite-test",
+        timeout_seconds=1,
+        client=client,
+    )
+
+    result = await rewriter.rewrite(
+        "Điểm đoán là Vinyuni",
+        session_context={"current_step": "COLLECT_PICKUP"},
+        session_id="sess-test",
+    )
+
+    assert result.raw_text == "Điểm đoán là Vinyuni"
+    assert result.normalized_text == "Điểm đón là VinUni"
+    assert result.applied is True
+    assert result.reason == "deterministic_alias"
 
 
 @pytest.mark.asyncio

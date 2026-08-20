@@ -9,6 +9,7 @@ from typing import Any
 
 from livekit.agents import llm
 
+from src.backend.services.transcript_rewriter import apply_deterministic_transcript_rewrite
 from src.voice.text.rewrite_contract import TranscriptRewriter, TranscriptRewriteResult
 from src.voice_agent.session_data import AloSMSessionData, BookingDraft
 
@@ -79,17 +80,7 @@ async def rewrite_livekit_user_turn(
     confidence = new_message.transcript_confidence
     if not text:
         return None
-    if rewriter is None or userdata is None:
-        logger.info(
-            "LiveKit transcript rewrite bypassed item_id=%s reason=disabled_or_unconfigured",
-            new_message.id,
-        )
-        return TranscriptRewriteResult(
-            raw_text=text,
-            normalized_text=text,
-            reason="disabled_or_unconfigured",
-            duration_ms=0,
-        )
+    session_context = _rewrite_context(userdata, turn_ctx) if userdata is not None else {}
     if confidence is not None and confidence < MINIMUM_ASR_CONFIDENCE:
         logger.info(
             "LiveKit transcript rewrite skipped reason=low_asr_confidence confidence=%.2f",
@@ -101,7 +92,37 @@ async def rewrite_livekit_user_turn(
             reason="low_asr_confidence",
             duration_ms=0,
         )
-
+    if rewriter is None:
+        normalized_text, deterministic_reason = apply_deterministic_transcript_rewrite(
+            text,
+            session_context,
+        )
+        if deterministic_reason is not None:
+            non_text_content = [item for item in new_message.content if not isinstance(item, str)]
+            new_message.content = [normalized_text, *non_text_content]
+            logger.info(
+                "LiveKit deterministic transcript rewrite applied item_id=%s reason=%s",
+                new_message.id,
+                deterministic_reason,
+            )
+            return TranscriptRewriteResult(
+                raw_text=text,
+                normalized_text=normalized_text,
+                applied=True,
+                confidence=1.0,
+                reason=deterministic_reason,
+                duration_ms=0,
+            )
+        logger.info(
+            "LiveKit transcript rewrite bypassed item_id=%s reason=disabled_or_unconfigured",
+            new_message.id,
+        )
+        return TranscriptRewriteResult(
+            raw_text=text,
+            normalized_text=text,
+            reason="disabled_or_unconfigured",
+            duration_ms=0,
+        )
     configured_timeout = getattr(rewriter, "timeout_seconds", DEFAULT_REWRITE_TIMEOUT_SECONDS)
     try:
         timeout_seconds = max(float(configured_timeout), 0.1)
@@ -121,8 +142,8 @@ async def rewrite_livekit_user_turn(
         async with asyncio.timeout(hard_timeout_seconds):
             result = await rewriter.rewrite(
                 text,
-                session_context=_rewrite_context(userdata, turn_ctx),
-                session_id=userdata.app_session_id,
+                session_context=session_context,
+                session_id=userdata.app_session_id if userdata is not None else None,
             )
     except TimeoutError:
         duration_ms = int((time.monotonic() - started) * 1000)
