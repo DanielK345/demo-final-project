@@ -1,0 +1,79 @@
+# render.yaml — Blueprint for Render.com
+# Reference: https://render.com/docs/blueprint-spec
+
+services:
+  # 1. FastAPI Web Backend
+  - type: web
+    name: alosm-backend
+    env: docker
+    dockerfilePath: Dockerfile
+    dockerContext: .
+    region: singapore
+    plan: starter
+    numInstances: 1
+    healthCheckPath: /health/ready
+    envVars:
+      - key: APP_ENV
+        value: production
+      - key: VOICE_RUNTIME
+        value: livekit
+      - key: LOG_LEVEL
+        value: INFO
+      - key: CORS_ORIGINS
+        sync: false
+      - key: DATABASE_URL
+        sync: false
+      - key: DATABASE_URL_MIGRATIONS
+        sync: false
+      - key: QUOTE_SIGNING_KEY
+        generateValue: true
+      - key: FIELD_ENCRYPTION_KEY
+        generateValue: true
+      - key: JWT_SECRET_KEY
+        generateValue: true
+      - key: LIVEKIT_URL
+        sync: false
+      - key: LIVEKIT_API_KEY
+        sync: false
+      - key: LIVEKIT_API_SECRET
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: OPENROUTER_API_KEY
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+
+  # 2. LiveKit Voice Agent Worker
+  - type: worker
+    name: alosm-voice-worker
+    env: docker
+    dockerfilePath: Dockerfile
+    dockerContext: .
+    dockerCommand: python -m src.voice_agent.server dev
+    region: singapore
+    plan: starter
+    envVars:
+      - key: APP_ENV
+        value: production
+      - key: VOICE_RUNTIME
+        value: livekit
+      - key: LOG_LEVEL
+        value: INFO
+      - key: DATABASE_URL
+        fromService:
+          type: web
+          name: alosm-backend
+          property: host
+      - key: LIVEKIT_URL
+        sync: false
+      - key: LIVEKIT_API_KEY
+        sync: false
+      - key: LIVEKIT_API_SECRET
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: OPENROUTER_API_KEY
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
