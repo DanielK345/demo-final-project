@@ -36,10 +36,16 @@ provider fails or its output is rejected. Known examples include:
 | `Vinyuni`, `Bin Yuni`, `Bin Unite`, `biên Uni`, `Win Uni` | `VinUni` |
 | `Điểm đoán là VinUni` while collecting a location | `Điểm đón là VinUni` |
 | `cổng thành cũng`, `cũng chính bin Uni` during VinUni gate selection | `Cổng chính VinUni` |
+| `cũng chính`, `cũng phụ`, `cũng trước`, `cũng sau`, `cũng số 2` | corresponding `cổng ...` phrase |
 
 The `đoán` to `đón` repair is scoped to pickup/destination collection steps. It
 does not run in unrelated conversation because `đoán` is otherwise valid
 Vietnamese.
+
+The `cũng` to `cổng` repair is deterministic before the LLM whenever `cũng` is
+followed by a gate qualifier (`chính`, `phụ`, `trước`, `sau`), a gate number or
+a context-known gate/place name. It also runs when the booking is already
+complete and the user is correcting a locked location.
 
 ## Gazetteer and alias sources
 

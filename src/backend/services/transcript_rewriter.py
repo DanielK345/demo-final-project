@@ -81,6 +81,12 @@ _LOCATION_COLLECTION_STEPS = {
 }
 _MISHEARD_PICKUP_LABEL = re.compile(r"\bđiểm\s+đoán\b", re.IGNORECASE)
 _MISHEARD_PICKUP_VERB = re.compile(r"\bđoán\s+(?=(?:tôi|mình|ở|tại)\b)", re.IGNORECASE)
+_MISHEARD_GATE_QUALIFIER = re.compile(
+    r"\bcũng\s+(?=(?:chính|phụ|trước|sau|số\s*[a-zA-Z0-9]+|[0-9]+)\b)",
+    re.IGNORECASE,
+)
+_MISHEARD_NAMED_GATE = re.compile(r"\bcũng\s+(?=[A-Z](?:\s|\b))")
+_GATE_PREFIX = re.compile(r"^cổng\s+(?:chính|phụ|trước|sau|số\s*\w+)\s+", re.IGNORECASE)
 
 
 def _mask_sensitive_values(text: str) -> tuple[str, dict[str, str]]:
@@ -116,13 +122,43 @@ def _preserve_initial_case(source: str, replacement: str) -> str:
 
 
 def _contextual_booking_language_rewrite(text: str, compact_context: dict[str, Any]) -> str:
-    """Repair narrow ride-booking homophones only while collecting a location."""
+    """Repair narrow, context-grounded ride-booking homophones."""
 
+    corrected = _MISHEARD_GATE_QUALIFIER.sub(
+        lambda match: _preserve_initial_case(match.group(0), "cổng "),
+        text,
+    )
+    known_gate_names: set[str] = set()
+    known_places = compact_context.get("known_booking_places")
+    if isinstance(known_places, dict):
+        known_gate_names.update(value for value in known_places.values() if isinstance(value, str))
+    selection = compact_context.get("location_selection")
+    if isinstance(selection, dict):
+        for candidate in selection.get("candidates", []):
+            if not isinstance(candidate, dict):
+                continue
+            display_name = candidate.get("display_name")
+            if isinstance(display_name, str):
+                known_gate_names.add(display_name)
+                known_gate_names.add(_GATE_PREFIX.sub("", display_name))
+    for name in sorted(known_gate_names, key=len, reverse=True):
+        if not name.strip():
+            continue
+        corrected = re.sub(
+            rf"\bcũng\s+(?={re.escape(name)}\b)",
+            lambda match: _preserve_initial_case(match.group(0), "cổng "),
+            corrected,
+            flags=re.IGNORECASE,
+        )
+    corrected = _MISHEARD_NAMED_GATE.sub(
+        lambda match: _preserve_initial_case(match.group(0), "cổng "),
+        corrected,
+    )
     if compact_context.get("current_step") not in _LOCATION_COLLECTION_STEPS:
-        return text
+        return corrected
     corrected = _MISHEARD_PICKUP_LABEL.sub(
         lambda match: _preserve_initial_case(match.group(0), "điểm đón"),
-        text,
+        corrected,
     )
     return _MISHEARD_PICKUP_VERB.sub(
         lambda match: _preserve_initial_case(match.group(0), "đón "),
@@ -349,10 +385,10 @@ def apply_deterministic_transcript_rewrite(
 
     compact_context = _minimal_context(session_context)
     corrected = (place_aliases or PlaceAliasCatalog.load()).correct(text)
-    corrected = _contextual_booking_language_rewrite(corrected, compact_context)
     contextual = _contextual_candidate_alias_rewrite(corrected, compact_context)
     if contextual is not None:
         return contextual, "contextual_candidate_alias"
+    corrected = _contextual_booking_language_rewrite(corrected, compact_context)
     return corrected, "deterministic_alias" if corrected != text else None
 
 
@@ -464,6 +500,13 @@ class OpenAITranscriptRewriter:
 
         duration_ms = int((time.monotonic() - started) * 1000)
         candidate_masked = parsed.normalized_text.strip()
+        # Deterministic vocabulary invariants also run after the provider so a
+        # model cannot regress a known gate/place correction back to raw ASR.
+        candidate_masked, _ = apply_deterministic_transcript_rewrite(
+            candidate_masked,
+            session_context,
+            place_aliases=self.place_aliases,
+        )
         # A candidate-scoped exact ASR alias is stronger evidence than a model
         # guess. The alias exists only in the current selection state, so it
         # cannot affect the same words elsewhere in the conversation.

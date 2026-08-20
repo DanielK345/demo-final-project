@@ -115,4 +115,5 @@ async def test_completed_booking_restores_without_creating_a_second_result() -> 
     assert await store.restore(reconnected) is True
     restored = reconnected.booking_draft
     assert restored.booking == booking
+    assert restored.locked_fields == frozenset({"pickup", "destination", "vehicle_type"})
     assert booking_service.create(app_session_id=reconnected.app_session_id, draft=restored) == booking

@@ -19,6 +19,7 @@ from src.voice_agent.persistence import (
 )
 from src.voice_agent.session_data import (
     AloSMSessionData,
+    BookingField,
     BookingResult,
     BookingTarget,
     HandoffState,
@@ -64,6 +65,33 @@ def is_explicit_confirmation(value: str) -> bool:
         "ok dat",
     )
     return any(phrase in normalized for phrase in affirmative_phrases)
+
+
+_CHANGE_CUES = ("doi", "sua", "thay", "chinh", "cap nhat", "khong phai", "nham")
+_FIELD_TERMS: dict[BookingField, tuple[str, ...]] = {
+    "pickup": ("diem don", "diem di", "noi don", "cho don", "don o", "don tai", "di tu", "xuat phat tu"),
+    "destination": ("diem den", "noi den", "cho den", "dich den", "di den", "di toi"),
+    "vehicle_type": ("loai xe", "xe may", "xe oto", "xe o to", "xe bon cho", "xe bay cho", "xe cao cap"),
+}
+
+
+def is_explicit_booking_field_change(value: str, field: BookingField) -> bool:
+    """Require transcript evidence before an already selected slot can be unlocked."""
+
+    normalized = _normalize_confirmation(value)
+    if not normalized:
+        return False
+    field_mentioned = any(term in normalized for term in _FIELD_TERMS[field])
+    change_requested = any(cue in normalized for cue in _CHANGE_CUES)
+    if field_mentioned and change_requested:
+        return True
+    # These complete constructions directly replace an existing value even when
+    # Vietnamese speakers omit an explicit "đổi/sửa" verb.
+    if field == "pickup":
+        return any(term in normalized for term in ("diem don la", "don toi o", "don minh o", "di tu"))
+    if field == "destination":
+        return any(term in normalized for term in ("diem den la", "toi muon den", "di den", "di toi"))
+    return field_mentioned and any(term in normalized for term in ("toi muon", "cho toi", "chuyen sang"))
 
 
 def requires_location_clarification(
@@ -116,8 +144,12 @@ class BookingTask(AgentTask[BookingOutcome]):
                 "Sau khi có giá, gọi prepare_booking_confirmation và đọc lại đầy đủ thông tin. "
                 "Chỉ gọi confirm_booking khi lượt nói mới nhất của khách xác nhận đặt chuyến rõ ràng. "
                 "Chỉ gọi create_booking sau khi confirm_booking thành công. "
-                "Nếu khách sửa điểm đón, điểm đến hoặc loại xe, gọi tool tương ứng; hệ thống sẽ "
-                "tự xoá giá và xác nhận cũ. Không được tự bịa giá, ETA hoặc mã chuyến."
+                "Điểm đón, điểm đến và loại xe đã xác nhận là các trường đã khóa. Không được gọi "
+                "search_place, select_place hoặc set_vehicle_type để thay trường đã khóa chỉ vì mất "
+                "context. Chỉ khi lượt mới nhất của khách yêu cầu đổi đúng trường đó, gọi "
+                "unlock_booking_field trước rồi mới gọi tool cập nhật tương ứng; các trường còn lại "
+                "phải được giữ nguyên. Hệ thống sẽ tự xoá giá và xác nhận cũ. Không được tự bịa giá, "
+                "ETA hoặc mã chuyến. "
                 "Nếu tool báo ASR_LOW_CONFIDENCE thì yêu cầu khách nói lại hoặc nhập tay. "
                 "Nếu khách yêu cầu gặp người thật hoặc không thể tiếp tục, gọi request_handoff."
             ),
@@ -172,6 +204,30 @@ class BookingTask(AgentTask[BookingOutcome]):
         await publish_booking_state(context.session)
 
     @function_tool()
+    async def unlock_booking_field(
+        self,
+        context: RunContext[AloSMSessionData],
+        field: BookingField,
+    ) -> str:
+        """Unlock exactly one selected field when the latest user turn explicitly changes it.
+
+        Args:
+            field: The selected pickup, destination, or vehicle_type field to change.
+        """
+        latest = self._latest_user_message()
+        latest_user_text = latest.text_content if latest is not None else ""
+        if not is_explicit_booking_field_change(latest_user_text, field):
+            raise ToolError(f"LATEST_USER_MESSAGE_DOES_NOT_CHANGE_LOCKED_FIELD:{field}")
+        try:
+            self._draft(context).unlock_field(field)
+        except ValueError as exc:
+            raise ToolError(str(exc)) from exc
+        context.userdata.clear_failure()
+        await self._commit(context)
+        labels = {"pickup": "điểm đón", "destination": "điểm đến", "vehicle_type": "loại xe"}
+        return f"Đã cho phép cập nhật {labels[field]}; giữ nguyên các thông tin đã khóa khác."
+
+    @function_tool()
     async def search_place(
         self,
         context: RunContext[AloSMSessionData],
@@ -198,7 +254,10 @@ class BookingTask(AgentTask[BookingOutcome]):
 
         candidates = self._places.search(query)
         draft = self._draft(context)
-        draft.set_candidates(target, query, candidates)
+        try:
+            draft.set_candidates(target, query, candidates)
+        except ValueError as exc:
+            raise ToolError(str(exc)) from exc
         if not candidates:
             context.userdata.record_failure(
                 "PLACE_NOT_FOUND",
@@ -251,7 +310,10 @@ class BookingTask(AgentTask[BookingOutcome]):
         Args:
             vehicle_type: MOTORBIKE, CAR_4, CAR_7, or LUXURY.
         """
-        self._draft(context).set_vehicle_type(vehicle_type)
+        try:
+            self._draft(context).set_vehicle_type(vehicle_type)
+        except ValueError as exc:
+            raise ToolError(str(exc)) from exc
         context.userdata.clear_failure()
         await self._commit(context)
         return f"Đã chọn {vehicle_spoken_label(vehicle_type)}."

@@ -8,6 +8,7 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 BookingTarget = Literal["pickup", "destination"]
+BookingField = Literal["pickup", "destination", "vehicle_type"]
 VehicleType = Literal["MOTORBIKE", "CAR_4", "CAR_7", "LUXURY"]
 ConfirmationStatus = Literal["not_requested", "awaiting", "confirmed"]
 FailureCode = Literal[
@@ -120,7 +121,36 @@ class BookingDraft(BaseModel):
     confirmation_status: ConfirmationStatus = "not_requested"
     confirmation_fingerprint: str | None = None
     booking: BookingResult | None = None
+    locked_fields: frozenset[BookingField] = Field(default_factory=frozenset)
     revision: int = 0
+
+    def model_post_init(self, __context: object) -> None:
+        """Treat values restored from older state versions as already locked."""
+
+        inferred = set(self.locked_fields)
+        if self.pickup is not None:
+            inferred.add("pickup")
+        if self.destination is not None:
+            inferred.add("destination")
+        if self.vehicle_type is not None:
+            inferred.add("vehicle_type")
+        object.__setattr__(self, "locked_fields", frozenset(inferred))
+
+    def _lock(self, field: BookingField) -> None:
+        self.locked_fields = self.locked_fields | {field}
+
+    def unlock_field(self, field: BookingField) -> None:
+        """Authorize one explicit correction without dropping the current value."""
+
+        if field not in self.locked_fields:
+            return
+        self.locked_fields = self.locked_fields - {field}
+        self._invalidate_quote_and_confirmation()
+        self.revision += 1
+
+    def _ensure_change_allowed(self, field: BookingField, *, changing: bool) -> None:
+        if changing and field in self.locked_fields:
+            raise ValueError(f"BOOKING_FIELD_LOCKED:{field}")
 
     def _invalidate_quote_and_confirmation(self) -> None:
         self.quote = None
@@ -135,12 +165,12 @@ class BookingDraft(BaseModel):
         candidates: list[PlaceCandidate],
     ) -> None:
         if target == "pickup":
+            self._ensure_change_allowed("pickup", changing=self.pickup is not None)
             self.pickup_query = query
-            self.pickup = None
             self.pickup_candidates = candidates
         else:
+            self._ensure_change_allowed("destination", changing=self.destination is not None)
             self.destination_query = query
-            self.destination = None
             self.destination_candidates = candidates
         self._invalidate_quote_and_confirmation()
         self.revision += 1
@@ -151,24 +181,38 @@ class BookingDraft(BaseModel):
         if selected is None:
             raise ValueError("PLACE_CANDIDATE_NOT_IN_CURRENT_SEARCH")
         current = self.pickup if target == "pickup" else self.destination
+        if current == selected and target not in self.locked_fields:
+            self._lock(target)
+            self.revision += 1
+            return selected
         if current != selected:
+            self._ensure_change_allowed(target, changing=current is not None)
             if target == "pickup":
                 self.pickup = selected
             else:
                 self.destination = selected
+            self._lock(target)
             self._invalidate_quote_and_confirmation()
             self.revision += 1
         return selected
 
     def set_vehicle_type(self, vehicle_type: VehicleType) -> None:
+        if self.vehicle_type == vehicle_type and "vehicle_type" not in self.locked_fields:
+            self._lock("vehicle_type")
+            self.revision += 1
+            return
         if self.vehicle_type != vehicle_type:
+            self._ensure_change_allowed("vehicle_type", changing=self.vehicle_type is not None)
             self.vehicle_type = vehicle_type
+            self._lock("vehicle_type")
             self._invalidate_quote_and_confirmation()
             self.revision += 1
 
     def set_quote(self, quote: QuoteSnapshot) -> None:
         if self.pickup is None or self.destination is None or self.vehicle_type is None:
             raise ValueError("BOOKING_CONTEXT_INCOMPLETE")
+        if not {"pickup", "destination", "vehicle_type"}.issubset(self.locked_fields):
+            raise ValueError("BOOKING_FIELDS_NOT_LOCKED")
         expected = (self.pickup.place_id, self.destination.place_id, self.vehicle_type)
         actual = (quote.pickup_place_id, quote.destination_place_id, quote.vehicle_type)
         if actual != expected:
@@ -224,6 +268,7 @@ class BookingDraft(BaseModel):
             "quote": self.quote.model_dump() if self.quote else None,
             "confirmation_status": self.confirmation_status,
             "booking": self.booking.model_dump() if self.booking else None,
+            "locked_fields": sorted(self.locked_fields),
         }
 
     def conversation_summary(self) -> str:
@@ -231,16 +276,16 @@ class BookingDraft(BaseModel):
 
         details: list[str] = []
         if self.pickup is not None:
-            details.append(f"điểm đón {self.pickup.display_name}")
+            details.append(f"điểm đón đã khóa {self.pickup.display_name}")
         elif self.pickup_query:
             details.append(f"điểm đón chưa xác nhận từ lời nói {self.pickup_query}")
         if self.destination is not None:
-            details.append(f"điểm đến {self.destination.display_name}")
+            details.append(f"điểm đến đã khóa {self.destination.display_name}")
         elif self.destination_query:
             details.append(f"điểm đến chưa xác nhận từ lời nói {self.destination_query}")
         vehicle_label = vehicle_spoken_label(self.vehicle_type)
         if vehicle_label:
-            details.append(f"loại xe {vehicle_label}")
+            details.append(f"loại xe đã khóa {vehicle_label}")
         if self.booking is not None:
             details.append(f"đã tạo chuyến mã {self.booking.booking_id}")
         elif self.confirmation_status == "confirmed":

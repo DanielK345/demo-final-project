@@ -47,13 +47,16 @@ def test_every_booking_correction_invalidates_quote_confirmation_and_booking(
 
     if correction == "pickup":
         replacement = _place("place_pickup_new", "Cổng chính VinUni")
+        draft.unlock_field("pickup")
         draft.set_candidates("pickup", replacement.display_name, [replacement])
         draft.select_place("pickup", replacement.place_id)
     elif correction == "destination":
         replacement = _place("place_destination_new", "Bệnh viện Bạch Mai")
+        draft.unlock_field("destination")
         draft.set_candidates("destination", replacement.display_name, [replacement])
         draft.select_place("destination", replacement.place_id)
     else:
+        draft.unlock_field("vehicle_type")
         draft.set_vehicle_type("CAR_7")
 
     assert draft.quote is None
@@ -92,6 +95,62 @@ def test_public_state_excludes_queries_and_candidate_lists() -> None:
     assert "destination_query" not in public
     assert "pickup_candidates" not in public
     assert public["pickup"]["display_name"] == "VinUni"  # type: ignore[index]
+    assert public["locked_fields"] == ["destination", "pickup", "vehicle_type"]
+
+
+def test_selected_fields_cannot_be_overwritten_without_explicit_unlock() -> None:
+    draft = _quoted_draft()
+    original_pickup = draft.pickup
+    original_destination = draft.destination
+
+    with pytest.raises(ValueError, match="BOOKING_FIELD_LOCKED:pickup"):
+        draft.set_candidates("pickup", "Hồ Tây", [_place("ho-tay", "Hồ Tây")])
+    with pytest.raises(ValueError, match="BOOKING_FIELD_LOCKED:vehicle_type"):
+        draft.set_vehicle_type("CAR_7")
+
+    assert draft.pickup == original_pickup
+    assert draft.destination == original_destination
+    assert draft.vehicle_type == "CAR_4"
+
+
+def test_changing_one_unlocked_field_preserves_and_locks_all_other_fields() -> None:
+    draft = _quoted_draft()
+    original_pickup = draft.pickup
+    replacement = _place("ho-tay", "Hồ Tây")
+
+    draft.unlock_field("destination")
+    draft.set_candidates("destination", "Hồ Tây", [replacement])
+
+    # Searching does not erase the previously confirmed value while the user is
+    # still choosing a replacement candidate.
+    assert draft.destination is not None
+    assert draft.destination.display_name == "Hồ Gươm"
+    assert draft.pickup == original_pickup
+    assert draft.vehicle_type == "CAR_4"
+
+    draft.select_place("destination", replacement.place_id)
+
+    assert draft.destination == replacement
+    assert draft.pickup == original_pickup
+    assert draft.vehicle_type == "CAR_4"
+    assert draft.locked_fields == frozenset({"pickup", "destination", "vehicle_type"})
+
+
+def test_reselecting_same_value_relocks_field_before_quote() -> None:
+    draft = _quoted_draft()
+    assert draft.destination is not None
+    destination_id = draft.destination.place_id
+
+    draft.unlock_field("destination")
+    with pytest.raises(ValueError, match="BOOKING_FIELDS_NOT_LOCKED"):
+        draft.set_quote(QuoteToolsService().estimate(draft))
+
+    draft.set_candidates("destination", "Hồ Gươm", [draft.destination])
+    draft.select_place("destination", destination_id)
+    draft.set_quote(QuoteToolsService().estimate(draft))
+
+    assert "destination" in draft.locked_fields
+    assert draft.quote is not None
 
 
 def test_conversation_summary_is_compact_and_uses_spoken_vehicle_label() -> None:
@@ -99,8 +158,8 @@ def test_conversation_summary_is_compact_and_uses_spoken_vehicle_label() -> None
 
     summary = draft.conversation_summary()
 
-    assert "điểm đón VinUni" in summary
-    assert "điểm đến Hồ Gươm" in summary
+    assert "điểm đón đã khóa VinUni" in summary
+    assert "điểm đến đã khóa Hồ Gươm" in summary
     assert "xe ô tô bốn chỗ" in summary
     assert "CAR_4" not in summary
     assert vehicle_spoken_label("MOTORBIKE") == "xe máy"

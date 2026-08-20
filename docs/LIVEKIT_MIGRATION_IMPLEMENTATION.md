@@ -654,6 +654,11 @@ Gate: correction và handoff tests pass; reconnect/retry không duplicate bookin
 - Regression verification: Voice Agent recovery/state/task/config/persistence cùng
   LiveKit API/service và Hà Nội booking-flow tests pass; browser audio E2E vẫn phải
   chạy lại để chốt endpointing và voice bằng tai nghe/micro thật.
+- `BookingDraft` khóa độc lập `pickup`, `destination` và `vehicle_type` ngay khi
+  từng giá trị được xác nhận. Tool không thể tìm/chọn đè một trường đã khóa; lượt
+  mới nhất phải thể hiện rõ ý định sửa đúng trường và gọi `unlock_booking_field`
+  trước. Tìm candidate thay thế vẫn giữ giá trị cũ cho tới khi candidate mới được
+  chọn, và mọi trường không được yêu cầu sửa luôn được bảo toàn qua persistence.
 - Thêm `src/voice_agent/observability.py`, subscribe trực tiếp public
   `AgentSession` events cho user/agent state, transcript, conversation metrics,
   speech, overlap/false interruption, tool lifecycle, usage, error và close. Không

@@ -5,6 +5,7 @@ from src.voice_agent.agent import AloSMAgent
 from src.voice_agent.session_data import AloSMSessionData, PlaceCandidate
 from src.voice_agent.tasks.booking import (
     BookingTask,
+    is_explicit_booking_field_change,
     is_explicit_confirmation,
     requires_location_clarification,
 )
@@ -34,7 +35,7 @@ def test_recovered_booking_is_available_to_the_parent_agent_without_full_history
 
     instructions = AloSMAgent(session_data=userdata).instructions
 
-    assert "điểm đón Bến xe Mỹ Đình" in instructions
+    assert "điểm đón đã khóa Bến xe Mỹ Đình" in instructions
     assert "không có lịch sử" in instructions
     assert "pickup_candidates" not in instructions
 
@@ -56,6 +57,7 @@ async def test_booking_task_uses_native_function_tools() -> None:
         "search_place",
         "select_place",
         "set_vehicle_type",
+        "unlock_booking_field",
     }
     assert task.chat_ctx.messages()[-1].text_content == "Đặt xe từ VinUni đến Hồ Gươm"
 
@@ -74,6 +76,14 @@ def test_explicit_confirmation_rejects_negative_or_ambiguous_text() -> None:
     assert is_explicit_confirmation("Đúng rồi, đặt xe đi") is True
     assert is_explicit_confirmation("Không đúng, sửa điểm đến") is False
     assert is_explicit_confirmation("Ừ") is False
+
+
+def test_booking_field_unlock_requires_explicit_targeted_change() -> None:
+    assert is_explicit_booking_field_change("Sửa điểm đến thành Hồ Tây", "destination") is True
+    assert is_explicit_booking_field_change("Đón tôi ở cổng chính VinUni", "pickup") is True
+    assert is_explicit_booking_field_change("Tôi muốn xe bảy chỗ", "vehicle_type") is True
+    assert is_explicit_booking_field_change("Sửa điểm đến thành Hồ Tây", "pickup") is False
+    assert is_explicit_booking_field_change("Thông tin đó đúng rồi", "destination") is False
 
 
 def test_native_transcript_confidence_only_blocks_low_confidence_audio() -> None:

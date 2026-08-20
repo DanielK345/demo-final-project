@@ -229,6 +229,72 @@ def test_booking_language_rewrite_repairs_pickup_homophone_only_in_location_step
     )
 
 
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [
+        ("cũng chính VinUni", "cổng chính VinUni"),
+        ("cũng phụ VinUni", "cổng phụ VinUni"),
+        ("cũng trước trường", "cổng trước trường"),
+        ("cũng sau trường", "cổng sau trường"),
+        ("cũng số 2", "cổng số 2"),
+        ("cũng 3", "cổng 3"),
+        ("cũng A", "cổng A"),
+    ],
+)
+def test_booking_language_rewrite_enforces_gate_homophones(raw: str, expected: str):
+    assert _contextual_booking_language_rewrite(raw, {"current_step": "COLLECT_PICKUP"}) == expected
+
+
+def test_booking_language_rewrite_uses_known_place_as_gate_name():
+    assert (
+        _contextual_booking_language_rewrite(
+            "cũng VinUni",
+            {
+                "current_step": "COLLECT_PICKUP",
+                "known_booking_places": {"pickup": "VinUni"},
+            },
+        )
+        == "cổng VinUni"
+    )
+
+
+def test_gate_homophone_is_repaired_while_correcting_an_already_complete_booking():
+    assert (
+        _contextual_booking_language_rewrite(
+            "Sửa điểm đón thành cũng chính VinUni",
+            {"current_step": "PRESENT_QUOTE"},
+        )
+        == "Sửa điểm đón thành cổng chính VinUni"
+    )
+
+
+@pytest.mark.asyncio
+async def test_gate_homophone_cannot_be_reintroduced_by_llm_output():
+    client = _FakeClient(
+        _RewriteOutput(
+            normalized_text="Sửa điểm đón thành cũng chính VinUni",
+            meaning_preserved=True,
+            requires_clarification=False,
+            confidence=0.99,
+            change_types=["spelling", "domain_term"],
+        )
+    )
+    rewriter = OpenAITranscriptRewriter(
+        api_key="",
+        model="rewrite-test",
+        timeout_seconds=1,
+        client=client,
+    )
+
+    result = await rewriter.rewrite(
+        "Sửa điểm đón thành cũng chính VinUni",
+        session_context={"current_step": "PRESENT_QUOTE"},
+        session_id="sess-test",
+    )
+
+    assert result.normalized_text == "Sửa điểm đón thành cổng chính VinUni"
+
+
 def test_relevant_alias_mappings_include_phonetically_close_vinuni_aliases():
     mappings = _relevant_alias_mappings("Điểm đón là Pinn Yuni", PlaceAliasCatalog.load())
 
