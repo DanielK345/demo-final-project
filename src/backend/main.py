@@ -11,6 +11,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from src.backend.api.routes import health_router, router  # noqa: E402
+from src.backend.api.routes.maps import maps_router as maps_direct_router  # noqa: E402
 from src.backend.config import get_settings  # noqa: E402
 
 

@@ -252,6 +252,16 @@ class BookingTask(AgentTask[BookingOutcome]):
                 return
             if not self.done():
                 self.complete(outcome)
+            return
+
+        result = await rewrite_livekit_user_turn(
+            rewriter=self._transcript_rewriter,
+            userdata=self._session_data,
+            turn_ctx=turn_ctx,
+            new_message=new_message,
+        )
+        if result is not None and self._transcript_rewrite_publisher is not None:
+            await self._transcript_rewrite_publisher(new_message.id, result)
 
     async def _commit(self, context: RunContext[AloSMSessionData]) -> None:
         try:

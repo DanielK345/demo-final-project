@@ -10,6 +10,7 @@ from src.voice_agent.tasks import booking as booking_module
 from src.voice_agent.tasks.booking import (
     BookingTask,
     can_auto_select_place,
+    is_explicit_booking_field_change,
     is_explicit_confirmation,
     requires_location_clarification,
 )

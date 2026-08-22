@@ -9,11 +9,10 @@ import {
   useSessionMessages,
   useTranscriptions,
 } from "@livekit/components-react";
-import { Mic, MicOff, PhoneOff, Send, Volume2, VolumeX } from "lucide-react";
-import { getCurrentUser } from "@/features/auth/api";
+import { LoaderCircle, Mic, MicOff, PhoneOff, Send, Volume2, VolumeX } from "lucide-react";
 import { CURRENT_POLICY_VERSION } from "@/features/policies/api";
 import { useVoiceAssistant } from "@/features/ai-assistant/context/useVoiceAssistant";
-import { getRideSession } from "@/features/ride/api";
+import { discardPreparedAloSMCall, prepareAloSMCall } from "./prepareCall";
 import { createAloSMTokenSource, LIVEKIT_AGENT_NAME } from "./tokenSource";
 import {
   BOOKING_STATE_TOPIC,
@@ -110,18 +109,35 @@ function LiveKitCallContent({
   const [speakerMuted, setSpeakerMuted] = useState(false);
   const [draft, setDraft] = useState("");
   const [bookingState, setBookingState] = useState<BookingState | null>(null);
-  const [wasConnected, setWasConnected] = useState(false);
+  const [transcriptRewrites, setTranscriptRewrites] = useState<Record<string, TranscriptRewriteEvent>>({});
   const { message: bookingStateMessage } = useDataChannel(BOOKING_STATE_TOPIC);
-  const agentFailure = agent.failureReasons?.join("; ") ?? "";
-  const bookingCompleted = Boolean(bookingState?.booking);
-  const handoffConnected = bookingState?.handoff?.status === "connected";
-  const connectionLost = wasConnected && agent.state === "disconnected" && !handoffConnected;
-
-  useEffect(() => {
-    if (["initializing", "idle", "listening", "thinking", "speaking"].includes(agent.state)) {
-      setWasConnected(true);
+  const { message: transcriptRewriteMessage } = useDataChannel(TRANSCRIPT_REWRITE_TOPIC);
+  const finalTranscriptions = useMemo(() => {
+    const states = new Map<string, boolean>();
+    for (const transcription of transcriptions) {
+      const finalAttribute = transcription.streamInfo.attributes?.[TRANSCRIPTION_FINAL_ATTRIBUTE];
+      states.set(transcription.streamInfo.id, String(finalAttribute).toLowerCase() === "true");
     }
-  }, [agent.state]);
+    return states;
+  }, [transcriptions]);
+  const groupedMessages = useMemo(() => {
+    const groups: Array<typeof messages> = [];
+    for (const message of messages) {
+      const previousGroup = groups.at(-1);
+      const previousMessage = previousGroup?.at(-1);
+      const shouldCoalesce = Boolean(
+        message.type === "userTranscript"
+        && previousMessage?.type === "userTranscript"
+        && Math.abs(message.timestamp - previousMessage.timestamp) <= USER_TURN_COALESCE_WINDOW_MS,
+      );
+      if (shouldCoalesce && previousGroup) {
+        previousGroup.push(message);
+      } else {
+        groups.push([message]);
+      }
+    }
+    return groups;
+  }, [messages]);
 
   useEffect(() => {
     if (!bookingStateMessage) return;
@@ -134,23 +150,22 @@ function LiveKitCallContent({
   }, [bookingStateMessage]);
 
   useEffect(() => {
-    // Let livekit-client attempt its native Room reconnect first. If the managed
-    // Session remains disconnected, create exactly one new Room attempt using the
-    // same durable AloSM session. A completed booking must never be retried.
-    const providerFailed = agent.state === "failed" && Boolean(agentFailure);
-    if (!autoRetry || bookingCompleted || (!providerFailed && !connectionLost)) return;
-    const timeoutId = window.setTimeout(onRetry, connectionLost ? 4_000 : 1_500);
-    return () => window.clearTimeout(timeoutId);
-  }, [agent.state, agentFailure, autoRetry, bookingCompleted, connectionLost, onRetry]);
+    if (!transcriptRewriteMessage) return;
+    try {
+      const decoded = new TextDecoder().decode(transcriptRewriteMessage.payload);
+      const rewrite = JSON.parse(decoded) as TranscriptRewriteEvent;
+      if (!rewrite.item_id || rewrite.schema_version !== "1") return;
+      setTranscriptRewrites((current) => ({ ...current, [rewrite.item_id]: rewrite }));
+    } catch {
+      // Ignore malformed/older packets; raw realtime transcript remains visible.
+    }
+  }, [transcriptRewriteMessage]);
 
-  const statusLabel = bookingCompleted
-    ? "Đã đặt chuyến thành công"
-    : handoffConnected
-      ? "Đã kết nối tổng đài viên"
-    : connectionLost && autoRetry
-      ? "Mất kết nối, đang khôi phục phiên…"
-      : stateLabels[agent.state];
-  const showRecovery = !bookingCompleted && !handoffConnected && (Boolean(agent.failureReasons?.length) || connectionLost);
+  useEffect(() => {
+    if (!autoRetry || agent.state !== "failed") return;
+    const timeoutId = window.setTimeout(onRetry, 1_500);
+    return () => window.clearTimeout(timeoutId);
+  }, [agent.state, autoRetry, onRetry]);
 
   const toggleMicrophone = useCallback(async () => {
     await localParticipant.setMicrophoneEnabled(!isMicrophoneEnabled);
@@ -170,21 +185,17 @@ function LiveKitCallContent({
       <div className="text-center">
         <p className="text-xs font-bold uppercase tracking-[0.22em] text-[#008F88]">LiveKit Voice Agent</p>
         <h2 className="mt-2 text-xl font-bold text-slate-900 dark:text-white">Tổng đài AloSM</h2>
-        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{statusLabel}</p>
-        {showRecovery ? (
+        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{stateLabels[agent.state]}</p>
+        {agent.failureReasons?.length ? (
           <div className="mt-2">
-            <p className="text-sm text-rose-600">
-              {connectionLost
-                ? "Kết nối cuộc gọi bị gián đoạn. Thông tin đặt xe đã nhập vẫn được giữ lại."
-                : "Dịch vụ thoại đang tạm thời gián đoạn. Bạn có thể tạo lại cuộc gọi hoặc tiếp tục bằng tin nhắn."}
-            </p>
+            <p className="text-sm text-rose-600">{agent.failureReasons.join("; ")}</p>
             <button
               type="button"
               onClick={onRetry}
               disabled={autoRetry}
               className="mt-3 rounded-xl bg-[#00A99D] px-4 py-2 text-sm font-semibold text-white"
             >
-              {autoRetry ? "Đang khôi phục cuộc gọi…" : "Khôi phục cuộc gọi"}
+              {autoRetry ? "Đang tự tạo lại cuộc gọi…" : "Tạo lại cuộc gọi"}
             </button>
           </div>
         ) : null}
@@ -218,7 +229,7 @@ function LiveKitCallContent({
           ) : null}
           {bookingState.handoff ? (
             <p className="col-span-2 font-semibold text-[#008F88]">
-              {handoffConnected ? "Đã kết nối tổng đài viên" : "Đang chuyển tổng đài viên"}: {bookingState.handoff.handoff_id}
+              Đã chuyển tổng đài viên: {bookingState.handoff.handoff_id}
             </p>
           ) : null}
         </div>
@@ -408,69 +419,24 @@ function LiveKitSessionAttempt({
 }
 
 export const LiveKitVoiceSession: React.FC = () => {
-  const { close, sessionId, newSession } = useVoiceAssistant();
+  const { endSession, livekitCallInstanceId } = useVoiceAssistant();
   const consentKey = `alosm_voice_consent_v${CURRENT_POLICY_VERSION}`;
   const [consented, setConsented] = useState(() => localStorage.getItem(consentKey) === "accepted");
-  const [attempt, setAttempt] = useState(0);
-  const [resumeState, setResumeState] = useState<"checking" | "prompt" | "ready" | "needs-new" | "error">(
-    "checking",
+  const [attempt, setAttempt] = useState(() => ({
+    id: 0,
+    callInstanceId: livekitCallInstanceId ?? crypto.randomUUID(),
+  }));
+
+  const retry = useCallback(() => {
+    const callInstanceId = crypto.randomUUID();
+    void prepareAloSMCall(callInstanceId).catch(() => undefined);
+    setAttempt((current) => ({ id: current.id + 1, callInstanceId }));
+  }, []);
+
+  useEffect(
+    () => () => discardPreparedAloSMCall(attempt.callInstanceId),
+    [attempt.callInstanceId],
   );
-  const [resumeError, setResumeError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!consented) return;
-    if (!sessionId) {
-      setResumeState("needs-new");
-      return;
-    }
-    let active = true;
-    setResumeState("checking");
-    setResumeError(null);
-    void (async () => {
-      // The provider may stay mounted while another tab/call rebinds this token.
-      // Check the authoritative binding before touching the cached session so a
-      // normal stale-cache recovery does not generate a backend 409.
-      const user = await getCurrentUser();
-      if (!active) return;
-      if (!user.session_id || user.session_id !== sessionId) {
-        setResumeState("needs-new");
-        return;
-      }
-
-      const session = await getRideSession(sessionId);
-      if (!active) return;
-      if (session.status !== "ACTIVE" || session.voice_session_terminal) {
-        setResumeState("needs-new");
-      } else if (session.has_resumable_voice_state) {
-        setResumeState("prompt");
-      } else {
-        setResumeState("ready");
-      }
-    })()
-      .catch((error: unknown) => {
-        if (!active) return;
-        setResumeError(error instanceof Error ? error.message : "Không thể kiểm tra phiên trước.");
-        setResumeState("error");
-      });
-    return () => {
-      active = false;
-    };
-  }, [consented, sessionId]);
-
-  const startNewSession = useCallback(async () => {
-    setResumeState("checking");
-    setResumeError(null);
-    try {
-      const created = await newSession();
-      if (!created) {
-        setResumeError("Không thể tạo phiên mới.");
-        setResumeState("error");
-      }
-    } catch (error) {
-      setResumeError(error instanceof Error ? error.message : "Không thể tạo phiên mới.");
-      setResumeState("error");
-    }
-  }, [newSession]);
 
   if (!consented) {
     return (
@@ -489,59 +455,6 @@ export const LiveKitVoiceSession: React.FC = () => {
           className="mt-5 rounded-xl bg-[#00A99D] px-5 py-2.5 font-semibold text-white"
         >
           Đồng ý và bắt đầu
-        </button>
-      </div>
-    );
-  }
-
-  if (resumeState === "checking") {
-    return (
-      <div className="flex h-full items-center justify-center rounded-3xl bg-white p-6 text-center dark:bg-slate-950">
-        <p className="text-sm text-slate-500 dark:text-slate-400">Đang chuẩn bị phiên cuộc gọi…</p>
-      </div>
-    );
-  }
-
-  if (resumeState === "prompt") {
-    return (
-      <div className="flex h-full flex-col items-center justify-center rounded-3xl bg-white p-6 text-center dark:bg-slate-950">
-        <h2 className="text-lg font-bold text-slate-900 dark:text-white">Tiếp tục chuyến đang đặt?</h2>
-        <p className="mt-2 max-w-sm text-sm text-slate-500 dark:text-slate-400">
-          Phiên trước còn thông tin đặt xe chưa hoàn tất. Bạn có thể tiếp tục hoặc bắt đầu một phiên riêng.
-        </p>
-        <div className="mt-5 flex flex-wrap justify-center gap-3">
-          <button
-            type="button"
-            onClick={() => setResumeState("ready")}
-            className="rounded-xl bg-[#00A99D] px-5 py-2.5 font-semibold text-white"
-          >
-            Tiếp tục phiên trước
-          </button>
-          <button
-            type="button"
-            onClick={() => void startNewSession()}
-            className="rounded-xl border border-slate-300 px-5 py-2.5 font-semibold text-slate-700 dark:border-white/20 dark:text-white"
-          >
-            Bắt đầu cuộc gọi mới
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  if (resumeState === "needs-new" || resumeState === "error") {
-    return (
-      <div className="flex h-full flex-col items-center justify-center rounded-3xl bg-white p-6 text-center dark:bg-slate-950">
-        <h2 className="text-lg font-bold text-slate-900 dark:text-white">
-          {resumeState === "error" ? "Không thể kiểm tra phiên" : "Phiên trước đã kết thúc"}
-        </h2>
-        {resumeError ? <p className="mt-2 text-sm text-rose-600">{resumeError}</p> : null}
-        <button
-          type="button"
-          onClick={() => void startNewSession()}
-          className="mt-5 rounded-xl bg-[#00A99D] px-5 py-2.5 font-semibold text-white"
-        >
-          Bắt đầu cuộc gọi mới
         </button>
       </div>
     );

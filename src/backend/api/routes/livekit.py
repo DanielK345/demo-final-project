@@ -10,6 +10,8 @@ from src.backend.api.routes.auth import service as auth_service
 from src.backend.schemas.livekit import (
     LiveKitOperatorTokenRequestDTO,
     LiveKitOperatorTokenResponseDTO,
+    LiveKitPrepareRequestDTO,
+    LiveKitPrepareResponseDTO,
     LiveKitTokenRequestDTO,
     LiveKitTokenResponseDTO,
 )
@@ -34,6 +36,18 @@ async def _authenticated_call_owner(authorization: str | None) -> tuple[str, str
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="Chưa có phiên hội thoại AloSM đang hoạt động",
+        )
+    try:
+        app_session = await SessionService().get_session_durable(app_session_id)
+    except KeyError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Phiên hội thoại không còn tồn tại; hãy bắt đầu phiên mới",
+        ) from exc
+    if app_session.get("status") != "ACTIVE" or app_session.get("voice_session_terminal"):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Phiên hội thoại đã kết thúc; hãy bắt đầu phiên mới",
         )
     return str(user["user_id"]), app_session_id
 
@@ -92,32 +106,7 @@ async def create_livekit_token(
 ) -> LiveKitTokenResponseDTO:
     """Return standard LiveKit connection details using server-owned identity fields."""
 
-    token = authorization.removeprefix("Bearer ") if authorization else ""
-    user = await auth_service.get_user_for_token_durable(token)
-    if user is None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Vui lòng đăng nhập để bắt đầu cuộc gọi",
-        )
-
-    app_session_id = await auth_service.get_session_for_token_durable(token)
-    if not app_session_id:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="Chưa có phiên hội thoại AloSM đang hoạt động",
-        )
-    try:
-        app_session = await SessionService().get_session_durable(app_session_id)
-    except KeyError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="Phiên hội thoại không còn tồn tại; hãy bắt đầu phiên mới",
-        ) from exc
-    if app_session.get("status") != "ACTIVE" or app_session.get("voice_session_terminal"):
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="Phiên hội thoại đã kết thúc; hãy bắt đầu phiên mới",
-        )
+    user_id, app_session_id = await _authenticated_call_owner(authorization)
 
     # Identity, room, metadata and deployment are security boundaries. The client
     # may request only the one agent name configured by the server.

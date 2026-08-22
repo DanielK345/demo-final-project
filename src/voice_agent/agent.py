@@ -3,17 +3,23 @@
 import json
 import logging
 
+from collections.abc import Awaitable, Callable
+
 from livekit.agents import Agent, function_tool, llm
 
 from src.backend.services.knowledge_service import KnowledgeService
 from src.backend.services.pricing_service import PricingService
+from src.voice.text.rewrite_contract import TranscriptRewriter, TranscriptRewriteResult
 from src.voice_agent.persistence import EphemeralVoiceStateStore, VoiceStateStore
 from src.voice_agent.session_data import AloSMSessionData, HandoffState
 from src.voice_agent.state_sync import publish_booking_state
 from src.voice_agent.tasks import BookingTask
 from src.voice_agent.tools.handoffs import HandoffToolsService
+from src.voice_agent.transcript_rewrite import rewrite_livekit_user_turn
 
 logger = logging.getLogger(__name__)
+
+TranscriptRewritePublisher = Callable[[str, TranscriptRewriteResult], Awaitable[object]]
 
 
 class AloSMAgent(Agent):
@@ -24,11 +30,15 @@ class AloSMAgent(Agent):
         *,
         state_store: VoiceStateStore | None = None,
         session_data: AloSMSessionData | None = None,
+        transcript_rewriter: TranscriptRewriter | None = None,
+        transcript_rewrite_publisher: TranscriptRewritePublisher | None = None,
         knowledge_service: KnowledgeService | None = None,
         pricing_service: PricingService | None = None,
     ) -> None:
         self._state_store = state_store or EphemeralVoiceStateStore()
         self._session_data = session_data
+        self._transcript_rewriter = transcript_rewriter
+        self._transcript_rewrite_publisher = transcript_rewrite_publisher
         self._handoffs = HandoffToolsService()
         # These catalogs are local, validated and cached.  They are injected so
         # the LiveKit process can preload them once instead of reading files on
@@ -68,6 +78,8 @@ class AloSMAgent(Agent):
         turn_ctx: llm.ChatContext,
         new_message: llm.ChatMessage,
     ) -> None:
+        if HandoffToolsService.is_handoff_request(new_message.text_content or ""):
+            await self._create_handoff(new_message.text_content or "")
         result = await rewrite_livekit_user_turn(
             rewriter=self._transcript_rewriter,
             userdata=self._session_data,
@@ -145,12 +157,6 @@ class AloSMAgent(Agent):
                 {"status": "failed", "message": "Chưa thể tạo yêu cầu chuyển tổng đài viên."},
                 ensure_ascii=False,
             )
-
-    async def on_user_turn_completed(self, turn_ctx: llm.ChatContext, new_message: llm.ChatMessage) -> None:
-        # Detect explicit human requests before the parent LLM gets a chance to
-        # produce a generic customer-support reply.
-        if HandoffToolsService.is_handoff_request(new_message.text_content or ""):
-            await self._create_handoff(new_message.text_content or "")
 
     @function_tool()
     async def request_handoff(self, reason: str) -> str:

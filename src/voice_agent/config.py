@@ -105,11 +105,14 @@ class LiveKitVoiceSettings(BaseSettings):
             "LIVEKIT_TTS_VOICE_REQUIRED": self.livekit_tts_voice,
         }
         errors = [code for code, value in required.items() if not value.strip()]
-        inference_models = {
-            "LIVEKIT_STT_MODEL_MUST_USE_PROVIDER_MODEL": self.livekit_stt_model,
-            "LIVEKIT_LLM_MODEL_MUST_USE_PROVIDER_MODEL": self.livekit_llm_model,
-            "LIVEKIT_TTS_MODEL_MUST_USE_PROVIDER_MODEL": self.livekit_tts_model,
-        }
+        inference_models = {}
+        if self.livekit_stt_provider != "google":
+            inference_models["LIVEKIT_STT_MODEL_MUST_USE_PROVIDER_MODEL"] = self.livekit_stt_model
+        if self.livekit_llm_provider == "livekit":
+            inference_models["LIVEKIT_LLM_MODEL_MUST_USE_PROVIDER_MODEL"] = self.livekit_llm_model
+        if self.livekit_tts_provider == "livekit":
+            inference_models["LIVEKIT_TTS_MODEL_MUST_USE_PROVIDER_MODEL"] = self.livekit_tts_model
+
         errors.extend(
             code
             for code, model in inference_models.items()

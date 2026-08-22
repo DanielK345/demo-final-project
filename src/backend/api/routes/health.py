@@ -55,10 +55,11 @@ async def ready(response: Response) -> dict[str, object]:
             route_status = maps_health.get("routing", {}).get("status", "not_checked")
             checks["nominatim"] = geo_status
             checks["osrm"] = route_status
-            if geo_status == "failed":
-                error_codes.append("NOMINATIM_UNAVAILABLE")
-            if route_status == "failed":
-                error_codes.append("OSRM_UNAVAILABLE")
+            if settings.app_env == "production":
+                if geo_status == "failed":
+                    error_codes.append("NOMINATIM_UNAVAILABLE")
+                if route_status == "failed":
+                    error_codes.append("OSRM_UNAVAILABLE")
         except Exception:
             checks["nominatim"] = "check_error"
             checks["osrm"] = "check_error"

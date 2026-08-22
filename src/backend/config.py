@@ -45,6 +45,19 @@ class Settings(BaseSettings):
     agent_rewrite_timeout_seconds: float = Field(default=5.0, gt=0)
     agent_rewrite_reasoning_effort: Literal["none", "low", "medium"] = "none"
 
+    # Post-ASR Vietnamese correction. Only the current transcript is sent and
+    # phone/email/ID/number values are replaced with immutable placeholders.
+    voice_transcript_rewrite_enabled: bool = True
+    voice_transcript_rewrite_model: str = "openai/gpt-5.6-luna-pro"
+    voice_transcript_rewrite_base_url: str | None = "https://openrouter.ai/api/v1"
+    voice_transcript_rewrite_timeout_seconds: float = Field(default=5.0, gt=0)
+    voice_transcript_rewrite_reasoning_effort: Literal["none", "low", "medium"] = "none"
+    voice_transcript_rewrite_minimum_confidence: float = Field(default=0.85, ge=0.0, le=1.0)
+    # Bounded, privacy-redacted conversational memory for ASR normalization.
+    # One turn is at most one user and one assistant message.
+    voice_transcript_rewrite_context_window_turns: int = Field(default=3, ge=0, le=8)
+    voice_transcript_rewrite_memory_max_corrections: int = Field(default=6, ge=0, le=20)
+
     def llm_api_key_for(self, base_url: str | None) -> str:
         """Select a gateway credential without reusing it for speech APIs."""
         if base_url and "openrouter.ai" in base_url.lower():

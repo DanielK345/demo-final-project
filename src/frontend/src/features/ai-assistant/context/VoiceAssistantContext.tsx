@@ -5,6 +5,7 @@ import { redirectToLoginIfUnauthorized } from "@/features/auth/sessionGuard";
 import { clearSessionId, getAccessToken, getSessionId, getUserName, saveAuthSession } from "@/features/auth/storage";
 import {
   createRideSession,
+  endRideSession,
   getRideSession,
   resetRideConversation,
   sendRideMessage,
@@ -109,7 +110,6 @@ export const VoiceAssistantProvider: React.FC<{ children: React.ReactNode }> = (
   }, []);
 
   const closeVoiceSession = useCallback(() => {
-    stopVoicePlayback();
     discardPreparedAloSMCall(livekitCallInstanceIdRef.current);
     livekitCallInstanceIdRef.current = null;
     setLivekitCallInstanceId(null);

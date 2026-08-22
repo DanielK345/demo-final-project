@@ -212,8 +212,6 @@ async def end_session(
     await _require_session_access(session_id, authorization)
     try:
         result = await controller.service.end_session_durable(session_id, request.reason)
-        # Ending the auth-bound conversation is terminal. Revoke server-side so a
-        # stale/localStorage token cannot continue accessing protected endpoints.
         await auth_service.revoke_token_durable(_token_from_header(authorization))
         return EndSessionResponseDTO(**result)
     except KeyError as exc:

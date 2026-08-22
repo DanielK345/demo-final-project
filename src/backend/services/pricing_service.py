@@ -90,12 +90,33 @@ class PricingService:
             "source_type": self.catalog.source_type,
         }
 
-    def vehicle_options(
-        self, *, pickup_place_id: str, destination_place_id: str, passenger_count: int, luggage_count: int | None = None
+    def estimate_fare(self, *, pickup_place_id: str, destination_place_id: str, vehicle_type: str) -> dict[str, object]:
+        """Legacy deterministic estimator retained only for test/offline compatibility."""
+        distance_km = estimate_distance_km(pickup_place_id, destination_place_id)
+        return self.estimate_route_fare(
+            route_id=f"demo_{pickup_place_id}_{destination_place_id}",
+            distance_meters=distance_km * 1000,
+            duration_seconds=_eta_minutes(distance_km) * 60,
+            vehicle_type=vehicle_type,
+        )
+
+    def vehicle_options_for_route(
+        self,
+        *,
+        route_id: str,
+        distance_meters: float,
+        duration_seconds: float,
+        passenger_count: int,
+        luggage_count: int | None = None,
     ) -> list[dict[str, object]]:
         options: list[dict[str, object]] = []
         for vehicle_type, vehicle in self.catalog.vehicles.items():
-            quote = self._quote(pickup_place_id, destination_place_id, vehicle_type)
+            quote = self.estimate_route_fare(
+                route_id=route_id,
+                distance_meters=distance_meters,
+                duration_seconds=duration_seconds,
+                vehicle_type=vehicle_type,
+            )
             options.append(
                 {
                     "option_id": f"opt_{vehicle_type.lower()}",
