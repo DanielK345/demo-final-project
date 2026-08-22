@@ -49,8 +49,15 @@ def evaluate(dataset_path: str, api_url: str = "http://localhost:8000") -> dict:
 
     print(f"[INFO] Evaluating {len(rows)} queries against {api_url}")
 
-    results = {"total": len(rows), "top1_match": 0, "top3_match": 0, "no_result": 0,
-               "errors": 0, "latencies": [], "by_slice": {}}
+    results = {
+        "total": len(rows),
+        "top1_match": 0,
+        "top3_match": 0,
+        "no_result": 0,
+        "errors": 0,
+        "latencies": [],
+        "by_slice": {},
+    }
 
     for i, row in enumerate(rows):
         query = row["query"]
@@ -88,10 +95,10 @@ def evaluate(dataset_path: str, api_url: str = "http://localhost:8000") -> dict:
 
         except (URLError, Exception) as exc:
             results["errors"] += 1
-            print(f"  [{i+1}/{len(rows)}] ERROR: {query[:50]} — {exc}", file=sys.stderr)
+            print(f"  [{i + 1}/{len(rows)}] ERROR: {query[:50]} — {exc}", file=sys.stderr)
 
         if (i + 1) % 50 == 0:
-            print(f"  Progress: {i+1}/{len(rows)}")
+            print(f"  Progress: {i + 1}/{len(rows)}")
 
     # Compute metrics
     total = results["total"]

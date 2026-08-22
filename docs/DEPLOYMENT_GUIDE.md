@@ -40,7 +40,7 @@ Hệ thống AloSM Voice AI gồm 4 dịch vụ độc lập hoạt động cùn
 ### Bước 1: Chuẩn bị Database Supabase
 1. Đăng ký tại [supabase.com](https://supabase.com) và tạo project tại khu vực **Singapore (`ap-southeast-1`)**.
 2. Lấy 2 chuỗi kết nối trong **Project Settings → Database → Connection string**:
-   - `DATABASE_URL`: URI dạng Transaction Pooler (Cổng `6543`).
+   - `DATABASE_URL`: persistent service dùng Direct/Session Pooler (cổng `5432`); chỉ workload tạm thời mới dùng Transaction Pooler `6543`.
    - `DATABASE_URL_MIGRATIONS`: URI dạng Direct Connection (Cổng `5432`).
 3. Chạy lệnh cập nhật database từ máy tính của bạn:
    ```powershell
@@ -59,7 +59,7 @@ Hệ thống AloSM Voice AI gồm 4 dịch vụ độc lập hoạt động cùn
 4. Cài đặt các biến bí mật (Secrets):
    ```powershell
    fly secrets set `
-     DATABASE_URL="postgresql://postgres.xxx:PASSWORD@aws-0-ap-southeast-1.pooler.supabase.com:6543/postgres" `
+     DATABASE_URL="postgresql://postgres.xxx:PASSWORD@aws-0-ap-southeast-1.pooler.supabase.com:5432/postgres" `
      DATABASE_URL_MIGRATIONS="postgresql://postgres.xxx:PASSWORD@aws-0-ap-southeast-1.pooler.supabase.com:5432/postgres" `
      QUOTE_SIGNING_KEY="tao-khoa-32-ky-tu-ngau-nhien-o-day" `
      FIELD_ENCRYPTION_KEY="tao-khoa-32-ky-tu-ngau-nhien-o-day" `
@@ -68,8 +68,7 @@ Hệ thống AloSM Voice AI gồm 4 dịch vụ độc lập hoạt động cùn
      LIVEKIT_API_KEY="APxxxxxxx" `
      LIVEKIT_API_SECRET="secret_xxxxxxx" `
      OPENAI_API_KEY="sk-xxxxxxx" `
-     OPENROUTER_API_KEY="sk-or-xxxxxxx" `
-     GEMINI_API_KEY="AIzaxxxxxxx"
+     OPENROUTER_API_KEY="sk-or-xxxxxxx"
    ```
 5. Deploy:
    ```powershell
@@ -84,7 +83,6 @@ Hệ thống AloSM Voice AI gồm 4 dịch vụ độc lập hoạt động cùn
    - **Framework:** `Vite`
 3. Thêm biến môi trường:
    - `VITE_API_BASE_URL`: `https://alosm-voice-ai.fly.dev` (URL backend ở bước 3)
-   - `VITE_VOICE_RUNTIME`: `livekit`
 4. Bấm **Deploy**. Bạn sẽ nhận được đường link website: `https://alosm-frontend.vercel.app`.
 
 ### Bước 5: Cấu hình CORS cho Backend

@@ -8,7 +8,9 @@ from src.backend.services.quote_service import QuoteService
 
 
 class BookingService:
-    def __init__(self, repository: PersistenceRepository | None = None, quote_service: QuoteService | None = None) -> None:
+    def __init__(
+        self, repository: PersistenceRepository | None = None, quote_service: QuoteService | None = None
+    ) -> None:
         self._repository = repository or PersistenceRepository()
         self._quote_service = quote_service or QuoteService(repository=self._repository)
 
@@ -32,7 +34,9 @@ class BookingService:
             if value is not None and str(value) != str(quote[field]):
                 raise ValueError("QUOTE_CONTEXT_MISMATCH")
         request_payload = {"quote_id": quote_id, "user_id": user_id, "session_id": session_id, **expected}
-        request_hash = hashlib.sha256(json.dumps(request_payload, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+        request_hash = hashlib.sha256(
+            json.dumps(request_payload, sort_keys=True, separators=(",", ":")).encode()
+        ).hexdigest()
         return await self._repository.create_booking_from_quote(
             quote_id=quote_id,
             user_id=user_id,
@@ -50,8 +54,11 @@ class BookingService:
     async def list_bookings_for_user_durable(self, user_id: str) -> list[dict[str, object]]:
         return await self._repository.bookings_for_user(user_id)
 
-    async def cancel_booking_durable(self, booking_id: str, idempotency_key: str, user_id: str | None = None) -> dict[str, object] | None:
+    async def cancel_booking_durable(
+        self, booking_id: str, idempotency_key: str, user_id: str | None = None
+    ) -> dict[str, object] | None:
         return await self._repository.cancel_booking(booking_id, user_id, idempotency_key)
+
     bookings_by_key: dict[str, dict[str, object]] = {}
     # booking_id -> record (mọi booking, bất kể tạo qua đường nào) — phục vụ
     # GET /api/v1/bookings (lịch sử) và GET /api/v1/trips/status (tra cứu theo booking).
@@ -82,14 +89,16 @@ class BookingService:
         return booking
 
     def create_booking_from_session(self, session: dict[str, object]) -> dict[str, object]:
-        return self.create_booking({
-            "idempotency_key": f"{session['session_id']}:create_booking:1",
-            "estimated_fare": 85000,
-            "user_id": session.get("user_id"),
-            "pickup": session.get("pickup"),
-            "destination": session.get("destination"),
-            "vehicle_type": session.get("vehicle_type"),
-        })
+        return self.create_booking(
+            {
+                "idempotency_key": f"{session['session_id']}:create_booking:1",
+                "estimated_fare": 85000,
+                "user_id": session.get("user_id"),
+                "pickup": session.get("pickup"),
+                "destination": session.get("destination"),
+                "vehicle_type": session.get("vehicle_type"),
+            }
+        )
 
     def legacy_create_booking(self, payload: dict[str, object]) -> dict[str, object]:
         return {

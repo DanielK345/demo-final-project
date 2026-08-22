@@ -97,7 +97,9 @@ class ModelDrivenAgent:
                     reason="Model generated a conversational response from typed state.",
                 )
             if decision.tool_call is None:
-                return handoff(session, {"reason": "Conversation model returned no decision", "reason_code": "UNABLE_TO_CONTINUE"})
+                return handoff(
+                    session, {"reason": "Conversation model returned no decision", "reason_code": "UNABLE_TO_CONTINUE"}
+                )
 
             outcome = self.registry.invoke(session, decision.tool_call)
             if isinstance(outcome, AgentAction):
@@ -164,11 +166,7 @@ class ModelDrivenAgent:
         if target not in {"pickup", "destination"}:
             return None
 
-        candidates = (
-            session.booking.pickup_candidates
-            if target == "pickup"
-            else session.booking.destination_candidates
-        )
+        candidates = session.booking.pickup_candidates if target == "pickup" else session.booking.destination_candidates
         if len(candidates) < 2:
             return None
 
@@ -228,7 +226,9 @@ class ModelDrivenAgent:
                 state_updates=session.updates,
                 reason="Transient conversation model failure; state retained for retry.",
             )
-        return handoff(session, {"reason": "Conversation model repeatedly unavailable", "reason_code": "MODEL_UNAVAILABLE"})
+        return handoff(
+            session, {"reason": "Conversation model repeatedly unavailable", "reason_code": "MODEL_UNAVAILABLE"}
+        )
 
     def _reduce_result(self, session: TurnSession, agent_input: AgentInput):
         result = agent_input.tool_result
@@ -236,21 +236,33 @@ class ModelDrivenAgent:
         try:
             correlate_tool_result(result, session.state)
         except ValueError:
-            return handoff(session, {"reason": "Tool result does not match pending call", "reason_code": "CRITICAL_TOOL_ERROR"})
+            return handoff(
+                session, {"reason": "Tool result does not match pending call", "reason_code": "CRITICAL_TOOL_ERROR"}
+            )
 
         if result.status is ToolStatus.ERROR:
             if result.tool_name in {ToolName.CREATE_BOOKING, ToolName.CANCEL_BOOKING, ToolName.CREATE_HANDOFF}:
-                return handoff(session, {"reason": "Side-effect tool failed and requires reconciliation", "reason_code": "SIDE_EFFECT_RECONCILIATION"})
+                return handoff(
+                    session,
+                    {
+                        "reason": "Side-effect tool failed and requires reconciliation",
+                        "reason_code": "SIDE_EFFECT_RECONCILIATION",
+                    },
+                )
             session.updates.update(clear_pending_tool_updates())
             session.updates.update(current_step=None, retry_count=session.state.retry_count + 1)
-            return ContinueToolLoop({
-                "tool_failure": {
-                    "tool": result.tool_name.value,
-                    "message": result.error,
-                    "retryable": result.retryable,
+            return ContinueToolLoop(
+                {
+                    "tool_failure": {
+                        "tool": result.tool_name.value,
+                        "message": result.error,
+                        "retryable": result.retryable,
+                    }
                 }
-            })
+            )
         try:
             return self.registry.reduce(session, result)
         except ValueError:
-            return handoff(session, {"reason": "Backend returned an invalid tool payload", "reason_code": "CRITICAL_TOOL_ERROR"})
+            return handoff(
+                session, {"reason": "Backend returned an invalid tool payload", "reason_code": "CRITICAL_TOOL_ERROR"}
+            )

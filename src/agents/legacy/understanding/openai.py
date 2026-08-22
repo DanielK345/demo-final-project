@@ -75,7 +75,5 @@ class OpenAIUnderstandingAdapter:
 
         parsed = response.output_parsed
         if parsed is None:
-            raise UnderstandingProviderError(
-                "OpenAI returned no parseable understanding result"
-            )
+            raise UnderstandingProviderError("OpenAI returned no parseable understanding result")
         return parsed

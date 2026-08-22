@@ -195,7 +195,11 @@ class Handoff(Base):
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="pending")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     accepted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    connected_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     operator_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    room_name: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    context_snapshot: Mapped[dict | None] = mapped_column(JSON_DOCUMENT, nullable=True)
 
 
 class Call(Base):

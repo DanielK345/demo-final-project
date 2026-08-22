@@ -1,0 +1,76 @@
+{
+  "session_count": 10,
+  "error_event_count": 0,
+  "errors_by_type": {},
+  "errors_by_source": {},
+  "tool_statuses": {
+    "done": 89,
+    "error": 3
+  },
+  "speaking_turns": 37,
+  "final_transcripts": 0,
+  "unmatched_speech_episodes": 37,
+  "observed_speech_episode_no_final_rate": 1.0,
+  "sessions_with_speech": 10,
+  "session_transcript_coverage_rate": 0.0,
+  "smoke": {
+    "attempt_count": 10,
+    "passed_count": 7,
+    "success_rate": 0.7,
+    "check_rates": {
+      "agent_audio": {
+        "passed": 10,
+        "applicable": 10,
+        "rate": 1.0
+      },
+      "agent_joined": {
+        "passed": 10,
+        "applicable": 10,
+        "rate": 1.0
+      },
+      "agent_spoke": {
+        "passed": 10,
+        "applicable": 10,
+        "rate": 1.0
+      },
+      "booking_completed": {
+        "passed": 7,
+        "applicable": 7,
+        "rate": 1.0
+      },
+      "booking_requires_confirmation": {
+        "passed": 10,
+        "applicable": 10,
+        "rate": 1.0
+      },
+      "booking_result_audio": {
+        "passed": 7,
+        "applicable": 7,
+        "rate": 1.0
+      },
+      "booking_state_received": {
+        "passed": 10,
+        "applicable": 10,
+        "rate": 1.0
+      },
+      "greeting_completed": {
+        "passed": 10,
+        "applicable": 10,
+        "rate": 1.0
+      },
+      "room_connected": {
+        "passed": 10,
+        "applicable": 10,
+        "rate": 1.0
+      },
+      "single_booking_id": {
+        "passed": 10,
+        "applicable": 10,
+        "rate": 1.0
+      }
+    },
+    "failure_stages": {
+      "booking_flow": 3
+    }
+  }
+}

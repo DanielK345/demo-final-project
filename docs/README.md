@@ -22,7 +22,7 @@ Scope mentor gốc được giữ tại [GSM-08_VOICE_AGENT_SCOPE.md](GSM-08_VOI
 | Architecture/API | `architecture_diagram.md`, `interface_design.md`, `database_supabase.md` |
 | LiveKit current | `CODING_AGENT_HANDOFF.md`, `LIVEKIT_TEAM_SETUP.md`, `LIVEKIT_MIGRATION_IMPLEMENTATION.md` |
 | Evaluation | `PHASE4_EVALUATION_PLAN.md`, `logs/livekit/*.jsonl` local evidence |
-| Legacy Voice/evidence | [voice-ai/README.md](voice-ai/README.md) — rollback/reference, không phải target để mở rộng |
+| Legacy Voice/evidence | [voice-ai/README.md](voice-ai/README.md) — historical reference; runtime/code đã được gỡ sau cutover |
 | Agent | `src/agents/README.md`, `src/agents/docs/*`, `src/agents/DATAFINDING.md` |
 | Backend | `src/backend/README.md` |
 | Frontend | `src/frontend/README.md`, `src/frontend/docs/*` |

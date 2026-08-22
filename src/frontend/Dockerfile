@@ -10,9 +10,7 @@ COPY . .
 
 # Build Vite application to /app/dist
 ARG VITE_API_BASE_URL=""
-ARG VITE_VOICE_RUNTIME="livekit"
 ENV VITE_API_BASE_URL=$VITE_API_BASE_URL
-ENV VITE_VOICE_RUNTIME=$VITE_VOICE_RUNTIME
 
 RUN npm run build
 

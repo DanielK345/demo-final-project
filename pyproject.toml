@@ -10,7 +10,6 @@ dependencies = [
     "celery>=5.4.0",
     "chromadb>=0.5.0",
     "fastapi>=0.115.0",
-    "python-multipart>=0.0.9",
     "httpx>=0.28.0",
     "langchain>=0.3.0",
     "langchain-openai>=0.3.0",
@@ -26,21 +25,13 @@ dependencies = [
     "sqlalchemy>=2.0.0",
     "uvicorn[standard]>=0.34.0",
     "openai>=2.20.0",
-    "numpy>=1.26.4",
-    "sherpa-onnx==1.13.4",
-    # sherpa-onnx's Python bindings dynamically load this platform wheel.
-    # Keep it explicit: a stale lockfile can otherwise install the bindings
-    # without libonnxruntime.so, causing ZipFormer to fail at import time.
-    "sherpa-onnx-core==1.13.4",
-    "psutil==7.2.2",
-    "edge-tts==7.2.8",
     "rapidfuzz>=3.14.5",
     "pyotp>=2.10.0",
     "pyyaml>=6.0.3",
     "asyncpg>=0.30.0",
     "aiosqlite>=0.20.0",
     "cryptography>=45.0.0",
-    "livekit-agents==1.6.6",
+    "livekit-agents==1.6.8",
     "livekit-plugins-google==1.6.6",
     "livekit-plugins-openai==1.5.0",
 ]

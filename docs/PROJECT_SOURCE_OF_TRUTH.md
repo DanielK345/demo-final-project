@@ -93,7 +93,7 @@ Catalog máy đọc được nằm tại `data/catalog.json`; giải thích các
 | LiveKit STT | Google Chirp 2 qua official plugin | `STAGING_ONLY` | WER/CER/entity corpus theo accent/noise |
 | LiveKit LLM | GPT-4.1 mini qua official plugin | `STAGING_ONLY` | behavioral/model/cost A/B |
 | LiveKit TTS | Cartesia Sonic 3 qua LiveKit Inference | `STAGING_ONLY` | human listening, device matrix, cost/SLA |
-| Legacy ZipFormer/rewrite/TTS | rollback + historical evidence | `RELEASE_GATED` | chỉ dùng Phase 4 đối chứng nếu cần |
+| Legacy ZipFormer/rewrite/TTS | historical evidence only | `RETIRED` | code/runtime đã gỡ sau LiveKit cutover |
 | Payment/notification | chưa có provider | `EXTERNAL_BLOCKED` | merchant/webhook/reconciliation + consented messaging |
 
 ## 5. Chuỗi dữ liệu chuẩn của một booking

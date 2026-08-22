@@ -16,9 +16,7 @@ _NEGATIVE_SENTIMENT_PATTERNS = (
     re.compile(r"\b(?:không|chẳng)\s+(?:thích|ưa|muốn)\b", re.IGNORECASE),
     re.compile(r"\b(?:tệ|chán|bực|khó chịu|thất vọng)\b", re.IGNORECASE),
 )
-_OFF_TOPIC_PATTERNS = (
-    re.compile(r"\b(?:đi ngủ|ngủ|ăn cơm|mua xe|bán xe|xem phim)\b", re.IGNORECASE),
-)
+_OFF_TOPIC_PATTERNS = (re.compile(r"\b(?:đi ngủ|ngủ|ăn cơm|mua xe|bán xe|xem phim)\b", re.IGNORECASE),)
 _GARBAGE_PATTERNS = (
     re.compile(r"^[a-z]{3,}$", re.IGNORECASE),
     re.compile(r"^[^\w\s]+$"),

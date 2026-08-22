@@ -1,16 +1,19 @@
-.PHONY: run livekit-backend livekit-worker livekit-frontend test lint format typecheck check clean
+.PHONY: run livekit-backend livekit-worker livekit-frontend seed-demo-operator test lint format typecheck check clean
 
 run:
 	uvicorn src.main:app --reload --host 0.0.0.0 --port 8000
 
 livekit-backend:
-	VOICE_RUNTIME=livekit uv run uvicorn src.main:app --reload --host 0.0.0.0 --port 8000
+	uv run uvicorn src.main:app --reload --host 0.0.0.0 --port 8000
 
 livekit-worker:
-	VOICE_RUNTIME=livekit uv run python -m src.voice_agent.server dev
+	uv run python -m src.voice_agent.server dev
 
 livekit-frontend:
-	cd src/frontend && VITE_VOICE_RUNTIME=livekit npm run dev
+	cd src/frontend && npm run dev
+
+seed-demo-operator:
+	uv run python -m scripts.seed_demo_operator
 
 test:
 	pytest tests/ -v

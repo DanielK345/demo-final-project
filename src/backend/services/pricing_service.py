@@ -89,19 +89,24 @@ class PricingService:
             "source_type": self.catalog.source_type,
         }
 
-    def vehicle_options(self, *, pickup_place_id: str, destination_place_id: str, passenger_count: int, luggage_count: int | None = None) -> list[dict[str, object]]:
+    def vehicle_options(
+        self, *, pickup_place_id: str, destination_place_id: str, passenger_count: int, luggage_count: int | None = None
+    ) -> list[dict[str, object]]:
         options: list[dict[str, object]] = []
         for vehicle_type, vehicle in self.catalog.vehicles.items():
             quote = self._quote(pickup_place_id, destination_place_id, vehicle_type)
-            options.append({
-                "option_id": f"opt_{vehicle_type.lower()}",
-                "vehicle_type": vehicle_type,
-                "display_name": vehicle.display_name,
-                "capacity": vehicle.capacity,
-                "luggage_capacity": vehicle.luggage_capacity,
-                "available": passenger_count <= vehicle.capacity and (luggage_count is None or luggage_count <= vehicle.luggage_capacity),
-                **quote,
-            })
+            options.append(
+                {
+                    "option_id": f"opt_{vehicle_type.lower()}",
+                    "vehicle_type": vehicle_type,
+                    "display_name": vehicle.display_name,
+                    "capacity": vehicle.capacity,
+                    "luggage_capacity": vehicle.luggage_capacity,
+                    "available": passenger_count <= vehicle.capacity
+                    and (luggage_count is None or luggage_count <= vehicle.luggage_capacity),
+                    **quote,
+                }
+            )
         return options
 
     def estimate_fare(self, *, pickup_place_id: str, destination_place_id: str, vehicle_type: str) -> dict[str, object]:

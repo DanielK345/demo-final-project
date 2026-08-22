@@ -78,14 +78,15 @@ class OSRMProvider(RoutingProvider):
                 if response.status_code in _RETRYABLE_STATUS and attempt < _MAX_RETRIES:
                     logger.warning(
                         "OSRM %s returned %d, retry %d/%d",
-                        path, response.status_code, attempt + 1, _MAX_RETRIES,
+                        path,
+                        response.status_code,
+                        attempt + 1,
+                        _MAX_RETRIES,
                     )
                     continue
 
                 if response.status_code >= 400:
-                    raise RouteProviderUnavailableError(
-                        f"OSRM returned HTTP {response.status_code}"
-                    )
+                    raise RouteProviderUnavailableError(f"OSRM returned HTTP {response.status_code}")
 
                 data = response.json()
                 if not isinstance(data, dict):
@@ -105,19 +106,22 @@ class OSRMProvider(RoutingProvider):
                 if attempt < _MAX_RETRIES:
                     logger.warning("OSRM connection error, retry %d/%d", attempt + 1, _MAX_RETRIES)
                     continue
-                raise RouteProviderUnavailableError(
-                    f"Cannot connect to OSRM at {self._base_url}"
-                ) from exc
+                raise RouteProviderUnavailableError(f"Cannot connect to OSRM at {self._base_url}") from exc
 
             except (httpx.HTTPError, Exception) as exc:
-                if isinstance(exc, (MapProviderTimeoutError, RouteProviderUnavailableError,
-                                    RouteNotFoundError, InvalidRouteInputError)):
+                if isinstance(
+                    exc,
+                    (
+                        MapProviderTimeoutError,
+                        RouteProviderUnavailableError,
+                        RouteNotFoundError,
+                        InvalidRouteInputError,
+                    ),
+                ):
                     raise
                 raise RouteProviderUnavailableError(f"OSRM request failed: {exc}") from exc
 
-        raise RouteProviderUnavailableError(
-            f"OSRM failed after {_MAX_RETRIES + 1} attempts"
-        ) from last_exc
+        raise RouteProviderUnavailableError(f"OSRM failed after {_MAX_RETRIES + 1} attempts") from last_exc
 
     # ------------------------------------------------------------------
     # Public API
@@ -143,30 +147,20 @@ class OSRMProvider(RoutingProvider):
         d_lon = validate_longitude(dest_lon)
 
         # CRITICAL: OSRM uses longitude,latitude ordering
-        path = (
-            f"/route/v1/{profile}/"
-            f"{p_lon},{p_lat};{d_lon},{d_lat}"
-            f"?overview=full&geometries=geojson&steps=false"
-        )
+        path = f"/route/v1/{profile}/{p_lon},{p_lat};{d_lon},{d_lat}?overview=full&geometries=geojson&steps=false"
 
         data = await self._get(path)
 
         # Handle OSRM error codes
         code = data.get("code", "")
         if code in _NO_ROUTE_CODES:
-            raise RouteNotFoundError(
-                f"OSRM: {code} — {data.get('message', 'No route found')}"
-            )
+            raise RouteNotFoundError(f"OSRM: {code} — {data.get('message', 'No route found')}")
 
         if code == "InvalidQuery":
-            raise InvalidRouteInputError(
-                f"OSRM: InvalidQuery — {data.get('message', 'Bad request')}"
-            )
+            raise InvalidRouteInputError(f"OSRM: InvalidQuery — {data.get('message', 'Bad request')}")
 
         if code != "Ok":
-            raise RouteProviderUnavailableError(
-                f"OSRM unexpected code: {code}"
-            )
+            raise RouteProviderUnavailableError(f"OSRM unexpected code: {code}")
 
         # Extract route from response
         routes = data.get("routes", [])
@@ -179,9 +173,7 @@ class OSRMProvider(RoutingProvider):
             distance_meters = float(best["distance"])
             duration_seconds = float(best["duration"])
         except (KeyError, ValueError, TypeError) as exc:
-            raise RouteProviderUnavailableError(
-                f"OSRM malformed route data: {exc}"
-            ) from exc
+            raise RouteProviderUnavailableError(f"OSRM malformed route data: {exc}") from exc
 
         geometry = best.get("geometry")
 
@@ -210,9 +202,7 @@ class OSRMProvider(RoutingProvider):
             # Use a minimal route request to verify OSRM is operational
             # Hanoi coordinates — public/known POI, not PII
             async with httpx.AsyncClient(timeout=self._timeout) as client:
-                response = await client.get(
-                    f"{self._base_url}/route/v1/driving/105.8542,21.0285;105.8543,21.0286"
-                )
+                response = await client.get(f"{self._base_url}/route/v1/driving/105.8542,21.0285;105.8543,21.0286")
             return {
                 "provider": "osrm",
                 "status": "ok" if response.status_code == 200 else "degraded",

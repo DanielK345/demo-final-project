@@ -48,7 +48,25 @@ async def list_pending_handoffs(
     try:
         return await controller.list_handoffs(handoff_status)
     except ValueError as exc:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Trạng thái handoff không hợp lệ") from exc
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Trạng thái handoff không hợp lệ"
+        ) from exc
+
+
+@router.get("/{handoff_id}", response_model=HandoffResponseDTO)
+async def get_handoff(
+    handoff_id: str,
+    authorization: str | None = Header(default=None),
+) -> HandoffResponseDTO:
+    user = await _authenticated_user(authorization)
+    record = await controller.get_handoff(handoff_id)
+    if record is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Không tìm thấy yêu cầu chuyển")
+    if user.get("role") not in {"OPERATOR", "ADMIN"} and record.session_id != await auth_service.get_session_for_token_durable(
+        authorization.removeprefix("Bearer ") if authorization else ""
+    ):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Không có quyền xem yêu cầu này")
+    return record
 
 
 @router.post("/{handoff_id}/accept", response_model=HandoffAcceptanceDTO)
@@ -61,3 +79,27 @@ async def accept_handoff(
         return await controller.accept_handoff(handoff_id, operator.get("user_id"))
     except KeyError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+
+
+@router.post("/{handoff_id}/resolve", response_model=HandoffResponseDTO)
+async def resolve_handoff(
+    handoff_id: str,
+    authorization: str | None = Header(default=None),
+) -> HandoffResponseDTO:
+    operator = await _require_operator(authorization)
+    try:
+        return await controller.resolve_handoff(handoff_id, str(operator["user_id"]))
+    except KeyError as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+
+
+@router.post("/{handoff_id}/connect", response_model=HandoffResponseDTO)
+async def connect_handoff(
+    handoff_id: str,
+    authorization: str | None = Header(default=None),
+) -> HandoffResponseDTO:
+    operator = await _require_operator(authorization)
+    try:
+        return await controller.connect_handoff(handoff_id, str(operator["user_id"]))
+    except KeyError as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc

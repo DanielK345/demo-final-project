@@ -1,0 +1,26 @@
+{
+  "dataset_version": "phase4a-v1",
+  "run_id": "phase4a-20260821-1run-booking-v4-rtc114",
+  "native_configurations": [
+    {
+      "fingerprint": "dda586004fc90710",
+      "stt_model": "chirp_2",
+      "stt_language": "vi-VN",
+      "llm_provider": "openai",
+      "llm_model": "gpt-4.1-mini",
+      "tts_provider": "livekit",
+      "tts_model": "cartesia/sonic-3",
+      "tts_voice": "9626c31c-bec5-4cca-baa8-f8ba9e84c8bc",
+      "tts_language": "vi",
+      "turn_detection": "vad",
+      "endpointing_mode": "fixed",
+      "endpointing_min_delay": 0.8,
+      "endpointing_max_delay": 2.5,
+      "interruption_mode": "vad",
+      "interruption_min_duration": 0.5,
+      "interruption_min_words": 1
+    }
+  ],
+  "input_log_count": 1,
+  "smoke_results": "connection-results.jsonl"
+}

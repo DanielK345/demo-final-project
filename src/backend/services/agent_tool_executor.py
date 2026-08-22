@@ -112,7 +112,13 @@ class AgentToolExecutor:
 
         if tool_call.tool_name is ToolName.CANCEL_BOOKING:
             booking_id = str(params["booking_id"])
-            cancelled = (self._booking_service.cancel_booking(booking_id, str(params["idempotency_key"])) if not self._durable else await self._booking_service.cancel_booking_durable(booking_id, str(params["idempotency_key"]), user_id))
+            cancelled = (
+                self._booking_service.cancel_booking(booking_id, str(params["idempotency_key"]))
+                if not self._durable
+                else await self._booking_service.cancel_booking_durable(
+                    booking_id, str(params["idempotency_key"]), user_id
+                )
+            )
             if cancelled is None:
                 raise ValueError(f"Không tìm thấy booking để huỷ: {booking_id}")
             return {"booking_id": booking_id, "status": str(cancelled["status"])}
@@ -151,26 +157,40 @@ class AgentToolExecutor:
             )
             if str(params["fare_estimate_id"]) != str(fare["estimate_id"]):
                 raise ValueError("Fare estimate does not match the confirmed route and vehicle")
-            result = self._booking_service.create_booking({
-                "idempotency_key": params["idempotency_key"], "estimated_fare": fare["fare_amount"],
-                "user_id": user_id, "pickup": None, "destination": None, "vehicle_type": vehicle_type,
-            })
-            return {"booking_id": str(result["booking_id"]), "status": "CONFIRMED", "eta_minutes": fare.get("eta_minutes"), "fare_amount": result.get("estimated_fare"), "currency": "VND"}
+            result = self._booking_service.create_booking(
+                {
+                    "idempotency_key": params["idempotency_key"],
+                    "estimated_fare": fare["fare_amount"],
+                    "user_id": user_id,
+                    "pickup": None,
+                    "destination": None,
+                    "vehicle_type": vehicle_type,
+                }
+            )
+            return {
+                "booking_id": str(result["booking_id"]),
+                "status": "CONFIRMED",
+                "eta_minutes": fare.get("eta_minutes"),
+                "fare_amount": result.get("estimated_fare"),
+                "currency": "VND",
+            }
         booking_state = agent_state.collected_data.get("booking", {})
         pickup = booking_state.get("pickup") if isinstance(booking_state, dict) else None
         destination = booking_state.get("destination") if isinstance(booking_state, dict) else None
-        booking = await self._booking_service.create_booking_from_quote({
-            "quote_id": params["fare_estimate_id"],
-            "fare_estimate_id": params["fare_estimate_id"],
-            "idempotency_key": params["idempotency_key"],
-            "session_id": session_id,
-            "user_id": user_id,
-            "pickup_place_id": params["pickup_place_id"],
-            "destination_place_id": params["destination_place_id"],
-            "vehicle_type": params["vehicle_type"],
-            "pickup": pickup,
-            "destination": destination,
-        })
+        booking = await self._booking_service.create_booking_from_quote(
+            {
+                "quote_id": params["fare_estimate_id"],
+                "fare_estimate_id": params["fare_estimate_id"],
+                "idempotency_key": params["idempotency_key"],
+                "session_id": session_id,
+                "user_id": user_id,
+                "pickup_place_id": params["pickup_place_id"],
+                "destination_place_id": params["destination_place_id"],
+                "vehicle_type": params["vehicle_type"],
+                "pickup": pickup,
+                "destination": destination,
+            }
+        )
         return {
             "booking_id": str(booking["booking_id"]),
             "status": str(booking["status"]),
@@ -179,13 +199,22 @@ class AgentToolExecutor:
             "currency": booking.get("currency", "VND"),
             "quote_id": booking.get("quote_id"),
         }
+
     async def _lookup_trip(self, params: dict[str, object], *, user_id: str | None) -> dict[str, object]:
         booking_id = params.get("booking_id")
         if booking_id:
-            booking = (self._booking_service.get_booking(str(booking_id)) if not self._durable else await self._booking_service.get_booking_durable(str(booking_id)))
+            booking = (
+                self._booking_service.get_booking(str(booking_id))
+                if not self._durable
+                else await self._booking_service.get_booking_durable(str(booking_id))
+            )
             if booking is None or (user_id is not None and booking.get("user_id") != user_id):
                 return {"found": False}
-            live = (self._trip_service.get_status_for_booking(str(booking_id)) if not self._durable else await self._trip_service.get_status_for_booking_durable(str(booking_id)))
+            live = (
+                self._trip_service.get_status_for_booking(str(booking_id))
+                if not self._durable
+                else await self._trip_service.get_status_for_booking_durable(str(booking_id))
+            )
             return {
                 "found": True,
                 "booking_id": str(booking_id),
@@ -204,7 +233,11 @@ class AgentToolExecutor:
                 return {"found": False}
             trips = []
             for booking in matches:
-                live = (self._trip_service.get_status_for_booking(str(booking["booking_id"])) if not self._durable else await self._trip_service.get_status_for_booking_durable(str(booking["booking_id"])))
+                live = (
+                    self._trip_service.get_status_for_booking(str(booking["booking_id"]))
+                    if not self._durable
+                    else await self._trip_service.get_status_for_booking_durable(str(booking["booking_id"]))
+                )
                 pickup = booking.get("pickup")
                 destination = booking.get("destination")
                 trips.append(

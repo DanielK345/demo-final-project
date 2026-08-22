@@ -85,9 +85,6 @@ export const ConversationWindow: React.FC = () => {
                   }`}
                 >
                   <p className="whitespace-pre-wrap break-words">{message.text}</p>
-                  {message.transcriptRewrite?.status === "rewritten" && (
-                    <p className={`mt-1 text-[10px] ${isUser ? "text-white/75" : "text-slate-400"}`}>Đã hiệu chỉnh tên địa điểm</p>
-                  )}
                 </div>
               </div>
             );

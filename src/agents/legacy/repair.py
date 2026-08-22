@@ -232,8 +232,7 @@ class ConversationRepairHandler:
         state: AgentState,
     ) -> InterruptedWorkflow | None:
         if (
-            state.current_workflow
-            not in {WorkflowType.RIDE_BOOKING, WorkflowType.TRIP_LOOKUP}
+            state.current_workflow not in {WorkflowType.RIDE_BOOKING, WorkflowType.TRIP_LOOKUP}
             or state.current_step is None
             or state.pending_tool_name is not None
             or state.interrupted_workflow is not None
@@ -261,10 +260,7 @@ class ConversationRepairHandler:
             return None
         return AgentAction(
             action_type=ActionType.ASK_USER,
-            message=(
-                "Hiện không có yêu cầu đặt xe đang xử lý để sửa. "
-                "Bạn có muốn bắt đầu đặt xe không?"
-            ),
+            message=("Hiện không có yêu cầu đặt xe đang xử lý để sửa. Bạn có muốn bắt đầu đặt xe không?"),
             reason="Booking correction requires an active ride-booking workflow.",
         )
 
@@ -289,9 +285,7 @@ class ConversationRepairHandler:
         if state.current_workflow is None and booking is not None:
             return AgentAction(
                 action_type=ActionType.ASK_USER,
-                message=(
-                    f"Bạn xác nhận muốn hủy chuyến {booking.booking_id} đã đặt không?"
-                ),
+                message=(f"Bạn xác nhận muốn hủy chuyến {booking.booking_id} đã đặt không?"),
                 state_updates={
                     "current_workflow": WorkflowType.RIDE_BOOKING,
                     "current_step": BookingStep.CONFIRM_CANCEL,
@@ -302,8 +296,7 @@ class ConversationRepairHandler:
             )
         interrupted = state.interrupted_workflow
         targets_interrupted = interrupted is not None and (
-            state.current_workflow is None
-            or _mentions_workflow(agent_input.transcript, interrupted.workflow)
+            state.current_workflow is None or _mentions_workflow(agent_input.transcript, interrupted.workflow)
         )
         if targets_interrupted:
             collected_data = _without_workflow_namespace(
@@ -387,10 +380,14 @@ class ConversationRepairHandler:
             )
         if state.interrupted_workflow is not None:
             return _nested_interruption_action()
-        if state.current_workflow not in {
-            WorkflowType.RIDE_BOOKING,
-            WorkflowType.TRIP_LOOKUP,
-        } or state.current_step is None:
+        if (
+            state.current_workflow
+            not in {
+                WorkflowType.RIDE_BOOKING,
+                WorkflowType.TRIP_LOOKUP,
+            }
+            or state.current_step is None
+        ):
             return AgentAction(
                 action_type=ActionType.RESPOND,
                 message="Workflow hiện tại không thể tạm dừng ở bước này.",
@@ -429,8 +426,7 @@ class ConversationRepairHandler:
             return AgentAction(
                 action_type=ActionType.ASK_USER,
                 message=(
-                    f"Yêu cầu đang tạm dừng là {_workflow_label(frame.workflow)}. "
-                    "Bạn muốn tiếp tục yêu cầu này không?"
+                    f"Yêu cầu đang tạm dừng là {_workflow_label(frame.workflow)}. Bạn muốn tiếp tục yêu cầu này không?"
                 ),
                 reason="The requested resume target does not match the saved workflow.",
             )
@@ -504,10 +500,14 @@ class ConversationRepairHandler:
             return _nested_interruption_action()
 
         frame = state.interrupted_workflow
-        if state.current_workflow in {
-            WorkflowType.RIDE_BOOKING,
-            WorkflowType.TRIP_LOOKUP,
-        } and state.current_step is not None:
+        if (
+            state.current_workflow
+            in {
+                WorkflowType.RIDE_BOOKING,
+                WorkflowType.TRIP_LOOKUP,
+            }
+            and state.current_step is not None
+        ):
             try:
                 frame = _snapshot_workflow(
                     state,
@@ -606,8 +606,7 @@ def _reconciliation_action(act: DialogueAct) -> AgentAction:
     return AgentAction(
         action_type=ActionType.HANDOFF,
         message=(
-            "Tôi cần kiểm tra trạng thái yêu cầu đang xử lý trước khi "
-            f"{operation} và sẽ chuyển bạn tới tổng đài viên."
+            f"Tôi cần kiểm tra trạng thái yêu cầu đang xử lý trước khi {operation} và sẽ chuyển bạn tới tổng đài viên."
         ),
         state_updates={
             "current_workflow": WorkflowType.HUMAN_HANDOFF,
@@ -697,12 +696,8 @@ def _active_prompt(state: AgentState) -> str:
 
 def _prompt_for_step(workflow: WorkflowType, step: str) -> str:
     prompts = {
-        (WorkflowType.RIDE_BOOKING, BookingStep.COLLECT_PICKUP.value): (
-            "Tiếp tục đặt xe. Bạn muốn đón ở đâu?"
-        ),
-        (WorkflowType.RIDE_BOOKING, BookingStep.COLLECT_DESTINATION.value): (
-            "Tiếp tục đặt xe. Bạn muốn đi đến đâu?"
-        ),
+        (WorkflowType.RIDE_BOOKING, BookingStep.COLLECT_PICKUP.value): ("Tiếp tục đặt xe. Bạn muốn đón ở đâu?"),
+        (WorkflowType.RIDE_BOOKING, BookingStep.COLLECT_DESTINATION.value): ("Tiếp tục đặt xe. Bạn muốn đi đến đâu?"),
         (WorkflowType.RIDE_BOOKING, BookingStep.COLLECT_PHONE.value): (
             "Tiếp tục đặt xe. Bạn vui lòng cung cấp số điện thoại."
         ),
@@ -736,19 +731,13 @@ def _prompt_for_step(workflow: WorkflowType, step: str) -> str:
 
 def _help_message(state: AgentState) -> str:
     if state.current_workflow is WorkflowType.RIDE_BOOKING:
-        return (
-            "Tôi có thể giúp thu thập điểm đón, điểm đến, số điện thoại, "
-            "sửa thông tin hoặc hủy việc đặt xe."
-        )
+        return "Tôi có thể giúp thu thập điểm đón, điểm đến, số điện thoại, sửa thông tin hoặc hủy việc đặt xe."
     if state.current_workflow is WorkflowType.TRIP_LOOKUP:
         return "Để tra cứu, bạn có thể cung cấp mã chuyến hoặc số điện thoại đặt xe."
     if state.current_workflow is WorkflowType.FAQ:
         return "Bạn có thể hỏi về dịch vụ, thanh toán hoặc chính sách hỗ trợ."
     if state.interrupted_workflow is not None:
-        return (
-            f"Bạn có thể nói tiếp tục để quay lại "
-            f"{_workflow_label(state.interrupted_workflow.workflow)}."
-        )
+        return f"Bạn có thể nói tiếp tục để quay lại {_workflow_label(state.interrupted_workflow.workflow)}."
     return "Tôi có thể hỗ trợ đặt xe, tra cứu chuyến đi hoặc hỏi đáp về dịch vụ."
 
 

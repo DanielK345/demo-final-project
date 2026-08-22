@@ -185,8 +185,9 @@ Thực hiện [`PHASE4_EVALUATION_PLAN.md`](PHASE4_EVALUATION_PLAN.md) theo th�
 9. fallback/reconnect/handoff drill;
 10. cutover sau khi gate đạt.
 
-Không xóa legacy trước Phase 4 gate. Phase 5 mới xóa `/voice/turn`, `/voice/stream`,
-browser VAD/recorder và tool loop cũ nếu không còn production caller.
+Phase 4 gate đã được benchmark/demo xác nhận. Phase 5 đã gỡ `/voice/turn`,
+`/voice/stream`, browser VAD/recorder và custom ASR/TTS stack; Core Agent text được
+giữ vì vẫn là production caller riêng.
 
 ## 9. Chạy local
 

@@ -150,10 +150,14 @@ class SearchPlaceResult(ToolPayload):
             raise ValueError("RESOLVED place result requires exactly one candidate")
         if self.status is PlaceResolutionStatus.AMBIGUOUS and candidate_count < 2:
             raise ValueError("AMBIGUOUS place result requires multiple candidates")
-        if self.status in {
-            PlaceResolutionStatus.NOT_FOUND,
-            PlaceResolutionStatus.NEEDS_CLARIFICATION,
-        } and candidate_count:
+        if (
+            self.status
+            in {
+                PlaceResolutionStatus.NOT_FOUND,
+                PlaceResolutionStatus.NEEDS_CLARIFICATION,
+            }
+            and candidate_count
+        ):
             raise ValueError("unresolved place result cannot contain candidates")
         return self
 

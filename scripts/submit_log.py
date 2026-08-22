@@ -9,6 +9,7 @@ After a successful submit, the live log is rotated:
 
 If the POST fails, the pending file is restored so nothing is lost.
 """
+
 import argparse
 import json
 import os
@@ -27,6 +28,7 @@ except ModuleNotFoundError:  # Direct execution: sys.path starts at scripts/.
 
 try:
     from dotenv import load_dotenv
+
     load_dotenv()
 except ImportError:
     pass

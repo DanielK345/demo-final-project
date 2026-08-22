@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import pytest
-
 from src.backend.services.pricing_service import PricingService, estimate_distance_km
 
 

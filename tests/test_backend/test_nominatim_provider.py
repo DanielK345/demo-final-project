@@ -92,8 +92,14 @@ class TestSearch:
     @pytest.mark.asyncio
     async def test_valid_results(self, provider: NominatimProvider):
         mock_data = [
-            {"place_id": 1, "lat": "21.0", "lon": "105.0",
-             "display_name": "Test Place", "category": "amenity", "type": "cafe"},
+            {
+                "place_id": 1,
+                "lat": "21.0",
+                "lon": "105.0",
+                "display_name": "Test Place",
+                "category": "amenity",
+                "type": "cafe",
+            },
         ]
         with patch.object(provider, "_get", new_callable=AsyncMock, return_value=mock_data):
             result = await provider.search("test")
@@ -114,7 +120,9 @@ class TestReverse:
     @pytest.mark.asyncio
     async def test_valid_reverse(self, provider: NominatimProvider):
         mock_data = {
-            "place_id": 1, "lat": "21.0285", "lon": "105.8542",
+            "place_id": 1,
+            "lat": "21.0285",
+            "lon": "105.8542",
             "display_name": "Hoàn Kiếm, Hà Nội",
         }
         with patch.object(provider, "_get", new_callable=AsyncMock, return_value=mock_data):
@@ -131,6 +139,7 @@ class TestReverse:
     @pytest.mark.asyncio
     async def test_reverse_invalid_lat(self, provider: NominatimProvider):
         from src.backend.maps.contracts import InvalidRouteInputError
+
         with pytest.raises(InvalidRouteInputError, match="Latitude"):
             await provider.reverse(91.0, 105.0)
 

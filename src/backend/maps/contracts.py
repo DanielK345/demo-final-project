@@ -15,6 +15,7 @@ from typing import Any
 # Place resolution state machine (§17)
 # ---------------------------------------------------------------------------
 
+
 class PlaceResolutionStatus(StrEnum):
     """Lifecycle of a place during a booking session.
 
@@ -34,14 +35,15 @@ class PlaceResolutionStatus(StrEnum):
 class TrafficDataStatus(StrEnum):
     """Provenance label for route duration estimates."""
 
-    NONE = "NONE"                   # vanilla OSRM, no traffic data
-    LIVE_TRAFFIC = "LIVE_TRAFFIC"   # only when provider actually has live traffic
-    HISTORICAL = "HISTORICAL"       # historical speed profiles
+    NONE = "NONE"  # vanilla OSRM, no traffic data
+    LIVE_TRAFFIC = "LIVE_TRAFFIC"  # only when provider actually has live traffic
+    HISTORICAL = "HISTORICAL"  # historical speed profiles
 
 
 # ---------------------------------------------------------------------------
 # Place contracts
 # ---------------------------------------------------------------------------
+
 
 class PlaceCandidate:
     """A geocoding result not yet confirmed by the user.
@@ -164,6 +166,7 @@ class ResolvedPlace:
 # Route contract (§9)
 # ---------------------------------------------------------------------------
 
+
 class RouteResult:
     """Normalised routing result from any provider."""
 
@@ -245,6 +248,7 @@ class RouteResult:
 # Domain errors (§10)
 # ---------------------------------------------------------------------------
 
+
 class MapsDomainError(Exception):
     """Base error for all Maps subsystem failures."""
 
@@ -298,6 +302,7 @@ class OutOfServiceAreaError(MapsDomainError):
 # ---------------------------------------------------------------------------
 # Coordinate validation helpers
 # ---------------------------------------------------------------------------
+
 
 def validate_latitude(lat: float) -> float:
     """Validate and return latitude in [-90, 90]."""

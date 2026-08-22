@@ -45,6 +45,7 @@ class TripService:
         await self._repository.update_trip(booking_id, status=status, eta_minutes=eta)
         trip["status"], trip["eta_minutes"] = status, eta
         return trip
+
     trips_by_booking: dict[str, dict[str, object]] = {}
 
     def get_status_for_booking(self, booking_id: str) -> dict[str, object]:

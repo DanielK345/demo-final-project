@@ -33,11 +33,16 @@ class ConversationHistoryService:
             if not messages:
                 continue
             first = next((str(item["text"]) for item in messages if item["role"] == "user"), "")
-            summaries.append({
-                "session_id": session["session_id"], "channel": session["channel"],
-                "status": session["status"], "created_at": session["created_at"],
-                "message_count": len(messages), "preview": first[:120],
-            })
+            summaries.append(
+                {
+                    "session_id": session["session_id"],
+                    "channel": session["channel"],
+                    "status": session["status"],
+                    "created_at": session["created_at"],
+                    "message_count": len(messages),
+                    "preview": first[:120],
+                }
+            )
         return summaries
 
     async def get_transcript_durable(self, user_id: str, session_id: str) -> dict[str, Any] | None:
@@ -47,8 +52,11 @@ class ConversationHistoryService:
         if session is None or session.get("user_id") != user_id:
             return None
         return {
-            "session_id": session_id, "channel": session["channel"], "status": session["status"],
-            "created_at": session["created_at"], "ended_at": session["ended_at"],
+            "session_id": session_id,
+            "channel": session["channel"],
+            "status": session["status"],
+            "created_at": session["created_at"],
+            "ended_at": session["ended_at"],
             "messages": await self._repository.conversation_messages(session_id),
         }
 

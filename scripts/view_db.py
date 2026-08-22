@@ -1,5 +1,5 @@
-import sqlite3
 import os
+import sqlite3
 
 db_path = "data/app.db"
 print("=== DATABASE INFO ===")

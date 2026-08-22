@@ -3,8 +3,7 @@ from collections.abc import Mapping
 import pytest
 
 from src.voice_agent.persistence import DatabaseVoiceStateStore, VoiceStateConflictError
-from src.voice_agent.session_data import AloSMSessionData, PlaceCandidate
-from src.voice_agent.tools import BookingToolsService, QuoteToolsService
+from src.voice_agent.session_data import AloSMSessionData, BookingResult, PlaceCandidate, QuoteSnapshot
 
 
 class FakePersistenceRepository:
@@ -117,13 +116,34 @@ async def test_completed_booking_from_older_state_is_not_restored() -> None:
     draft.set_candidates("destination", "Hồ Gươm", [destination])
     draft.select_place("destination", "destination")
     draft.set_vehicle_type("CAR_4")
-    draft.set_quote(QuoteToolsService().estimate(draft))
+    draft.set_quote(
+        QuoteSnapshot(
+            quote_id="quote_test",
+            pickup_place_id="pickup",
+            destination_place_id="destination",
+            vehicle_type="CAR_4",
+            fare_amount=100_000,
+            distance_km=10,
+            eta_minutes=25,
+            expires_at="2099-01-01T00:00:00+00:00",
+        )
+    )
     draft.request_confirmation()
     draft.confirm()
-    booking_service = BookingToolsService()
-    booking = booking_service.create(app_session_id=original.app_session_id, draft=draft)
-    draft.set_booking(booking)
+    draft.set_booking(
+        BookingResult(
+            booking_id="book_test",
+            status="SEARCHING_DRIVER",
+            estimated_fare=100_000,
+            eta_minutes=25,
+        )
+    )
+    original.lifecycle_status = "completed"
     await store.save(original)
+
+    assert repository.session_updates[-1]["booking_id"] == "book_test"
+    assert repository.session_updates[-1]["booking_lifecycle_status"] == "SUCCESS"
+    assert repository.session_updates[-1]["confirmation_status"] == "confirmed"
 
     reconnected = _userdata()
     assert await store.restore(reconnected) is False

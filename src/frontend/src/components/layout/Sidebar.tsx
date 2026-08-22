@@ -1,13 +1,14 @@
 import React from "react";
 import { NavLink } from "react-router-dom";
-import { Home, Grid, History, Settings, User } from "lucide-react";
+import { Headphones, Home, Grid, History, Settings, User } from "lucide-react";
 import { cn } from "@/utils/cn";
+import { getUserRole } from "@/features/auth/storage";
 import logoSvg from "@/assets/logo.svg";
 
 // "AI Assistant" đã bỏ khỏi danh sách điều hướng trang — Voice AI không còn là 1
 // trang riêng để chuyển tới, mà là nút nổi + popup khả dụng ngay trên mọi trang (xem
 // VoiceAIButton.tsx, mounted trong AppLayout).
-const navItems = [
+const customerNavItems = [
   { path: "/", label: "Home", icon: Home },
   { path: "/booking", label: "Services", icon: Grid },
   { path: "/activity", label: "Activity", icon: History },
@@ -29,6 +30,9 @@ const COLLAPSE_TRANSITION = "duration-300 ease-in-out";
 const REVEAL_JUSTIFY_START_ON_HOVER = "group-hover/sidebar:justify-start group-focus-within/sidebar:justify-start";
 
 export const Sidebar: React.FC = () => {
+  const navItems = getUserRole() === "OPERATOR" || getUserRole() === "ADMIN"
+    ? [...customerNavItems, { path: "/operator", label: "Operator", icon: Headphones }]
+    : customerNavItems;
   return (
     <>
       {/* Ô giữ chỗ trong hàng flex — LUÔN giữ đúng bề rộng dải hẹp (w-20), không đổi

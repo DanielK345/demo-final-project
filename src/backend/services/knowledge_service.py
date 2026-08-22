@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import re
 
+from src.agents.faq_intent import faq_aliases, normalize_faq_text
 from src.agents.rag import BaseRetriever, KnowledgeDocument, RetrievalResult
 from src.backend.services.policy_service import PolicyCatalog, load_policy_catalog
 
@@ -30,18 +31,28 @@ def _meaningful_tokens(text: str) -> set[str]:
     return {word for word in words if word and word not in _STOPWORDS}
 
 
-def _score(query_tokens: set[str], document: KnowledgeDocument) -> float:
+def _score(query: str, query_tokens: set[str], document: KnowledgeDocument) -> float:
+    normalized_query = normalize_faq_text(query)
+    aliases = document.metadata.get("faq_aliases", ())
+    alias_score = max(
+        (
+            0.9 + min(0.099, len(alias) / 1000)
+            for alias in aliases
+            if re.search(rf"\b{re.escape(alias)}\b", normalized_query)
+        ),
+        default=0.0,
+    )
     searchable = f"{document.content} {document.metadata.get('search_hints', '')}"
     document_tokens = _meaningful_tokens(searchable)
     if not query_tokens or not document_tokens:
-        return 0.0
+        return alias_score
     overlap = query_tokens & document_tokens
     if not overlap:
         return 0.0
     coverage = len(overlap) / len(query_tokens)
     if len(overlap) >= 2:
         coverage = max(coverage, 0.75)
-    return round(min(1.0, coverage), 4)
+    return round(max(alias_score, min(1.0, coverage)), 4)
 
 
 def _documents(catalog: PolicyCatalog) -> tuple[KnowledgeDocument, ...]:
@@ -59,6 +70,7 @@ def _documents(catalog: PolicyCatalog) -> tuple[KnowledgeDocument, ...]:
                 "source_attribution": catalog.source_attribution,
                 "legal_notice": catalog.legal_notice,
                 "search_hints": _CATEGORY_HINTS.get(rule.category, ""),
+                "faq_aliases": faq_aliases(rule.id),
             },
             version=catalog.catalog_version,
             effective_at=catalog.effective_from,
@@ -76,7 +88,10 @@ class PolicyCatalogRetriever(BaseRetriever):
 
     async def retrieve(self, query: str, top_k: int = 3) -> list[RetrievalResult]:
         query_tokens = _meaningful_tokens(query)
-        scored = [RetrievalResult(document=document, score=_score(query_tokens, document)) for document in self.documents]
+        scored = [
+            RetrievalResult(document=document, score=_score(query, query_tokens, document))
+            for document in self.documents
+        ]
         scored = [result for result in scored if result.score > 0]
         scored.sort(key=lambda result: (-result.score, result.document.document_id))
         return scored[:top_k]

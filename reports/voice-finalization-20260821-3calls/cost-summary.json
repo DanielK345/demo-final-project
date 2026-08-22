@@ -1,0 +1,39 @@
+{
+  "usage": [
+    {
+      "type": "llm_usage",
+      "provider": "api.openai.com",
+      "model": "gpt-4.1-mini",
+      "input_audio_tokens": 0.0,
+      "input_cached_audio_tokens": 0.0,
+      "input_cached_image_tokens": 0.0,
+      "input_cached_text_tokens": 0.0,
+      "input_cached_tokens": 59776.0,
+      "input_image_tokens": 0.0,
+      "input_text_tokens": 0.0,
+      "input_tokens": 91578.0,
+      "output_audio_tokens": 0.0,
+      "output_text_tokens": 0.0,
+      "output_tokens": 1662.0,
+      "session_duration": 0.0
+    },
+    {
+      "type": "stt_usage",
+      "provider": "Google Cloud Platform",
+      "model": "chirp_2",
+      "audio_duration": 485.0,
+      "input_tokens": 0.0,
+      "output_tokens": 0.0
+    },
+    {
+      "type": "tts_usage",
+      "provider": "livekit",
+      "model": "cartesia/sonic-3",
+      "audio_duration": 175.682167,
+      "characters_count": 3149.0,
+      "input_tokens": 0.0,
+      "output_tokens": 0.0
+    }
+  ],
+  "cost": null
+}

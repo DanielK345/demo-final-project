@@ -45,9 +45,7 @@ def test_tool_builds_contract_without_executing_side_effect():
 
 
 def test_place_result_has_a_structured_resolution_status():
-    resolved = SearchPlaceResult.model_validate(
-        {"candidates": [{"place_id": "p1", "display_name": "Times City"}]}
-    )
+    resolved = SearchPlaceResult.model_validate({"candidates": [{"place_id": "p1", "display_name": "Times City"}]})
     missing = SearchPlaceResult.model_validate(
         {
             "status": "NEEDS_CLARIFICATION",

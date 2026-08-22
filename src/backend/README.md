@@ -9,7 +9,7 @@ FastAPI application layer của AloSM Voice. Nguồn điều phối chung:
 - Session lifecycle, typed turn, feedback và history.
 - Thực thi tool/side effect do Core Agent yêu cầu.
 - Booking idempotency, trip lookup và handoff lifecycle.
-- Voice REST/WebSocket, ASR/rewrite/TTS orchestration.
+- LiveKit token/connection details và business state cho voice worker.
 - Health/readiness và observability hooks.
 
 Core Agent không thuộc Backend và không thực thi I/O; contract integration nằm tại
@@ -18,8 +18,8 @@ Core Agent không thuộc Backend và không thực thi I/O; contract integratio
 ## Entrypoint và route ownership
 
 App nằm tại `src/backend/main.py`, được export qua `src/main.py`. Router nghiệp vụ
-được mount dưới `/api/v1`. Voice router chỉ do `main.py` mount một lần dưới
-`/api/v1/voice` khi `VOICE_ENABLED=true`; không đưa vào aggregate router.
+được mount dưới `/api/v1`. Voice realtime đi qua LiveKit Room; FastAPI chỉ cấp
+connection details và xử lý business/persistence.
 
 Nhóm API chính:
 
@@ -29,9 +29,9 @@ Nhóm API chính:
 - `/api/v1/trips/status`
 - `/api/v1/handoffs/*`
 - `/api/v1/users/me/settings`
-- `/api/v1/voice/{turn,speak,stream,...}`
+- `/api/v1/livekit/*`
 - `/api/v1/status`, `/api/v1/chat` (legacy compatibility)
-- `/health`, `/ready`; ZipFormer có health/metrics riêng theo route hiện hành.
+- `/health`, `/ready`
 
 OpenAPI runtime (`/openapi.json`) và schema trong `src/backend/schemas/` có thẩm
 quyền cao hơn danh sách tóm tắt này.
@@ -56,7 +56,7 @@ rollback và integration test.
 - `api/`: route và dependency wiring
 - `controllers/`: request orchestration
 - `services/`: business/application logic
-- `integrations/`: Voice/provider adapters và tool executor boundary
+- `integrations/`: provider adapters và tool executor boundary
 - `repositories/`: data-access abstraction
 - `db/`: SQLAlchemy base/models/session
 - `schemas/`: HTTP DTO
@@ -67,13 +67,7 @@ rollback và integration test.
 ## Configuration
 
 `src/backend/config.py` đọc `.env`; contract mẫu duy nhất là `.env.example`.
-Credential LLM và Speech phải tách riêng. Đặc biệt:
-
-- `VOICE_TTS_PROVIDER`: provider chính của `/voice/turn` (`openai` mặc định, `edge` để quay lại Edge-TTS).
-- `VOICE_TTS_MODEL`: model OpenAI Speech (`tts-1` mặc định, tối ưu độ trễ).
-- `VOICE_OPENAI_TTS_VOICE`: giọng OpenAI Speech của `/voice/turn` (`nova` mặc định).
-- `VOICE_TTS_PRIMARY_VOICE`: giọng Voice TTS orchestrator.
-- `OPENROUTER_API_KEY` không thay `OPENAI_API_KEY` cho Speech.
+Credential LiveKit, LLM và database phải nằm ở backend/worker; không đưa secret vào frontend.
 
 Không commit `.env` hoặc secret vào tài liệu/log.
 

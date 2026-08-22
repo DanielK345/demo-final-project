@@ -12,9 +12,7 @@ from src.agents.state import ConversationMessageType
 def offline_session(session_id: str) -> InteractiveSession:
     return InteractiveSession(
         session_id,
-        graph=AgentGraphAdapter(
-            LLMAgent(understanding_service=RuleBasedUnderstanding())
-        ),
+        graph=AgentGraphAdapter(LLMAgent(understanding_service=RuleBasedUnderstanding())),
     )
 
 
@@ -22,9 +20,7 @@ def offline_session(session_id: str) -> InteractiveSession:
 async def test_full_conversation_repair_workflow_with_history_and_mock_backend():
     session = offline_session("full-p4-session")
 
-    started = await session.user_turn(
-        "Ờ, tôi muốn đặt xe từ VinUni đến Times City, bạn làm giúp nhé"
-    )
+    started = await session.user_turn("Ờ, tôi muốn đặt xe từ VinUni đến Times City, bạn làm giúp nhé")
     assert started[-1].action_type is ActionType.ASK_USER
     assert session.state.current_step == BookingStep.COLLECT_VEHICLE
 
@@ -32,9 +28,7 @@ async def test_full_conversation_repair_workflow_with_history_and_mock_backend()
     assert fare[-1].action_type is ActionType.ASK_USER
     assert session.state.current_step == BookingStep.COLLECT_PHONE
 
-    faq = await session.user_turn(
-        "À mà trước khi đặt, dịch vụ có thanh toán tiền mặt không?"
-    )
+    faq = await session.user_turn("À mà trước khi đặt, dịch vụ có thanh toán tiền mặt không?")
     assert faq[-1].action_type is ActionType.RESPOND
     assert "tiếp tục việc đặt xe" in (faq[-1].message or "").casefold()
     assert session.state.interrupted_workflow is not None
@@ -114,9 +108,7 @@ async def test_chat_recommends_vehicle_from_passengers_and_rejects_invalid_phone
     assert route[-1].action_type is ActionType.ASK_USER
     assert session.state.current_step == BookingStep.COLLECT_VEHICLE
 
-    selected = await session.user_turn(
-        "Tôi đi 3 người, chọn phương tiện phù hợp"
-    )
+    selected = await session.user_turn("Tôi đi 3 người, chọn phương tiện phù hợp")
     assert selected[-1].action_type is ActionType.ASK_USER
     assert session.state.current_step == BookingStep.SELECT_VEHICLE_OPTION
 

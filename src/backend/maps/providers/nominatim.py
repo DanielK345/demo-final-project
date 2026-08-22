@@ -105,14 +105,15 @@ class NominatimProvider(GeocodingProvider):
                 if response.status_code in _RETRYABLE_STATUS and attempt < _MAX_RETRIES:
                     logger.warning(
                         "Nominatim %s returned %d, retry %d/%d",
-                        path, response.status_code, attempt + 1, _MAX_RETRIES,
+                        path,
+                        response.status_code,
+                        attempt + 1,
+                        _MAX_RETRIES,
                     )
                     continue
 
                 if response.status_code >= 400:
-                    raise MapProviderUnavailableError(
-                        f"Nominatim returned HTTP {response.status_code}"
-                    )
+                    raise MapProviderUnavailableError(f"Nominatim returned HTTP {response.status_code}")
 
                 return response.json()
 
@@ -128,9 +129,7 @@ class NominatimProvider(GeocodingProvider):
                 if attempt < _MAX_RETRIES:
                     logger.warning("Nominatim connection error on %s, retry %d/%d", path, attempt + 1, _MAX_RETRIES)
                     continue
-                raise MapProviderUnavailableError(
-                    f"Cannot connect to Nominatim at {self._base_url}"
-                ) from exc
+                raise MapProviderUnavailableError(f"Cannot connect to Nominatim at {self._base_url}") from exc
 
             except (httpx.HTTPError, Exception) as exc:
                 if isinstance(exc, (MapProviderTimeoutError, MapProviderUnavailableError)):
@@ -162,8 +161,17 @@ class NominatimProvider(GeocodingProvider):
         formatted = display_name  # fallback to display_name
         if address_parts:
             parts = []
-            for key in ("house_number", "road", "suburb", "quarter", "city_district",
-                        "city", "state", "postcode", "country"):
+            for key in (
+                "house_number",
+                "road",
+                "suburb",
+                "quarter",
+                "city_district",
+                "city",
+                "state",
+                "postcode",
+                "country",
+            ):
                 val = address_parts.get(key)
                 if val:
                     parts.append(str(val))

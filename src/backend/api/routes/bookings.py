@@ -9,7 +9,11 @@ controller = BookingController()
 
 
 @router.post("", response_model=BookingResponseDTO)
-async def create_booking(request: BookingRequestDTO, idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"), authorization: str | None = Header(default=None)) -> BookingResponseDTO:
+async def create_booking(
+    request: BookingRequestDTO,
+    idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
+    authorization: str | None = Header(default=None),
+) -> BookingResponseDTO:
     if not idempotency_key:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Thiếu Idempotency-Key")
     try:

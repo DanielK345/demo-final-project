@@ -11,20 +11,13 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class LiveKitVoiceSettings(BaseSettings):
-    """Load LiveKit settings without activating the new runtime implicitly.
-
-    ``VOICE_RUNTIME`` is the migration switch. The default remains ``legacy`` so
-    adding this package cannot change the deployed audio path. Credentials and
-    model selections become mandatory only when the LiveKit path is selected.
-    """
+    """Configuration for the production LiveKit voice runtime."""
 
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
         extra="ignore",
     )
-
-    voice_runtime: Literal["legacy", "livekit"] = "legacy"
 
     livekit_url: str = ""
     livekit_api_key: SecretStr = SecretStr("")
@@ -57,7 +50,14 @@ class LiveKitVoiceSettings(BaseSettings):
     livekit_endpointing_min_delay_seconds: float = Field(default=0.8, ge=0.25, le=3)
     livekit_endpointing_max_delay_seconds: float = Field(default=2.5, ge=0.5, le=5)
     livekit_interruption_min_duration_seconds: float = Field(default=0.5, ge=0, le=5)
-    livekit_interruption_min_words: int = Field(default=1, ge=0, le=10)
+    # Do not wait for a slow STT interim before stopping agent playback. VAD has
+    # already established sustained speech for min_duration; LiveKit's current
+    # recommended turn-taking baseline also uses zero words here.
+    livekit_interruption_min_words: int = Field(default=0, ge=0, le=10)
+    # Native LiveKit diagnostic: emit user_transcription_timeout when VAD saw
+    # speech but STT produced no non-empty final transcript after speech ended.
+    # This observes the existing pipeline; it does not alter endpointing.
+    livekit_transcription_timeout_seconds: float = Field(default=5.0, gt=0, le=30)
 
     # Privacy-safe defaults. Enabling persistence requires an explicit policy and
     # consent decision; it is never inferred from selecting the LiveKit runtime.
@@ -78,10 +78,12 @@ class LiveKitVoiceSettings(BaseSettings):
     # LiveKit dev mode otherwise keeps zero warm job processes, adding a process
     # spawn to the first participant-to-agent dispatch path.
     livekit_num_idle_processes: int = Field(default=1, ge=0, le=16)
-
-    @property
-    def enabled(self) -> bool:
-        return self.voice_runtime == "livekit"
+    # Restore is bounded so a remote DB outage cannot block RTC startup forever.
+    livekit_state_restore_timeout_seconds: float = Field(default=20.0, gt=0, le=60)
+    # Keep LiveKit's default room grace period so a browser can finish native
+    # reconnect or explicitly resume the durable application session. Immediate
+    # room deletion is useful for isolated smoke environments, not product calls.
+    livekit_delete_room_on_close: bool = False
 
     def configuration_errors(self) -> list[str]:
         """Validate LiveKit itself without depending on the rollout switch."""
@@ -114,10 +116,26 @@ class LiveKitVoiceSettings(BaseSettings):
             errors.append("OPENAI_API_KEY_REQUIRED_FOR_OPENAI_PROVIDER")
         return errors
 
-    def readiness_errors(self) -> list[str]:
-        """Return rollout readiness errors without exposing credential values."""
+    def stt_configuration_errors(self) -> list[str]:
+        """Validate the standalone LiveKit STT path used by offline evaluation."""
 
-        return self.configuration_errors() if self.enabled else []
+        required = {
+            "LIVEKIT_STT_PROVIDER_REQUIRED": self.livekit_stt_provider,
+            "LIVEKIT_STT_MODEL_REQUIRED": self.livekit_stt_model,
+            "LIVEKIT_STT_LANGUAGE_REQUIRED": self.livekit_stt_language,
+        }
+        errors = [code for code, value in required.items() if not value.strip()]
+        if self.livekit_stt_provider == "google":
+            if not self.google_cloud_project.strip():
+                errors.append("GOOGLE_CLOUD_PROJECT_REQUIRED_FOR_GOOGLE_STT")
+            if not self.google_stt_location.strip():
+                errors.append("GOOGLE_STT_LOCATION_REQUIRED_FOR_GOOGLE_STT")
+        else:
+            if not self.livekit_api_key.get_secret_value().strip():
+                errors.append("LIVEKIT_API_KEY_REQUIRED")
+            if not self.livekit_api_secret.get_secret_value().strip():
+                errors.append("LIVEKIT_API_SECRET_REQUIRED")
+        return errors
 
     def require_configured(self) -> None:
         """Fail before an explicitly requested token/worker operation."""
@@ -126,12 +144,12 @@ class LiveKitVoiceSettings(BaseSettings):
         if errors:
             raise ValueError("LiveKit voice configuration is not ready: " + ", ".join(errors))
 
-    def require_ready(self) -> None:
-        """Fail when the rollout switch selects an incomplete LiveKit runtime."""
+    def require_stt_configured(self) -> None:
+        """Fail before a standalone STT benchmark without requiring LLM/TTS."""
 
-        errors = self.readiness_errors()
+        errors = self.stt_configuration_errors()
         if errors:
-            raise ValueError("LiveKit voice configuration is not ready: " + ", ".join(errors))
+            raise ValueError("LiveKit STT configuration is not ready: " + ", ".join(errors))
 
 
 @lru_cache

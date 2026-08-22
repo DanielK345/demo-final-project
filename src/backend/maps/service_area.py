@@ -67,9 +67,7 @@ def _point_in_polygon(lon: float, lat: float, polygon: list[list[list[float]]]) 
     return True
 
 
-def _point_in_multipolygon(
-    lon: float, lat: float, multi: list[list[list[list[float]]]]
-) -> bool:
+def _point_in_multipolygon(lon: float, lat: float, multi: list[list[list[list[float]]]]) -> bool:
     """Check if (lon, lat) is inside a GeoJSON MultiPolygon."""
     return any(_point_in_polygon(lon, lat, polygon) for polygon in multi)
 

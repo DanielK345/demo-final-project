@@ -1,6 +1,12 @@
 import pytest
 
-from src.voice_agent.session_data import BookingDraft, PlaceCandidate, vehicle_spoken_label
+from src.voice_agent.session_data import (
+    BookingDraft,
+    BookingResult,
+    PlaceCandidate,
+    QuoteSnapshot,
+    vehicle_spoken_label,
+)
 from src.voice_agent.tools import BookingToolsService, QuoteToolsService
 
 
@@ -23,8 +29,55 @@ def _quoted_draft() -> BookingDraft:
     draft.set_candidates("destination", "Hồ Gươm", [destination])
     draft.select_place("destination", destination.place_id)
     draft.set_vehicle_type("CAR_4")
-    draft.set_quote(QuoteToolsService().estimate(draft))
+    draft.set_quote(
+        QuoteSnapshot(
+            quote_id="quote_test",
+            pickup_place_id=pickup.place_id,
+            destination_place_id=destination.place_id,
+            vehicle_type="CAR_4",
+            fare_amount=100_000,
+            currency="VND",
+            distance_km=10,
+            eta_minutes=25,
+            expires_at="2099-01-01T00:00:00+00:00",
+        )
+    )
     return draft
+
+
+class FakeQuoteService:
+    def __init__(self) -> None:
+        self.calls: list[dict[str, object]] = []
+
+    async def issue_quote(self, **payload: object) -> dict[str, object]:
+        self.calls.append(payload)
+        return {
+            "quote_id": "quote_durable",
+            "pickup_place_id": payload["pickup_place_id"],
+            "destination_place_id": payload["destination_place_id"],
+            "vehicle_type": payload["vehicle_type"],
+            "fare_amount": 100_000,
+            "currency": "VND",
+            "distance_km": 10,
+            "eta_minutes": 25,
+            "expires_at": "2099-01-01T00:00:00+00:00",
+            "estimated": True,
+        }
+
+
+class FakeBookingService:
+    def __init__(self) -> None:
+        self.calls: list[dict[str, object]] = []
+
+    async def create_booking_from_quote(self, payload: dict[str, object]) -> dict[str, object]:
+        self.calls.append(payload)
+        return {
+            "booking_id": "book_durable",
+            "status": "SEARCHING_DRIVER",
+            "quoted_fare_amount": 100_000,
+            "currency": "VND",
+            "eta_minutes": 25,
+        }
 
 
 def test_candidate_must_come_from_current_search_result() -> None:
@@ -42,7 +95,13 @@ def test_every_booking_correction_invalidates_quote_confirmation_and_booking(
     draft = _quoted_draft()
     draft.request_confirmation()
     draft.confirm()
-    booking = BookingToolsService().create(app_session_id="session-1", draft=draft)
+    booking = BookingResult(
+        booking_id="book_test",
+        status="SEARCHING_DRIVER",
+        estimated_fare=100_000,
+        currency="VND",
+        eta_minutes=25,
+    )
     draft.set_booking(booking)
 
     if correction == "pickup":
@@ -62,25 +121,58 @@ def test_every_booking_correction_invalidates_quote_confirmation_and_booking(
     assert draft.booking is None
 
 
-def test_booking_requires_explicit_confirmed_state() -> None:
+@pytest.mark.asyncio
+async def test_booking_requires_explicit_confirmed_state() -> None:
     draft = _quoted_draft()
     draft.request_confirmation()
 
     with pytest.raises(ValueError, match="EXPLICIT_CONFIRMATION_REQUIRED"):
-        BookingToolsService().create(app_session_id="session-1", draft=draft)
+        await BookingToolsService(FakeBookingService()).create(
+            user_id="user-1",
+            app_session_id="session-1",
+            draft=draft,
+        )
 
 
-def test_demo_booking_is_idempotent_for_same_session_and_quote() -> None:
+@pytest.mark.asyncio
+async def test_durable_booking_uses_stable_idempotency_key_for_same_session_and_quote() -> None:
     draft = _quoted_draft()
     draft.request_confirmation()
     draft.confirm()
-    service = BookingToolsService()
+    backend = FakeBookingService()
+    service = BookingToolsService(backend)
 
-    first = service.create(app_session_id="session-1", draft=draft)
-    second = service.create(app_session_id="session-1", draft=draft)
+    first = await service.create(user_id="user-1", app_session_id="session-1", draft=draft)
+    second = await service.create(user_id="user-1", app_session_id="session-1", draft=draft)
 
     assert first == second
-    assert first.booking_id.startswith("demo_")
+    assert first.booking_id == "book_durable"
+    assert backend.calls[0]["idempotency_key"] == backend.calls[1]["idempotency_key"]
+    assert backend.calls[0]["quote_id"] == "quote_test"
+
+
+@pytest.mark.asyncio
+async def test_quote_tool_uses_existing_durable_quote_service() -> None:
+    draft = _quoted_draft()
+    draft.quote = None
+    backend = FakeQuoteService()
+
+    quote = await QuoteToolsService(backend).estimate(
+        user_id="user-1",
+        app_session_id="session-1",
+        draft=draft,
+    )
+
+    assert quote.quote_id == "quote_durable"
+    assert backend.calls == [
+        {
+            "user_id": "user-1",
+            "session_id": "session-1",
+            "pickup_place_id": "place_pickup",
+            "destination_place_id": "place_destination",
+            "vehicle_type": "CAR_4",
+        }
+    ]
 
 
 def test_public_state_excludes_queries_and_candidate_lists() -> None:

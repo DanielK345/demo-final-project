@@ -95,8 +95,13 @@ def _can_start_rebook(data: BookingData) -> bool:
 
 def _update(data: BookingData, arguments: dict) -> tuple[BookingData, str]:
     allowed = {
-        "pickup_query", "destination_query", "vehicle_type", "passenger_count",
-        "luggage_count", "vehicle_preference", "phone_number",
+        "pickup_query",
+        "destination_query",
+        "vehicle_type",
+        "passenger_count",
+        "luggage_count",
+        "vehicle_preference",
+        "phone_number",
     }
     values = {key: value for key, value in arguments.items() if key in allowed and value is not None}
     for field in ("pickup_query", "destination_query", "vehicle_preference"):
@@ -121,8 +126,14 @@ def _update(data: BookingData, arguments: dict) -> tuple[BookingData, str]:
     if values and _has_completed_booking(data):
         data = clear_completed_booking(data)
 
-    location_changed = any(values.get(key) != getattr(data, key) for key in ("pickup_query", "destination_query") if key in values)
-    needs_changed = any(values.get(key) != getattr(data, key) for key in ("passenger_count", "luggage_count", "vehicle_preference") if key in values)
+    location_changed = any(
+        values.get(key) != getattr(data, key) for key in ("pickup_query", "destination_query") if key in values
+    )
+    needs_changed = any(
+        values.get(key) != getattr(data, key)
+        for key in ("passenger_count", "luggage_count", "vehicle_preference")
+        if key in values
+    )
     vehicle_changed = "vehicle_type" in values and values["vehicle_type"] != data.vehicle_type
     data = data.model_copy(update=values, deep=True)
     if "pickup_query" in values:
@@ -181,16 +192,20 @@ def register_booking(registry: ToolRegistry) -> None:
             current_step=None,
             confirmation=ConfirmationStatus.NOT_REQUESTED,
         )
-        return ContinueToolLoop({
-            "rebook_started": {
-                "pickup": session.booking.pickup.model_dump(mode="json") if session.booking.pickup else None,
-                "destination": session.booking.destination.model_dump(mode="json") if session.booking.destination else None,
-                "passenger_count": session.booking.passenger_count,
-                "luggage_count": session.booking.luggage_count,
-                "phone_number": "đã có và hợp lệ" if session.booking.phone_number else None,
-                "needs_vehicle_options": True,
+        return ContinueToolLoop(
+            {
+                "rebook_started": {
+                    "pickup": session.booking.pickup.model_dump(mode="json") if session.booking.pickup else None,
+                    "destination": session.booking.destination.model_dump(mode="json")
+                    if session.booking.destination
+                    else None,
+                    "passenger_count": session.booking.passenger_count,
+                    "luggage_count": session.booking.luggage_count,
+                    "phone_number": "đã có và hợp lệ" if session.booking.phone_number else None,
+                    "needs_vehicle_options": True,
+                }
             }
-        })
+        )
 
     def select_place(session: TurnSession, arguments: dict):
         target = arguments.get("target")
@@ -199,30 +214,37 @@ def register_booking(registry: ToolRegistry) -> None:
         if target not in {"pickup", "destination"} or not isinstance(index, int) or not 1 <= index <= len(candidates):
             return policy_error("Lựa chọn địa điểm không hợp lệ.")
         selected = candidates[index - 1]
-        session.booking = clear_fare_estimate(session.booking.model_copy(
-            update={
-                target: selected,
-                f"{target}_candidates": [],
-                f"{target}_resolution": PlaceResolutionStatus.RESOLVED,
-            },
-            deep=True,
-        ))
+        session.booking = clear_fare_estimate(
+            session.booking.model_copy(
+                update={
+                    target: selected,
+                    f"{target}_candidates": [],
+                    f"{target}_resolution": PlaceResolutionStatus.RESOLVED,
+                },
+                deep=True,
+            )
+        )
         _persist(session)
         return ContinueToolLoop({"place_selected": {"target": target, "place": selected.model_dump(mode="json")}})
 
     def select_vehicle(session: TurnSession, arguments: dict):
-        option = next((item for item in session.booking.vehicle_options if item.option_id == arguments.get("option_id")), None)
+        option = next(
+            (item for item in session.booking.vehicle_options if item.option_id == arguments.get("option_id")), None
+        )
         if option is None:
             return policy_error("Mã lựa chọn xe không có trong state.")
-        session.booking = session.booking.model_copy(update={
-            "vehicle_type": option.vehicle_type,
-            "selected_vehicle_option_id": option.option_id,
-            "vehicle_display_name": option.display_name,
-            "fare_estimate_id": option.estimate_id,
-            "estimated_fare_amount": option.fare_amount,
-            "estimated_currency": option.currency,
-            "estimated_eta_minutes": option.eta_minutes,
-        }, deep=True)
+        session.booking = session.booking.model_copy(
+            update={
+                "vehicle_type": option.vehicle_type,
+                "selected_vehicle_option_id": option.option_id,
+                "vehicle_display_name": option.display_name,
+                "fare_estimate_id": option.estimate_id,
+                "estimated_fare_amount": option.fare_amount,
+                "estimated_currency": option.currency,
+                "estimated_eta_minutes": option.eta_minutes,
+            },
+            deep=True,
+        )
         _persist(session)
         return ContinueToolLoop({"vehicle_selected": option.model_dump(mode="json")})
 
@@ -233,29 +255,37 @@ def register_booking(registry: ToolRegistry) -> None:
         resolved = session.booking.pickup if pickup else session.booking.destination
         candidates = session.booking.pickup_candidates if pickup else session.booking.destination_candidates
         if resolved is not None:
-            return ContinueToolLoop({
-                "place_already_resolved": {
-                    "target": "pickup" if pickup else "destination",
-                    "place": resolved.model_dump(mode="json"),
+            return ContinueToolLoop(
+                {
+                    "place_already_resolved": {
+                        "target": "pickup" if pickup else "destination",
+                        "place": resolved.model_dump(mode="json"),
+                    }
                 }
-            })
+            )
         if candidates:
-            return ContinueToolLoop({
-                "place_already_has_candidates": {
-                    "target": "pickup" if pickup else "destination",
-                    "count": len(candidates),
+            return ContinueToolLoop(
+                {
+                    "place_already_has_candidates": {
+                        "target": "pickup" if pickup else "destination",
+                        "count": len(candidates),
+                    }
                 }
-            })
+            )
         session.booking = session.booking.model_copy(
             update={"pending_location_target": "pickup" if pickup else "destination"},
             deep=True,
         )
         _persist(session)
         action = request_place_action(
-            session.working_state(), session.booking, search_builder,
+            session.working_state(),
+            session.booking,
+            search_builder,
             query=query,
             operation="pickup" if pickup else "destination",
-            waiting_step=BookingStep.WAITING_FOR_PICKUP_RESULT if pickup else BookingStep.WAITING_FOR_DESTINATION_RESULT,
+            waiting_step=BookingStep.WAITING_FOR_PICKUP_RESULT
+            if pickup
+            else BookingStep.WAITING_FOR_DESTINATION_RESULT,
         )
         return _external(session, action)
 
@@ -284,13 +314,20 @@ def register_booking(registry: ToolRegistry) -> None:
 
     def confirm(session: TurnSession, _arguments: dict):
         state = session.working_state()
-        if state.confirmation is not ConfirmationStatus.AWAITING_CONFIRMATION or state.current_step != BookingStep.CONFIRM.value:
+        if (
+            state.confirmation is not ConfirmationStatus.AWAITING_CONFIRMATION
+            or state.current_step != BookingStep.CONFIRM.value
+        ):
             return policy_error("Chưa có bản tóm tắt đặt xe đang chờ xác nhận.")
         missing = _missing(session.booking)
         if missing:
             return policy_error(f"Thông tin đặt xe còn thiếu: {', '.join(missing)}.")
-        key = sha256(f"{state.session_id}:create:{session.booking.fare_estimate_id}:{session.booking.phone_number}".encode()).hexdigest()
-        return _external(session, request_create_booking_action(state, session.booking, create_builder, idempotency_key=key))
+        key = sha256(
+            f"{state.session_id}:create:{session.booking.fare_estimate_id}:{session.booking.phone_number}".encode()
+        ).hexdigest()
+        return _external(
+            session, request_create_booking_action(state, session.booking, create_builder, idempotency_key=key)
+        )
 
     def request_cancel(session: TurnSession, _arguments: dict):
         if session.booking.booking_id is None:
@@ -310,10 +347,16 @@ def register_booking(registry: ToolRegistry) -> None:
 
     def confirm_cancel(session: TurnSession, _arguments: dict):
         state = session.working_state()
-        if state.confirmation is not ConfirmationStatus.AWAITING_CONFIRMATION or state.current_step != BookingStep.CONFIRM_CANCEL.value or session.booking.booking_id is None:
+        if (
+            state.confirmation is not ConfirmationStatus.AWAITING_CONFIRMATION
+            or state.current_step != BookingStep.CONFIRM_CANCEL.value
+            or session.booking.booking_id is None
+        ):
             return policy_error("Chưa có yêu cầu hủy đang chờ xác nhận.")
         key = sha256(f"{state.session_id}:cancel:{session.booking.booking_id}".encode()).hexdigest()
-        return _external(session, request_cancel_booking_action(state, session.booking, cancel_builder, idempotency_key=key))
+        return _external(
+            session, request_cancel_booking_action(state, session.booking, cancel_builder, idempotency_key=key)
+        )
 
     def request_abandon(session: TurnSession, _arguments: dict):
         if session.state.pending_tool_name is not None:
@@ -347,8 +390,13 @@ def register_booking(registry: ToolRegistry) -> None:
         return AgentAction(
             action_type=ActionType.RESPOND,
             message="Được, tôi đã dừng yêu cầu đặt xe này. Khi nào cần bạn cứ nói nhé.",
-            state_updates={"current_workflow": None, "current_step": None, "collected_data": collected,
-                           "confirmation": ConfirmationStatus.NOT_REQUESTED, "retry_count": 0},
+            state_updates={
+                "current_workflow": None,
+                "current_step": None,
+                "collected_data": collected,
+                "confirmation": ConfirmationStatus.NOT_REQUESTED,
+                "retry_count": 0,
+            },
             reason="The user abandoned the unfinished booking.",
         )
 
@@ -380,14 +428,16 @@ def register_booking(registry: ToolRegistry) -> None:
             deep=True,
         )
         _finish_result(session)
-        return ContinueToolLoop({
-            "place_result": {
-                "target": "pickup" if pickup else "destination",
-                "status": resolution.status.value,
-                "candidates": [item.model_dump(mode="json") for item in payload.candidates],
-                "clarification_hint": payload.clarification_hint,
+        return ContinueToolLoop(
+            {
+                "place_result": {
+                    "target": "pickup" if pickup else "destination",
+                    "status": resolution.status.value,
+                    "candidates": [item.model_dump(mode="json") for item in payload.candidates],
+                    "clarification_hint": payload.clarification_hint,
+                }
             }
-        })
+        )
 
     def reduce_options(session: TurnSession, result: ToolResult):
         payload = parse_tool_result(result, session.state)
@@ -410,8 +460,12 @@ def register_booking(registry: ToolRegistry) -> None:
         _finish_result(session)
         session.updates.update(current_workflow=None, confirmation=ConfirmationStatus.NOT_REQUESTED)
         eta = f" Xe dự kiến đến sau {payload.eta_minutes} phút." if payload.eta_minutes is not None else ""
-        return AgentAction(action_type=ActionType.RESPOND, message=f"Chuyến xe đã được đặt thành công.{eta}",
-                           state_updates=session.updates, reason="Backend confirmed booking creation.")
+        return AgentAction(
+            action_type=ActionType.RESPOND,
+            message=f"Chuyến xe đã được đặt thành công.{eta}",
+            state_updates=session.updates,
+            reason="Backend confirmed booking creation.",
+        )
 
     def reduce_cancel(session: TurnSession, result: ToolResult):
         payload = parse_tool_result(result, session.state)
@@ -421,8 +475,12 @@ def register_booking(registry: ToolRegistry) -> None:
         session.booking = apply_cancellation_result(session.booking, payload, completed_call_id=result.call_id)
         _finish_result(session)
         session.updates.update(current_workflow=None, confirmation=ConfirmationStatus.NOT_REQUESTED)
-        return AgentAction(action_type=ActionType.RESPOND, message="Chuyến xe đã được hủy thành công.",
-                           state_updates=session.updates, reason="Backend confirmed booking cancellation.")
+        return AgentAction(
+            action_type=ActionType.RESPOND,
+            message="Chuyến xe đã được hủy thành công.",
+            state_updates=session.updates,
+            reason="Backend confirmed booking cancellation.",
+        )
 
     def _finish_result(session: TurnSession) -> None:
         session.updates.update(clear_pending_tool_updates())
@@ -431,52 +489,112 @@ def register_booking(registry: ToolRegistry) -> None:
 
     registry.register(RegisteredTool(definition("update_booking"), update))
     registry.register(RegisteredTool(definition("start_rebook"), start_rebook, lambda s: _can_start_rebook(s.booking)))
-    registry.register(RegisteredTool(
-        definition("search_pickup"),
-        lambda s, a: search(s, True),
-        lambda s: bool(
-            s.booking.pickup_query
-            and not s.booking.pickup
-            and not s.booking.pickup_candidates
-            and s.booking.pickup_resolution is PlaceResolutionStatus.UNRESOLVED
-        ),
-    ))
-    registry.register(RegisteredTool(
-        definition("search_destination"),
-        lambda s, a: search(s, False),
-        lambda s: bool(
-            s.booking.destination_query
-            and not s.booking.destination
-            and not s.booking.destination_candidates
-            and s.booking.destination_resolution is PlaceResolutionStatus.UNRESOLVED
-        ),
-    ))
-    registry.register(RegisteredTool(definition("select_place"), select_place, lambda s: bool(s.booking.pickup_candidates or s.booking.destination_candidates)))
-    registry.register(RegisteredTool(definition("request_vehicle_options"), vehicle_options, lambda s: bool(s.booking.pickup and s.booking.destination and s.booking.passenger_count)))
-    registry.register(RegisteredTool(definition("select_vehicle"), select_vehicle, lambda s: bool(s.booking.vehicle_options)))
-    registry.register(RegisteredTool(definition("estimate_fare"), estimate, lambda s: bool(s.booking.pickup and s.booking.destination and s.booking.vehicle_type and not s.booking.fare_estimate_id)))
-    registry.register(RegisteredTool(definition("request_booking_confirmation"), request_confirmation, lambda s: not _missing(s.booking)))
-    registry.register(RegisteredTool(definition("confirm_booking"), confirm, lambda s: s.working_state().confirmation is ConfirmationStatus.AWAITING_CONFIRMATION and s.working_state().current_step == BookingStep.CONFIRM.value))
-    registry.register(RegisteredTool(definition("request_cancellation_confirmation"), request_cancel, lambda s: s.booking.booking_id is not None))
-    registry.register(RegisteredTool(definition("confirm_cancellation"), confirm_cancel, lambda s: s.working_state().confirmation is ConfirmationStatus.AWAITING_CONFIRMATION and s.working_state().current_step == BookingStep.CONFIRM_CANCEL.value))
-    registry.register(RegisteredTool(
-        definition("request_abandon_confirmation"),
-        request_abandon,
-        lambda s: s.booking.booking_id is None
-        and _has_draft(s)
-        and s.working_state().current_step != "CONFIRM_ABANDON",
-    ))
-    registry.register(RegisteredTool(
-        definition("confirm_abandon_booking"),
-        confirm_abandon,
-        lambda s: s.working_state().confirmation is ConfirmationStatus.AWAITING_CONFIRMATION
-        and s.working_state().current_step == "CONFIRM_ABANDON",
-    ))
-    registry.register(RegisteredTool(
-        definition("keep_booking"),
-        keep_booking,
-        lambda s: s.working_state().current_step == "CONFIRM_ABANDON",
-    ))
+    registry.register(
+        RegisteredTool(
+            definition("search_pickup"),
+            lambda s, a: search(s, True),
+            lambda s: bool(
+                s.booking.pickup_query
+                and not s.booking.pickup
+                and not s.booking.pickup_candidates
+                and s.booking.pickup_resolution is PlaceResolutionStatus.UNRESOLVED
+            ),
+        )
+    )
+    registry.register(
+        RegisteredTool(
+            definition("search_destination"),
+            lambda s, a: search(s, False),
+            lambda s: bool(
+                s.booking.destination_query
+                and not s.booking.destination
+                and not s.booking.destination_candidates
+                and s.booking.destination_resolution is PlaceResolutionStatus.UNRESOLVED
+            ),
+        )
+    )
+    registry.register(
+        RegisteredTool(
+            definition("select_place"),
+            select_place,
+            lambda s: bool(s.booking.pickup_candidates or s.booking.destination_candidates),
+        )
+    )
+    registry.register(
+        RegisteredTool(
+            definition("request_vehicle_options"),
+            vehicle_options,
+            lambda s: bool(s.booking.pickup and s.booking.destination and s.booking.passenger_count),
+        )
+    )
+    registry.register(
+        RegisteredTool(definition("select_vehicle"), select_vehicle, lambda s: bool(s.booking.vehicle_options))
+    )
+    registry.register(
+        RegisteredTool(
+            definition("estimate_fare"),
+            estimate,
+            lambda s: bool(
+                s.booking.pickup and s.booking.destination and s.booking.vehicle_type and not s.booking.fare_estimate_id
+            ),
+        )
+    )
+    registry.register(
+        RegisteredTool(
+            definition("request_booking_confirmation"), request_confirmation, lambda s: not _missing(s.booking)
+        )
+    )
+    registry.register(
+        RegisteredTool(
+            definition("confirm_booking"),
+            confirm,
+            lambda s: (
+                s.working_state().confirmation is ConfirmationStatus.AWAITING_CONFIRMATION
+                and s.working_state().current_step == BookingStep.CONFIRM.value
+            ),
+        )
+    )
+    registry.register(
+        RegisteredTool(
+            definition("request_cancellation_confirmation"), request_cancel, lambda s: s.booking.booking_id is not None
+        )
+    )
+    registry.register(
+        RegisteredTool(
+            definition("confirm_cancellation"),
+            confirm_cancel,
+            lambda s: (
+                s.working_state().confirmation is ConfirmationStatus.AWAITING_CONFIRMATION
+                and s.working_state().current_step == BookingStep.CONFIRM_CANCEL.value
+            ),
+        )
+    )
+    registry.register(
+        RegisteredTool(
+            definition("request_abandon_confirmation"),
+            request_abandon,
+            lambda s: (
+                s.booking.booking_id is None and _has_draft(s) and s.working_state().current_step != "CONFIRM_ABANDON"
+            ),
+        )
+    )
+    registry.register(
+        RegisteredTool(
+            definition("confirm_abandon_booking"),
+            confirm_abandon,
+            lambda s: (
+                s.working_state().confirmation is ConfirmationStatus.AWAITING_CONFIRMATION
+                and s.working_state().current_step == "CONFIRM_ABANDON"
+            ),
+        )
+    )
+    registry.register(
+        RegisteredTool(
+            definition("keep_booking"),
+            keep_booking,
+            lambda s: s.working_state().current_step == "CONFIRM_ABANDON",
+        )
+    )
     registry.register_reducer(ToolName.SEARCH_PLACE, reduce_search)
     registry.register_reducer(ToolName.GET_VEHICLE_OPTIONS, reduce_options)
     registry.register_reducer(ToolName.ESTIMATE_FARE, reduce_fare)

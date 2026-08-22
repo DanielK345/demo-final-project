@@ -81,13 +81,21 @@ class DatabaseVoiceStateStore:
         userdata.persistence_revision = int(result["revision"])
         if userdata.lifecycle_status in {"completed", "cancelled"}:
             reason = "BOOKING_COMPLETED" if userdata.lifecycle_status == "completed" else "USER_CANCELLED"
+            booking = userdata.booking_draft.booking
+            terminal_updates: dict[str, object] = {
+                "status": "ENDED",
+                "end_reason": reason,
+                "ended_at": datetime.now(UTC),
+            }
+            if booking is not None:
+                terminal_updates.update(
+                    booking_id=booking.booking_id,
+                    booking_lifecycle_status="SUCCESS",
+                    confirmation_status="confirmed",
+                )
             await self._repository.update_session(
                 userdata.app_session_id,
-                {
-                    "status": "ENDED",
-                    "end_reason": reason,
-                    "ended_at": datetime.now(UTC),
-                },
+                terminal_updates,
             )
 
 

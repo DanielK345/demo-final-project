@@ -9,7 +9,6 @@ from src.voice_agent.config import LiveKitVoiceSettings
 def _settings() -> LiveKitVoiceSettings:
     return LiveKitVoiceSettings(
         _env_file=None,
-        voice_runtime="livekit",
         livekit_url="wss://alosm.test.livekit.cloud",
         livekit_api_key="test-api-key",
         livekit_api_secret="test-api-secret-with-enough-entropy",
@@ -90,3 +89,24 @@ def test_new_call_instance_gets_a_fresh_room() -> None:
 
     assert first["sub"] == second["sub"]
     assert first["video"]["room"] != second["video"]["room"]
+
+
+def test_operator_token_is_scoped_to_accepted_handoff_room() -> None:
+    details = LiveKitTokenService(_settings()).issue_for_operator(
+        operator_id="operator-1",
+        handoff_id="handoff-1",
+        room_name="alosm-room-1",
+    )
+
+    claims = jwt.decode(details.participant_token, options={"verify_signature": False})
+    assert claims["sub"].startswith("operator-")
+    assert claims["video"]["room"] == "alosm-room-1"
+    assert claims["video"]["roomJoin"] is True
+    assert claims["video"]["canPublish"] is True
+    assert claims["video"]["canSubscribe"] is True
+    assert json.loads(claims["metadata"]) == {
+        "schema_version": "1",
+        "role": "operator",
+        "operator_id": "operator-1",
+        "handoff_id": "handoff-1",
+    }

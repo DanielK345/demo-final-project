@@ -5,7 +5,56 @@ from __future__ import annotations
 import re
 from collections.abc import AsyncIterable
 
-from src.voice.tts.formatter import number_to_vietnamese_words
+_ONES = ["không", "một", "hai", "ba", "bốn", "năm", "sáu", "bảy", "tám", "chín"]
+_SCALE_WORDS = ["", "nghìn", "triệu", "tỷ"]
+
+
+def _read_three_digits(number: int, *, is_leading_group: bool) -> str:
+    if number == 0:
+        return "" if is_leading_group else "không trăm"
+
+    hundreds, remainder = divmod(number, 100)
+    tens, ones = divmod(remainder, 10)
+    parts: list[str] = []
+
+    if hundreds > 0 or not is_leading_group:
+        parts.append(f"{_ONES[hundreds]} trăm")
+    if tens == 0:
+        if ones > 0:
+            parts.append(f"linh {_ONES[ones]}" if parts else _ONES[ones])
+    elif tens == 1:
+        parts.append("mười" if ones == 0 else f"mười {'lăm' if ones == 5 else _ONES[ones]}")
+    else:
+        tens_word = f"{_ONES[tens]} mươi"
+        suffix = {0: "", 1: " mốt", 4: " tư", 5: " lăm"}.get(ones, f" {_ONES[ones]}")
+        parts.append(f"{tens_word}{suffix}")
+
+    return " ".join(parts)
+
+
+def number_to_vietnamese_words(number: int) -> str:
+    """Convert fare-sized integers to Vietnamese words for LiveKit TTS."""
+
+    if number == 0:
+        return "không"
+    if number < 0:
+        return f"âm {number_to_vietnamese_words(-number)}"
+    if number > 999_999_999:
+        return str(number)
+
+    groups: list[int] = []
+    remainder = number
+    while remainder:
+        groups.append(remainder % 1000)
+        remainder //= 1000
+
+    parts: list[str] = []
+    for index in reversed(range(len(groups))):
+        if groups[index] == 0:
+            continue
+        words = _read_three_digits(groups[index], is_leading_group=index == len(groups) - 1)
+        parts.append(f"{words} {_SCALE_WORDS[index]}".strip())
+    return " ".join(parts)
 
 _CURRENCY_RE = re.compile(
     r"(?<!\d)(\d(?:[\d .,_]*\d)?)\s*(?:(?:VND|đồng)\b|₫)",

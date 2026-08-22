@@ -5,7 +5,6 @@ from sqlalchemy import text
 
 from src.backend.api.deps import get_app_settings
 from src.backend.db.base import get_engine
-from src.voice.asr.zipformer.service import get_zipformer_service
 
 router = APIRouter(tags=["health"])
 
@@ -25,12 +24,10 @@ async def live() -> dict[str, str]:
 @router.get("/health/ready")
 async def ready(response: Response) -> dict[str, object]:
     settings = get_app_settings()
-    asr = get_zipformer_service()
     config_errors = settings.production_readiness_errors()
     checks: dict[str, str] = {
         "configuration": "ok" if not config_errors else "failed",
         "database": "not_checked" if config_errors else "pending",
-        "asr": "ok" if asr.ready else "failed",
         "nominatim": "not_configured",
         "osrm": "not_configured",
     }
@@ -47,13 +44,11 @@ async def ready(response: Response) -> dict[str, object]:
         else:
             checks["database"] = "ok"
 
-    if not asr.ready:
-        error_codes.append("ASR_NOT_READY")
-
     # Maps provider health checks (§37) — non-blocking, informational
     if settings.maps_provider:
         try:
             from src.backend.services.maps_service import MapsService
+
             maps = MapsService(settings=settings)
             maps_health = await maps.health_check()
             geo_status = maps_health.get("geocoding", {}).get("status", "not_checked")
@@ -73,8 +68,6 @@ async def ready(response: Response) -> dict[str, object]:
         response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
     return {
         "status": "ready" if is_ready else "not_ready",
-        "model_state": asr.runtime.state,
-        "failure_reason": asr.runtime.failure_reason,
         "checks": checks,
         "error_codes": error_codes,
     }

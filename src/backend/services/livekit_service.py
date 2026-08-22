@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from src.voice_agent.config import LiveKitVoiceSettings, get_livekit_voice_settings
-from src.voice_agent.tokens import LiveKitConnectionDetails, issue_connection_details
+from src.voice_agent.tokens import LiveKitConnectionDetails, issue_connection_details, issue_operator_connection_details
 
 
 class LiveKitTokenService:
@@ -28,6 +28,14 @@ class LiveKitTokenService:
             user_id=user_id,
             app_session_id=app_session_id,
             call_instance_id=call_instance_id,
+        )
+
+    def issue_for_operator(self, *, operator_id: str, handoff_id: str, room_name: str) -> LiveKitConnectionDetails:
+        return issue_operator_connection_details(
+            self._settings,
+            operator_id=operator_id,
+            handoff_id=handoff_id,
+            room_name=room_name,
         )
 
 

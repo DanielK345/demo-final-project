@@ -53,16 +53,12 @@ async def test_setup_confirm_and_enforce_login(client):
     assert setup.json()["otpauth_url"].startswith("otpauth://totp/")
 
     # 2. Mã sai -> 400, chưa bật
-    bad_confirm = await client.post(
-        "/api/v1/auth/2fa/confirm", json={"code": "000000"}, headers=auth_header
-    )
+    bad_confirm = await client.post("/api/v1/auth/2fa/confirm", json={"code": "000000"}, headers=auth_header)
     assert bad_confirm.status_code == 400
 
     # 3. Mã đúng (tính thật từ secret, như 1 app authenticator thật) -> bật thành công
     valid_code = pyotp.TOTP(secret).now()
-    confirm = await client.post(
-        "/api/v1/auth/2fa/confirm", json={"code": valid_code}, headers=auth_header
-    )
+    confirm = await client.post("/api/v1/auth/2fa/confirm", json={"code": valid_code}, headers=auth_header)
     assert confirm.status_code == 200
     assert confirm.json()["two_factor_enabled"] is True
 

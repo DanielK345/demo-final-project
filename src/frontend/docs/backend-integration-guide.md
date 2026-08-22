@@ -22,8 +22,7 @@ chuẩn. Không dùng payload minh họa cũ để xây endpoint mới.
 | Activity/history | `/api/v1/bookings`, `/api/v1/sessions/history*` |
 | Tracking | `/api/v1/trips/status?session_id=...` |
 | Settings | `/api/v1/users/me/settings` |
-| Voice mic turn | `/api/v1/voice/turn` |
-| Typed reply playback | `/api/v1/voice/speak` |
+| Voice realtime | LiveKit Room; connection details từ `/api/v1/livekit/*` |
 | Agent readiness | `/api/v1/status` |
 
 ## Booking boundary
@@ -35,11 +34,10 @@ confirmation, không tự resolve location và không tự tính fare/voucher.
 Khi Backend trả booking progress, FE có thể hiển thị candidate/vehicle/quote. Sửa
 location/vehicle phải làm stale quote/confirmation biến mất theo Backend state.
 
-## Voice playback
+## Voice transport
 
-`/voice/turn` trả assistant text và optional base64 audio; `/voice/speak` trả audio
-blob cùng `X-TTS-*` headers. FE phải reject empty/wrong MIME, dừng audio cũ, hiển thị
-playback error/fallback và revoke object URL. Không dùng browser voice ngầm.
+Frontend dùng LiveKit components để publish microphone, nhận audio/transcript và gửi
+text fallback. API key/secret không bao giờ được đưa vào bundle trình duyệt.
 
 ## Demo isolation
 

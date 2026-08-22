@@ -75,3 +75,45 @@ def issue_connection_details(
         server_url=settings.livekit_url,
         participant_token=token.to_jwt(),
     )
+
+
+def issue_operator_connection_details(
+    settings: LiveKitVoiceSettings,
+    *,
+    operator_id: str,
+    handoff_id: str,
+    room_name: str,
+) -> LiveKitConnectionDetails:
+    """Issue a short-lived, room-scoped token for an accepted operator."""
+
+    settings.require_configured()
+    metadata = json.dumps(
+        {
+            "schema_version": "1",
+            "role": "operator",
+            "operator_id": operator_id,
+            "handoff_id": handoff_id,
+        },
+        separators=(",", ":"),
+    )
+    token = (
+        api.AccessToken(
+            settings.livekit_api_key.get_secret_value(),
+            settings.livekit_api_secret.get_secret_value(),
+        )
+        .with_identity(f"operator-{hashlib.sha256(operator_id.encode()).hexdigest()[:20]}")
+        .with_name("Tổng đài viên AloSM")
+        .with_metadata(metadata)
+        .with_grants(
+            api.VideoGrants(
+                room_join=True,
+                room=room_name,
+                can_publish=True,
+                can_subscribe=True,
+                can_publish_data=True,
+                can_update_own_metadata=False,
+            )
+        )
+        .with_ttl(timedelta(seconds=min(settings.livekit_token_ttl_seconds, 900)))
+    )
+    return LiveKitConnectionDetails(server_url=settings.livekit_url, participant_token=token.to_jwt())

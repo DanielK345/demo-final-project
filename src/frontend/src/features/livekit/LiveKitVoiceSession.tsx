@@ -43,8 +43,18 @@ function LiveKitCallContent({
   const [speakerMuted, setSpeakerMuted] = useState(false);
   const [draft, setDraft] = useState("");
   const [bookingState, setBookingState] = useState<BookingState | null>(null);
+  const [wasConnected, setWasConnected] = useState(false);
   const { message: bookingStateMessage } = useDataChannel(BOOKING_STATE_TOPIC);
   const agentFailure = agent.failureReasons?.join("; ") ?? "";
+  const bookingCompleted = Boolean(bookingState?.booking);
+  const handoffConnected = bookingState?.handoff?.status === "connected";
+  const connectionLost = wasConnected && agent.state === "disconnected" && !handoffConnected;
+
+  useEffect(() => {
+    if (["initializing", "idle", "listening", "thinking", "speaking"].includes(agent.state)) {
+      setWasConnected(true);
+    }
+  }, [agent.state]);
 
   useEffect(() => {
     if (!bookingStateMessage) return;
@@ -57,14 +67,23 @@ function LiveKitCallContent({
   }, [bookingStateMessage]);
 
   useEffect(() => {
-    // StrictMode intentionally runs the session cleanup once in development.
-    // That transient end may briefly expose `failed` without a real LiveKit agent
-    // failure. Retrying it creates a second room. Only retry actionable failures
-    // reported by the Session API itself.
-    if (!autoRetry || agent.state !== "failed" || !agentFailure) return;
-    const timeoutId = window.setTimeout(onRetry, 1_500);
+    // Let livekit-client attempt its native Room reconnect first. If the managed
+    // Session remains disconnected, create exactly one new Room attempt using the
+    // same durable AloSM session. A completed booking must never be retried.
+    const providerFailed = agent.state === "failed" && Boolean(agentFailure);
+    if (!autoRetry || bookingCompleted || (!providerFailed && !connectionLost)) return;
+    const timeoutId = window.setTimeout(onRetry, connectionLost ? 4_000 : 1_500);
     return () => window.clearTimeout(timeoutId);
-  }, [agent.state, agentFailure, autoRetry, onRetry]);
+  }, [agent.state, agentFailure, autoRetry, bookingCompleted, connectionLost, onRetry]);
+
+  const statusLabel = bookingCompleted
+    ? "Đã đặt chuyến thành công"
+    : handoffConnected
+      ? "Đã kết nối tổng đài viên"
+    : connectionLost && autoRetry
+      ? "Mất kết nối, đang khôi phục phiên…"
+      : stateLabels[agent.state];
+  const showRecovery = !bookingCompleted && !handoffConnected && (Boolean(agent.failureReasons?.length) || connectionLost);
 
   const toggleMicrophone = useCallback(async () => {
     await localParticipant.setMicrophoneEnabled(!isMicrophoneEnabled);
@@ -84,17 +103,21 @@ function LiveKitCallContent({
       <div className="text-center">
         <p className="text-xs font-bold uppercase tracking-[0.22em] text-[#008F88]">LiveKit Voice Agent</p>
         <h2 className="mt-2 text-xl font-bold text-slate-900 dark:text-white">Tổng đài AloSM</h2>
-        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{stateLabels[agent.state]}</p>
-        {agent.failureReasons?.length ? (
+        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{statusLabel}</p>
+        {showRecovery ? (
           <div className="mt-2">
-            <p className="text-sm text-rose-600">{agent.failureReasons.join("; ")}</p>
+            <p className="text-sm text-rose-600">
+              {connectionLost
+                ? "Kết nối cuộc gọi bị gián đoạn. Thông tin đặt xe đã nhập vẫn được giữ lại."
+                : "Dịch vụ thoại đang tạm thời gián đoạn. Bạn có thể tạo lại cuộc gọi hoặc tiếp tục bằng tin nhắn."}
+            </p>
             <button
               type="button"
               onClick={onRetry}
               disabled={autoRetry}
               className="mt-3 rounded-xl bg-[#00A99D] px-4 py-2 text-sm font-semibold text-white"
             >
-              {autoRetry ? "Đang tự tạo lại cuộc gọi…" : "Tạo lại cuộc gọi"}
+              {autoRetry ? "Đang khôi phục cuộc gọi…" : "Khôi phục cuộc gọi"}
             </button>
           </div>
         ) : null}
@@ -128,7 +151,7 @@ function LiveKitCallContent({
           ) : null}
           {bookingState.handoff ? (
             <p className="col-span-2 font-semibold text-[#008F88]">
-              Đã chuyển tổng đài viên: {bookingState.handoff.handoff_id}
+              {handoffConnected ? "Đã kết nối tổng đài viên" : "Đang chuyển tổng đài viên"}: {bookingState.handoff.handoff_id}
             </p>
           ) : null}
         </div>

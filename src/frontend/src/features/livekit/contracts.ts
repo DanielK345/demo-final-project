@@ -34,7 +34,7 @@ export type VoiceFailureState = {
 
 export type HandoffState = {
   handoff_id: string;
-  status: "pending" | "accepted" | "resolved";
+  status: "pending" | "accepted" | "connected" | "resolved" | "failed";
   reason_code: string;
 };
 

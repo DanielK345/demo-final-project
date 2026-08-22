@@ -7,11 +7,18 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Header, HTTPException, status
 
 from src.backend.api.routes.auth import service as auth_service
-from src.backend.schemas.livekit import LiveKitTokenRequestDTO, LiveKitTokenResponseDTO
+from src.backend.schemas.livekit import (
+    LiveKitOperatorTokenRequestDTO,
+    LiveKitOperatorTokenResponseDTO,
+    LiveKitTokenRequestDTO,
+    LiveKitTokenResponseDTO,
+)
+from src.backend.services.handoff_service import HandoffService
 from src.backend.services.livekit_service import LiveKitTokenService, get_livekit_token_service
 from src.backend.services.session_service import SessionService
 
 router = APIRouter(prefix="/livekit", tags=["livekit"])
+handoff_service = HandoffService()
 
 
 @router.post(
@@ -103,4 +110,40 @@ async def create_livekit_token(
     return LiveKitTokenResponseDTO(
         server_url=details.server_url,
         participant_token=details.participant_token,
+    )
+
+
+@router.post("/operator-token", response_model=LiveKitOperatorTokenResponseDTO, status_code=status.HTTP_201_CREATED)
+async def create_operator_livekit_token(
+    request: LiveKitOperatorTokenRequestDTO,
+    authorization: str | None = Header(default=None),
+    token_service: LiveKitTokenService = Depends(get_livekit_token_service),
+) -> LiveKitOperatorTokenResponseDTO:
+    token = authorization.removeprefix("Bearer ") if authorization else ""
+    operator = await auth_service.get_user_for_token_durable(token)
+    if operator is None:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Vui lòng đăng nhập")
+    if operator.get("role") not in {"OPERATOR", "ADMIN"}:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Chỉ tổng đài viên được tham gia cuộc gọi")
+    handoff = await handoff_service.get_handoff_durable(request.handoff_id)
+    if handoff is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Không tìm thấy yêu cầu chuyển")
+    if handoff.get("status") != "accepted" or handoff.get("operator_id") != operator.get("user_id"):
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Handoff chưa được operator nhận")
+    room_name = str(handoff.get("room_name") or "")
+    if not room_name:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Handoff chưa có LiveKit room")
+    try:
+        details = token_service.issue_for_operator(
+            operator_id=str(operator["user_id"]),
+            handoff_id=request.handoff_id,
+            room_name=room_name,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="LiveKit chưa sẵn sàng") from exc
+    return LiveKitOperatorTokenResponseDTO(
+        server_url=details.server_url,
+        participant_token=details.participant_token,
+        handoff_id=request.handoff_id,
+        room_name=room_name,
     )

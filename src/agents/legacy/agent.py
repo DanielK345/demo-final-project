@@ -14,6 +14,7 @@ from src.agents.core.booking import BookingData
 from src.agents.core.guardrails import AgentGuardrails, GuardrailViolationError
 from src.agents.core.history import record_turn_history
 from src.agents.core.model import ConversationModel, build_conversation_model
+from src.agents.faq_intent import is_faq_query
 from src.agents.legacy.context import ConversationContextBuilder
 from src.agents.legacy.context_models import CandidateField, ConversationContext
 from src.agents.legacy.repair import ConversationRepairHandler, DialogueActDetector
@@ -88,9 +89,7 @@ class LegacyAgent:
                 get_settings().agent_llm_enabled and not legacy_dependency_injected
             )
         self.model_driven_agent = (
-            ModelDrivenAgent(conversation_model or build_conversation_model())
-            if model_driven
-            else None
+            ModelDrivenAgent(conversation_model or build_conversation_model()) if model_driven else None
         )
         self.router = router or AgentRouter()
         self.guardrails = guardrails or AgentGuardrails()
@@ -132,7 +131,7 @@ class LegacyAgent:
         if self.model_driven_agent is not None and not immediate_handoff:
             action = await self.model_driven_agent.handle(agent_input, current_state)
             return self._validate_action(agent_input, current_state, action)
-        if not immediate_handoff and agent_input.tool_result is None:
+        if not immediate_handoff and agent_input.tool_result is None and not is_faq_query(agent_input.transcript):
             command = self.dialogue_act_detector.detect(agent_input.transcript)
             repair_action = self.repair_handler.handle(
                 command,
@@ -150,9 +149,7 @@ class LegacyAgent:
         if interpretation and not self._requires_raw_workflow_text(current_state):
             workflow_text = interpretation.effective_text
         workflow_input = (
-            agent_input.model_copy(update={"transcript": workflow_text}, deep=True)
-            if interpretation
-            else agent_input
+            agent_input.model_copy(update={"transcript": workflow_text}, deep=True) if interpretation else agent_input
         )
 
         faq_interruption = None
@@ -343,10 +340,7 @@ class LegacyAgent:
     ) -> UnderstandingResult:
         if understanding.selection is not None or not rewrite.changed:
             return understanding
-        resolved_values = {
-            reference.resolved_value.casefold().strip()
-            for reference in rewrite.resolved_references
-        }
+        resolved_values = {reference.resolved_value.casefold().strip() for reference in rewrite.resolved_references}
         matches = [
             candidate
             for candidate in context.available_candidates
@@ -372,6 +366,7 @@ class LegacyAgent:
     @staticmethod
     def _requires_raw_workflow_text(state: AgentState) -> bool:
         return state.current_workflow is WorkflowType.RIDE_BOOKING and state.current_step == "CONFIRM"
+
     def _validate_action(
         self,
         agent_input: AgentInput,

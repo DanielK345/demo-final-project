@@ -16,10 +16,7 @@ from rapidfuzz import fuzz
 _GAZETTEER_PATH = Path(__file__).resolve().parents[3] / "data" / "gazetteer" / "place_names.json"
 _ALIASES_PATH = Path(__file__).resolve().parents[3] / "data" / "gazetteer" / "hanoi_place_aliases.json"
 _LANDMARK_PICKUP_POINTS_PATH = (
-    Path(__file__).resolve().parents[3]
-    / "data"
-    / "gazetteer"
-    / "hanoi_landmark_pickup_points.json"
+    Path(__file__).resolve().parents[3] / "data" / "gazetteer" / "hanoi_landmark_pickup_points.json"
 )
 
 
@@ -87,11 +84,11 @@ def _load_landmark_pickup_points() -> dict[str, tuple[dict[str, str], ...]]:
             aliases = point.get("asr_aliases")
             if not isinstance(name, str) or not isinstance(address, str):
                 continue
-            cleaned_aliases = [
-                alias.strip()
-                for alias in aliases
-                if isinstance(alias, str) and alias.strip()
-            ] if isinstance(aliases, list) else []
+            cleaned_aliases = (
+                [alias.strip() for alias in aliases if isinstance(alias, str) and alias.strip()]
+                if isinstance(aliases, list)
+                else []
+            )
             candidates.append(
                 {
                     "place_id": place_id_for(f"{canonical_name}:{name}:{address}"),
@@ -145,6 +142,20 @@ def _fuzzy_canonical_match(normalized_query: str) -> str | None:
     return ranked[0][0]
 
 
+def _exact_landmark_pickup_match(normalized_query: str) -> dict[str, str] | None:
+    """Resolve a named pickup point without collapsing its parent landmark."""
+
+    matches: list[dict[str, str]] = []
+    for candidates in _load_landmark_pickup_points().values():
+        for candidate in candidates:
+            searchable = [candidate["display_name"], *candidate.get("asr_aliases", [])]
+            if normalized_query in {_normalize(value) for value in searchable}:
+                match = dict(candidate)
+                match["provider"] = "local_landmark_mock_exact"
+                matches.append(match)
+    return matches[0] if len(matches) == 1 else None
+
+
 class PlaceSearchService:
     """Demo search for the Hanoi seed gazetteer and its known ASR aliases.
 
@@ -156,6 +167,9 @@ class PlaceSearchService:
         normalized_query = _normalize(query)
         if not normalized_query:
             return []
+        exact_pickup = _exact_landmark_pickup_match(normalized_query)
+        if exact_pickup is not None:
+            return [exact_pickup]
         alias_match = _load_aliases().get(normalized_query)
         if alias_match:
             matches = [alias_match]

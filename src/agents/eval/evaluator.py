@@ -184,9 +184,7 @@ class BehaviorEvaluator:
         latencies = [latency for result in results for latency in result.latency_ms]
         completion_cases = [result for result in results if result.completion_expected]
         workflow_completion_rate = (
-            sum(result.completed for result in completion_cases) / len(completion_cases)
-            if completion_cases
-            else 1
+            sum(result.completed for result in completion_cases) / len(completion_cases) if completion_cases else 1
         )
         divisor = turns or 1
         scenario_divisor = len(results) or 1

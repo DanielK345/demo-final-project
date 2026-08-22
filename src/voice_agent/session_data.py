@@ -100,8 +100,10 @@ class HandoffState(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     handoff_id: str
-    status: Literal["pending", "accepted", "resolved"] = "pending"
+    status: Literal["pending", "accepted", "connected", "resolved", "failed"] = "pending"
     reason_code: str
+    operator_id: str | None = None
+    room_name: str | None = None
 
 
 class BookingDraft(BaseModel):

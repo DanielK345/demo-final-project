@@ -6,7 +6,7 @@ export interface AuthResponse {
   user_id: string;
   full_name: string;
   phone: string;
-  role: "CUSTOMER";
+  role: "CUSTOMER" | "OPERATOR" | "ADMIN";
   access_token: string;
   token_type: string;
   expires_in: number;
@@ -27,7 +27,7 @@ export interface CurrentUser {
   user_id: string;
   full_name: string;
   phone: string;
-  role: "CUSTOMER";
+  role: "CUSTOMER" | "OPERATOR" | "ADMIN";
   session_id: string | null;
   policy_acceptance: {
     terms_version: string;

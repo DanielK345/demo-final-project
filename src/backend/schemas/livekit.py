@@ -23,3 +23,14 @@ class LiveKitTokenRequestDTO(BaseModel):
 class LiveKitTokenResponseDTO(BaseModel):
     server_url: str
     participant_token: str
+
+
+class LiveKitOperatorTokenRequestDTO(BaseModel):
+    handoff_id: str
+
+
+class LiveKitOperatorTokenResponseDTO(BaseModel):
+    server_url: str
+    participant_token: str
+    handoff_id: str
+    room_name: str

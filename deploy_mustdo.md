@@ -95,8 +95,6 @@ Bạn cần chuẩn bị hoặc đăng ký các tài khoản dịch vụ sau (t�
      LIVEKIT_API_SECRET="secret_xxxxxxx" `
      OPENAI_API_KEY="sk-xxxxxxx" `
      OPENROUTER_API_KEY="sk-or-xxxxxxx" `
-     GEMINI_API_KEY="AIzaxxxxxxx" `
-     VOICE_RUNTIME="livekit" `
      APP_ENV="production"
    ```
 5. Deploy lên mạng:
@@ -126,7 +124,6 @@ Bạn cần chuẩn bị hoặc đăng ký các tài khoản dịch vụ sau (t�
    - **Framework Preset:** `Vite`.
 3. **Thêm biến môi trường (Environment Variables) trên Vercel:**
    - `VITE_API_BASE_URL`: Điền URL backend đã deploy ở bước 4 (ví dụ: `https://ten-app-cua-ban.fly.dev`).
-   - `VITE_VOICE_RUNTIME`: `livekit`
 4. Bấm **Deploy**.
 5. Lưu lại tên miền của frontend (ví dụ: `https://alosm-frontend.vercel.app`).
 

@@ -24,6 +24,7 @@ _EVENT_NAMES = (
     "user_state_changed",
     "agent_state_changed",
     "user_input_transcribed",
+    "user_transcription_timeout",
     "conversation_item_added",
     "agent_false_interruption",
     "overlapping_speech",
@@ -74,11 +75,7 @@ def _json_safe(value: Any) -> Any:
 
 
 def _safe_metrics(metrics: dict[str, Any]) -> dict[str, object]:
-    return {
-        field: _json_safe(metrics[field])
-        for field in _SAFE_METRIC_FIELDS
-        if metrics.get(field) is not None
-    }
+    return {field: _json_safe(metrics[field]) for field in _SAFE_METRIC_FIELDS if metrics.get(field) is not None}
 
 
 class SessionEventLog:
@@ -215,6 +212,12 @@ class LiveKitSessionObserver:
             if self.event_log.include_transcripts:
                 fields["transcript"] = event.transcript
             return fields
+
+        if event_name == "user_transcription_timeout":
+            return {
+                "speech_duration": event.speech_duration,
+                "vad_speech_started_at": event.vad_speech_started_at,
+            }
 
         if event_name == "conversation_item_added":
             item = event.item

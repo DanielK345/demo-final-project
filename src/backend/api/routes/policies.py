@@ -17,7 +17,9 @@ async def current_policy_source() -> PolicySourceDTO:
     try:
         content = service.source_text()
     except RuntimeError as exc:
-        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="POLICY_SOURCE_UNAVAILABLE") from exc
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="POLICY_SOURCE_UNAVAILABLE"
+        ) from exc
     return PolicySourceDTO(
         catalog_version=service.catalog.catalog_version,
         sha256=service.catalog.source_sha256,

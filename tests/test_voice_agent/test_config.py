@@ -8,23 +8,10 @@ def settings(**overrides: object) -> LiveKitVoiceSettings:
     return LiveKitVoiceSettings(_env_file=None, **overrides)
 
 
-def test_legacy_is_safe_default_and_needs_no_livekit_credentials() -> None:
+def test_livekit_configuration_fails_closed_when_required_values_are_missing() -> None:
     config = settings()
 
-    assert config.voice_runtime == "legacy"
-    assert config.enabled is False
-    assert config.readiness_errors() == []
-    config.require_ready()
-
-    with pytest.raises(ValueError, match="LIVEKIT_URL_REQUIRED"):
-        config.require_configured()
-
-
-def test_livekit_runtime_fails_closed_when_required_values_are_missing() -> None:
-    config = settings(voice_runtime="livekit")
-
-    assert config.enabled is True
-    assert config.readiness_errors() == [
+    assert config.configuration_errors() == [
         "LIVEKIT_URL_REQUIRED",
         "LIVEKIT_API_KEY_REQUIRED",
         "LIVEKIT_API_SECRET_REQUIRED",
@@ -34,12 +21,11 @@ def test_livekit_runtime_fails_closed_when_required_values_are_missing() -> None
         "LIVEKIT_TTS_VOICE_REQUIRED",
     ]
     with pytest.raises(ValueError, match="LIVEKIT_URL_REQUIRED"):
-        config.require_ready()
+        config.require_configured()
 
 
-def test_livekit_runtime_accepts_complete_native_pipeline_configuration() -> None:
+def test_livekit_accepts_complete_native_pipeline_configuration() -> None:
     config = settings(
-        voice_runtime="livekit",
         livekit_url="wss://alosm.example.livekit.cloud",
         livekit_api_key="api-key",
         livekit_api_secret="api-secret",
@@ -49,7 +35,6 @@ def test_livekit_runtime_accepts_complete_native_pipeline_configuration() -> Non
         livekit_tts_voice="vi-voice",
     )
 
-    assert config.readiness_errors() == []
     assert config.configuration_errors() == []
     assert config.livekit_turn_detection == "vad"
     assert config.livekit_llm_provider == "livekit"
@@ -59,19 +44,20 @@ def test_livekit_runtime_accepts_complete_native_pipeline_configuration() -> Non
     assert config.livekit_endpointing_min_delay_seconds == 0.8
     assert config.livekit_endpointing_max_delay_seconds == 2.5
     assert config.livekit_interruption_min_duration_seconds == 0.5
+    assert config.livekit_transcription_timeout_seconds == 5.0
     assert config.livekit_stt_language == "vi"
     assert config.livekit_tts_language == "vi"
     assert config.livekit_record_audio is False
     assert config.livekit_record_transcript is False
     assert config.livekit_debug_event_log is False
     assert config.livekit_debug_transcripts is False
+    assert config.livekit_delete_room_on_close is False
     assert str(config.livekit_debug_log_dir) == "logs/livekit"
-    config.require_ready()
+    config.require_configured()
 
 
 def test_livekit_url_must_use_websocket_scheme() -> None:
     config = settings(
-        voice_runtime="livekit",
         livekit_url="https://alosm.example.livekit.cloud",
         livekit_api_key="api-key",
         livekit_api_secret="api-secret",
@@ -81,7 +67,7 @@ def test_livekit_url_must_use_websocket_scheme() -> None:
         livekit_tts_voice="voice",
     )
 
-    assert config.readiness_errors() == ["LIVEKIT_URL_MUST_USE_WS"]
+    assert config.configuration_errors() == ["LIVEKIT_URL_MUST_USE_WS"]
 
 
 def test_semantic_turn_detection_cannot_be_selected_by_configuration() -> None:
@@ -114,3 +100,16 @@ def test_openai_tts_provider_requires_its_own_api_key() -> None:
     config = settings(livekit_tts_provider="openai", openai_api_key="")
 
     assert "OPENAI_API_KEY_REQUIRED_FOR_OPENAI_PROVIDER" in config.configuration_errors()
+
+
+def test_standalone_google_stt_benchmark_does_not_require_llm_or_tts() -> None:
+    config = settings(
+        livekit_stt_provider="google",
+        livekit_stt_model="chirp_2",
+        livekit_stt_language="vi-VN",
+        google_cloud_project="project-id",
+        google_stt_location="asia-southeast1",
+    )
+
+    assert config.stt_configuration_errors() == []
+    config.require_stt_configured()

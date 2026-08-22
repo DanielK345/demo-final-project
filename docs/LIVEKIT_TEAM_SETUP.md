@@ -134,9 +134,6 @@ Không tự nâng từng package LiveKit riêng lẻ trong lúc setup baseline.
 ```env
 APP_ENV=development
 
-VOICE_RUNTIME=livekit
-VITE_VOICE_RUNTIME=livekit
-
 LIVEKIT_URL=wss://<project-name>.livekit.cloud
 LIVEKIT_API_KEY=<lay-tu-livekit-dashboard-hoac-secret-manager>
 LIVEKIT_API_SECRET=<lay-tu-livekit-dashboard-hoac-secret-manager>
@@ -194,8 +191,7 @@ Lưu ý:
 - `LIVEKIT_AGENT_NAME` phải giống giữa token endpoint, frontend và worker.
 - Baseline dùng `vad`, không dùng `adaptive`, để tránh quota adaptive interruption
   và giữ đúng cấu hình đã test.
-- Lệnh `make livekit-frontend` tự truyền `VITE_VOICE_RUNTIME=livekit`; biến root vẫn
-  được ghi rõ để tránh chạy nhầm bằng lệnh thủ công.
+- Voice UI và worker hiện chỉ có một runtime production là LiveKit; không cần rollout switch.
 
 ### Database development đầy đủ
 

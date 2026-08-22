@@ -2,10 +2,7 @@ from scripts.ai_log_privacy import REDACTED, redact_secrets, redact_text
 
 
 def test_redact_text_removes_provider_keys_and_bearer_tokens() -> None:
-    text = (
-        "OPENROUTER_API_KEY=sk-or-v1-abcdefghijklmnopqrstuvwxyz "
-        "Authorization: Bearer abcdefghijklmnopqrstuvwxyz"
-    )
+    text = "OPENROUTER_API_KEY=sk-or-v1-abcdefghijklmnopqrstuvwxyz Authorization: Bearer abcdefghijklmnopqrstuvwxyz"
 
     redacted = redact_text(text)
 

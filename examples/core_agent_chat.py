@@ -95,9 +95,7 @@ class MockBackendExecutor:
                 "booking_id": "DEMO-BOOKING-001",
                 "status": "CONFIRMED",
                 "eta_minutes": 5,
-                "fare_amount": fare_by_estimate.get(
-                    str(call.params["fare_estimate_id"])
-                ),
+                "fare_amount": fare_by_estimate.get(str(call.params["fare_estimate_id"])),
                 "currency": "VND",
             }
         if call.tool_name is ToolName.CANCEL_BOOKING:
@@ -271,10 +269,7 @@ class InteractiveSession:
             print("History đang trống.")
             return
         for message in self.state.conversation_history:
-            print(
-                f"{message.turn_id} {message.role.value} "
-                f"[{message.delivery_status.value}]: {message.content}"
-            )
+            print(f"{message.turn_id} {message.role.value} [{message.delivery_status.value}]: {message.content}")
 
     def print_config(self) -> None:
         settings = get_settings()
@@ -294,16 +289,8 @@ class InteractiveSession:
 def _print_startup() -> None:
     settings = get_settings()
     print("Core Agent interactive chat")
-    print(
-        "LLM understanding: "
-        f"{'ON' if settings.agent_llm_enabled else 'OFF'} "
-        f"({settings.agent_llm_model})"
-    )
-    print(
-        "Context rewrite: "
-        f"{'ON' if settings.agent_rewrite_enabled else 'OFF'} "
-        f"({settings.agent_rewrite_model})"
-    )
+    print(f"LLM understanding: {'ON' if settings.agent_llm_enabled else 'OFF'} ({settings.agent_llm_model})")
+    print(f"Context rewrite: {'ON' if settings.agent_rewrite_enabled else 'OFF'} ({settings.agent_rewrite_model})")
     print("Business tools: MOCK")
     print("Commands: /state, /history, /config, /reset, /help, /quit")
 
@@ -335,10 +322,7 @@ async def main() -> None:
             session.reset()
             continue
         if transcript == "/help":
-            print(
-                "/state xem state; /history xem history; /config xem cấu hình; "
-                "/reset tạo session mới; /quit thoát."
-            )
+            print("/state xem state; /history xem history; /config xem cấu hình; /reset tạo session mới; /quit thoát.")
             continue
         if session.terminal_status is not SessionTerminalStatus.ACTIVE:
             print("Session đã kết thúc hoặc chuyển tổng đài. Dùng /reset để chat lại.")

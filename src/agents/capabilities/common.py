@@ -13,9 +13,7 @@ def respond(session: TurnSession, arguments: dict) -> AgentAction:
         session.faq.answer = message
         session.persist("faq")
         session.updates.update(current_workflow=None, current_step=None)
-    if "trip_selected" in session.event or (
-        "trip_lookup_result" in session.event and not session.trip.candidates
-    ):
+    if "trip_selected" in session.event or ("trip_lookup_result" in session.event and not session.trip.candidates):
         session.updates.update(current_workflow=None, current_step=None)
     return AgentAction(
         action_type=ActionType.ASK_USER if arguments.get("expects_response") is True else ActionType.RESPOND,

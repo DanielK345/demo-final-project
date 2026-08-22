@@ -61,6 +61,7 @@ class InMemoryMapsCache(MapsCacheProvider):
 # Cache key helpers
 # ---------------------------------------------------------------------------
 
+
 def search_cache_key(
     query: str,
     *,
@@ -90,9 +91,5 @@ def route_cache_key(
     Coordinates are rounded to ~11m precision (4 decimal places) to allow
     cache hits for nearby coordinates.
     """
-    raw = (
-        f"route:{provider}:{profile}:{data_version}:"
-        f"{pickup_lat:.4f},{pickup_lon:.4f};"
-        f"{dest_lat:.4f},{dest_lon:.4f}"
-    )
+    raw = f"route:{provider}:{profile}:{data_version}:{pickup_lat:.4f},{pickup_lon:.4f};{dest_lat:.4f},{dest_lon:.4f}"
     return f"maps:route:{hashlib.sha256(raw.encode()).hexdigest()[:24]}"

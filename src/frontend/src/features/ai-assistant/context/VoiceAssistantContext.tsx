@@ -12,14 +12,6 @@ import {
   submitSessionFeedback,
 } from "@/features/ride/api";
 import type { BookingLifecycleStatus, BookingProgress, RideTurn } from "@/features/ride/api";
-import {
-  playAudioBlob,
-  playBase64Audio,
-  sendVoiceTurn,
-  speakWithBrowserTts,
-  stopVoicePlayback,
-  synthesizeSpeech,
-} from "@/features/voice/api";
 import type { CompletedBooking } from "@/features/ai-assistant/components/BookingSuccessPanel";
 import {
   VoiceAssistantContext,
@@ -53,13 +45,8 @@ export const VoiceAssistantProvider: React.FC<{ children: React.ReactNode }> = (
   const [isSubmittingRating, setIsSubmittingRating] = useState(false);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [transcriptSessionId, setTranscriptSessionId] = useState<string | null>(null);
-  const [isMuted, setIsMuted] = useState(false);
-  const isMutedRef = useRef(isMuted);
-  isMutedRef.current = isMuted;
-
-  // Chặn gửi trùng khi đang xử lý lượt trước — đọc qua ref (không phải state) vì
-  // được dùng ngay trong closure của sendText/handleVoiceRecorded, tránh phải liệt kê
-  // `status` vào dependency array chỉ để đọc giá trị tức thời.
+  // Chặn gửi trùng khi đang xử lý lượt trước — đọc qua ref để callback luôn thấy
+  // trạng thái tức thời mà không phải tạo lại sau mỗi lần render.
   const statusRef = useRef(status);
   statusRef.current = status;
 
@@ -130,44 +117,6 @@ export const VoiceAssistantProvider: React.FC<{ children: React.ReactNode }> = (
     [],
   );
 
-  // Toàn bộ popup giờ LUÔN là cuộc gọi thoại (không còn chat im lặng) — mọi câu trả
-  // lời của agent, dù đến từ lượt gõ chữ (openWithPrefill/confirmBooking) hay lượt
-  // nói, đều được đọc to như đang thật sự nghe tổng đài viên trả lời, trừ khi người
-  // dùng tự tắt loa (isMuted).
-  const speakReply = useCallback(async (
-    text: string,
-    audioBase64?: string | null,
-    audioMimeType?: string,
-    reviewContext?: { bookingConfirmed?: boolean; action?: string },
-    serverTtsUnavailable = false,
-  ) => {
-    if (isMutedRef.current) return;
-    setStatus("speaking");
-    if (audioBase64) {
-      try {
-        await playBase64Audio(audioBase64, audioMimeType ?? "audio/mpeg");
-        return;
-      } catch {
-        setNotice("Audio phản hồi lỗi, hệ thống đang tổng hợp lại bằng giọng dự phòng.");
-      }
-    }
-    if (serverTtsUnavailable) {
-      setNotice("Máy chủ giọng nói đang bận, đang dùng giọng đọc dự phòng của trình duyệt.");
-      await speakWithBrowserTts(text);
-      return;
-    }
-    try {
-      const synthesized = await synthesizeSpeech(text, reviewContext);
-      if (synthesized.fallbackUsed) {
-        setNotice(`Đang sử dụng giọng dự phòng ${synthesized.voice}.`);
-      }
-      await playAudioBlob(synthesized.blob);
-    } catch {
-      setNotice("Máy chủ giọng nói đang bận, đang dùng giọng đọc dự phòng của trình duyệt.");
-      await speakWithBrowserTts(text);
-    }
-  }, []);
-
   const sendText = useCallback(
     async (value: string) => {
       const message = value.trim();
@@ -180,13 +129,6 @@ export const VoiceAssistantProvider: React.FC<{ children: React.ReactNode }> = (
         setMessages((items) => [...items, { id: result.message_id, role: "assistant", text: result.message }]);
         applyTurnResult(result);
         handleEndOfTurnActions(result);
-        // `/messages` (gõ chữ) không trả audio_base64 (chỉ `/voice/turn` mới có, từ
-        // OpenAI TTS thật) — dùng giọng đọc trình duyệt cho lượt gõ chữ, vẫn đọc to
-        // như 1 cuộc gọi thật, không im lặng như chatbot nhắn tin nữa.
-        await speakReply(result.message, null, undefined, {
-          bookingConfirmed: result.state?.booking_lifecycle_status === "SUCCESS",
-          action: result.action,
-        });
         setStatus("idle");
       } catch (error) {
         setStatus("error");
@@ -194,40 +136,7 @@ export const VoiceAssistantProvider: React.FC<{ children: React.ReactNode }> = (
         setNotice(error instanceof Error ? error.message : "Không thể gửi tin nhắn. Vui lòng thử lại.");
       }
     },
-    [sessionId, sessionEnded, applyTurnResult, handleEndOfTurnActions, navigate, speakReply],
-  );
-
-  const handleVoiceRecorded = useCallback(
-    async (audio: Blob) => {
-      if (!sessionId || sessionEnded || statusRef.current === "processing") return;
-      setStatus("processing");
-      setNotice(null);
-      try {
-        const result = await sendVoiceTurn(sessionId, audio);
-        setMessages((items) => [
-          ...items,
-          {
-            id: `user-${Date.now()}`,
-            role: "user",
-            text: result.transcript,
-            transcriptRewrite: result.transcript_rewrite ?? undefined,
-          },
-          { id: result.message_id, role: "assistant", text: result.message },
-        ]);
-        applyTurnResult(result);
-        handleEndOfTurnActions(result);
-        await speakReply(result.message, result.audio_base64, result.audio_mime_type, {
-          bookingConfirmed: result.state?.booking_lifecycle_status === "SUCCESS",
-          action: result.action,
-        }, result.tts_provider === "unavailable");
-        setStatus("idle");
-      } catch (error) {
-        setStatus("error");
-        if (redirectToLoginIfUnauthorized(error, navigate)) return;
-        setNotice(error instanceof Error ? error.message : "Không thể xử lý giọng nói. Vui lòng thử lại.");
-      }
-    },
-    [sessionId, sessionEnded, applyTurnResult, handleEndOfTurnActions, navigate, speakReply],
+    [sessionId, sessionEnded, applyTurnResult, handleEndOfTurnActions, navigate],
   );
 
   // Khởi tạo phiên hội thoại 1 LẦN khi Provider mount (ở AppLayout — ngay sau đăng
@@ -357,7 +266,6 @@ export const VoiceAssistantProvider: React.FC<{ children: React.ReactNode }> = (
       // chỉ là xóa bubble ở UI. Hỏi auth source-of-truth trước để không gửi `/end`
       // cho session cache cũ đã bị tab/cuộc gọi khác rebind.
       try {
-        stopVoicePlayback();
         setStatus("connecting");
         const user = await getCurrentUser();
         if (sessionId && user.session_id === sessionId) {
@@ -396,7 +304,6 @@ export const VoiceAssistantProvider: React.FC<{ children: React.ReactNode }> = (
   const resetConversation = useCallback(async () => {
     if (!sessionId || sessionEnded || statusRef.current === "processing") return;
     try {
-      stopVoicePlayback();
       setStatus("processing");
       await resetRideConversation(sessionId);
       resetConversationUi();
@@ -412,21 +319,6 @@ export const VoiceAssistantProvider: React.FC<{ children: React.ReactNode }> = (
   const closeHistory = useCallback(() => setIsHistoryOpen(false), []);
   const openTranscript = useCallback((id: string) => setTranscriptSessionId(id), []);
   const closeTranscript = useCallback(() => setTranscriptSessionId(null), []);
-  const toggleMuted = useCallback(() => {
-    setIsMuted((value) => {
-      if (!value) stopVoicePlayback();
-      return !value;
-    });
-  }, []);
-
-  useEffect(() => () => stopVoicePlayback(), []);
-  // Cho VoiceCallPanel báo lỗi ghi âm/micro qua đúng 1 kênh thông báo duy nhất
-  // (`notice`) thay vì mỗi nơi tự vẽ 1 banner lỗi riêng.
-  const reportError = useCallback((message: string) => {
-    setStatus("error");
-    setNotice(message);
-  }, []);
-
   const value = useMemo<VoiceAssistantValue>(
     () => ({
       isOpen,
@@ -444,7 +336,6 @@ export const VoiceAssistantProvider: React.FC<{ children: React.ReactNode }> = (
       sessionId,
       sessionEnded,
       sendText,
-      handleVoiceRecorded,
       endSession,
       newSession,
       resetConversation,
@@ -464,9 +355,6 @@ export const VoiceAssistantProvider: React.FC<{ children: React.ReactNode }> = (
       transcriptSessionId,
       openTranscript,
       closeTranscript,
-      isMuted,
-      toggleMuted,
-      reportError,
     }),
     [
       isOpen,
@@ -484,7 +372,6 @@ export const VoiceAssistantProvider: React.FC<{ children: React.ReactNode }> = (
       sessionId,
       sessionEnded,
       sendText,
-      handleVoiceRecorded,
       endSession,
       newSession,
       resetConversation,
@@ -504,9 +391,6 @@ export const VoiceAssistantProvider: React.FC<{ children: React.ReactNode }> = (
       transcriptSessionId,
       openTranscript,
       closeTranscript,
-      isMuted,
-      toggleMuted,
-      reportError,
     ],
   );
 

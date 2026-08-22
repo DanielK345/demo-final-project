@@ -14,9 +14,7 @@ def build_understanding_service(
         return fallback
     api_key = config.llm_api_key_for(config.agent_llm_base_url)
     if not api_key:
-        raise ValueError(
-            "The configured LLM provider API key is required when AGENT_LLM_ENABLED is true"
-        )
+        raise ValueError("The configured LLM provider API key is required when AGENT_LLM_ENABLED is true")
     primary = OpenAIUnderstandingAdapter(
         api_key=api_key,
         model=config.agent_llm_model,

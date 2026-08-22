@@ -7,7 +7,9 @@ from pydantic import BaseModel, Field
 class HandoffStatus(StrEnum):
     PENDING = "pending"
     ACCEPTED = "accepted"
+    CONNECTED = "connected"
     RESOLVED = "resolved"
+    FAILED = "failed"
 
 
 class HandoffDTO(BaseModel):
@@ -36,7 +38,11 @@ class HandoffResponseDTO(BaseModel):
     status: HandoffStatus
     created_at: datetime
     accepted_at: datetime | None = None
+    connected_at: datetime | None = None
+    resolved_at: datetime | None = None
     operator_id: str | None = None
+    room_name: str | None = None
+    context_snapshot: dict[str, object] | None = None
 
 
 class HandoffAcceptanceDTO(BaseModel):

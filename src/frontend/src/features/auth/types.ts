@@ -3,7 +3,7 @@ export interface UserProfile {
   email: string;
   name: string;
   avatar?: string;
-  role: "customer" | "driver" | "admin";
+  role: "CUSTOMER" | "OPERATOR" | "ADMIN" | "customer" | "driver" | "admin";
 }
 
 export interface AuthState {

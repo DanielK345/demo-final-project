@@ -44,6 +44,7 @@ async def test_behavior_evaluator_handles_empty_suite():
     assert report.case_count == 0
     assert report.pass_rate == 0
 
+
 def test_readiness_rejects_incomplete_expected_workflow():
     scenario = ConversationEvaluationResult(
         name="incomplete workflow",

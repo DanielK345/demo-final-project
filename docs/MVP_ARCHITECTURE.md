@@ -2,9 +2,8 @@
 
 > Cập nhật: **2026-08-17** · Phạm vi: **Login/Auth** và **Homepage đặt xe bằng text hoặc voice**. Không gồm tracking, history, payment hoặc wallet.
 
-> Tài liệu này mô tả runtime custom hiện hành. Target migration đã chốt là full
-> LiveKit-native theo [`LIVEKIT_MIGRATION_IMPLEMENTATION.md`](LIVEKIT_MIGRATION_IMPLEMENTATION.md);
-> không dùng sơ đồ hiện tại để thiết kế thêm custom Voice Gateway/tool loop mới.
+> Voice production đã cutover sang LiveKit-native theo
+> [`LIVEKIT_MIGRATION_IMPLEMENTATION.md`](LIVEKIT_MIGRATION_IMPLEMENTATION.md).
 
 ## Tech stack
 
@@ -13,7 +12,7 @@
 | Frontend | React 19, TypeScript, Vite, Tailwind CSS, React Router, TanStack Query |
 | Backend | Python 3.12, FastAPI, Pydantic, SQLAlchemy, Alembic |
 | Agent | Custom model/tool loop, OpenAI-compatible LLM, typed `AgentState`, deterministic guardrails |
-| Voice | ZipFormer/OpenAI/Gemini/Groq ASR, contextual LLM rewrite, OpenAI/Edge TTS, FFmpeg |
+| Voice | LiveKit AgentSession, native Room transport, configurable STT/LLM/TTS plugins |
 | Data | PostgreSQL/Supabase; SQLite local; Hà Nội gazetteer và mock VinUni/Hồ Gươm |
 
 ## 1. Overall architecture
@@ -22,21 +21,26 @@
 flowchart TB
     U[User]
     FE[React Web<br/>Login + Homepage + Assistant popup]
-    API[FastAPI<br/>REST + WebSocket]
-    CORE[Backend orchestration<br/>Auth + Session + Voice]
+    API[FastAPI<br/>REST control plane]
+    LK[LiveKit Room<br/>realtime media + transcript]
+    WORKER[LiveKit Agent worker]
+    CORE[Backend orchestration<br/>Auth + Session + Booking]
     AGENT[Core Agent<br/>Conversation + Booking decisions]
     TOOLS[Backend tools<br/>Place + Quote + Booking]
     DATA[(PostgreSQL / Supabase<br/>Gazetteer / Maps)]
-    AI[External AI<br/>LLM + ASR + TTS]
+    AI[External AI<br/>STT + LLM + TTS]
 
     U --> FE
     FE --> API
+    FE <--> LK
+    LK <--> WORKER
+    WORKER <--> CORE
+    WORKER <--> AI
     API --> CORE
     CORE <--> AGENT
     AGENT -->|ToolCall| TOOLS
     TOOLS --> DATA
     TOOLS -->|ToolResult| AGENT
-    CORE <--> AI
     CORE --> API
     API --> FE
 ```
@@ -97,46 +101,32 @@ flowchart TB
 - VinUni/Hồ Gươm trả nhiều mock candidates nên Agent phải hỏi chọn địa chỉ cụ thể.
 - Đổi địa điểm/loại xe sẽ xóa quote và confirmation cũ.
 
-## 3. Voice Gateway architecture
+## 3. LiveKit voice architecture
 
 ```mermaid
 flowchart TB
-    AUDIO[Browser audio]
-    TRANSPORT{Transport}
-    REST[REST /voice/turn<br/>Utterance hoàn chỉnh]
-    WS[WebSocket /voice/stream<br/>PCM16 + VAD]
-    ASR[ASR<br/>ZipFormer hoặc cloud provider]
-    CLEAN[Normalize + place aliases]
-    REWRITE[Contextual LLM rewrite<br/>PII + semantic guard]
-    SESSION[SessionService + Core Agent]
-    REVIEW[Output review]
-    TTS[TTS<br/>OpenAI hoặc Edge fallback]
-    OUTPUT[Transcript + reply + audio]
+    BROWSER[React + LiveKit components]
+    ROOM[LiveKit Room]
+    SESSION[AgentSession<br/>turn detection + interruption]
+    MODELS[LiveKit STT / LLM / TTS plugins]
+    TOOLS[Typed booking, quote, place, handoff tools]
+    DB[(PostgreSQL / Supabase)]
+    OP[Operator browser]
 
-    AUDIO --> TRANSPORT
-    TRANSPORT --> REST
-    TRANSPORT --> WS
-    REST --> ASR
-    WS --> ASR
-    ASR --> CLEAN
-    CLEAN --> REWRITE
-    REWRITE --> SESSION
-    SESSION --> REVIEW
-    REVIEW --> TTS
-    TTS --> OUTPUT
+    BROWSER <--> ROOM
+    ROOM <--> SESSION
+    SESSION <--> MODELS
+    SESSION --> TOOLS
+    TOOLS <--> DB
+    OP <--> ROOM
 ```
 
-| Lane | Runtime hiện tại |
-|---|---|
-| REST | ASR auto: ZipFormer → OpenAI → Gemini; OpenAI TTS primary, Edge fallback |
-| WebSocket | ZipFormer → Groq ASR; Edge TTS |
-| Rewrite | Dùng workflow, bước hiện tại và place candidates; lỗi thì giữ transcript cũ |
+LiveKit sở hữu media transport, VAD/endpointing, interruption, realtime transcript
+và audio playback. AloSM worker sở hữu prompt, typed tools, state recovery và handoff.
 
 Các gap cần xử lý trước production:
 
 - Agent booking vẫn chủ yếu dùng local Hà Nội gazetteer; Maps provider chưa là nguồn duy nhất.
-- OpenAI TTS chưa đi qua đầy đủ FFmpeg validation như Edge lane.
-- `/voice/speak` chưa enforce auth; WebSocket hiện tạo guest session.
 - Supabase migration, RLS, backup/restore và multi-instance test vẫn là release gate.
 
 ## Runtime entrypoints
@@ -145,7 +135,7 @@ Các gap cần xử lý trước production:
 |---|---|
 | Backend | `src/backend/main.py`, `src/backend/services/session_service.py` |
 | Agent | `src/agents/agent.py`, `src/agents/core/agent.py` |
-| Voice | `src/backend/services/voice_service.py`, `src/voice/gateway.py` |
+| Voice | `src/voice_agent/server.py`, `src/voice_agent/agent.py` |
 | Frontend | `src/frontend/src/app/router/index.tsx`, `src/frontend/src/features/ai-assistant/` |
 
 Nguồn đối chiếu: [`PROJECT_SOURCE_OF_TRUTH.md`](PROJECT_SOURCE_OF_TRUTH.md), [`src/agents/README.md`](../src/agents/README.md), [`voice-runtime-architecture.md`](voice-ai/voice-runtime-architecture.md).

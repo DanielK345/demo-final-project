@@ -12,11 +12,7 @@ DEFAULT_DATASET = Path("src/agents/eval/datasets/readiness_v1.json")
 
 async def run(dataset_path: Path, *, real_model: bool = False) -> int:
     dataset = load_evaluation_dataset(dataset_path)
-    agent = (
-        LLMAgent()
-        if real_model
-        else LLMAgent(understanding_service=RuleBasedUnderstanding())
-    )
+    agent = LLMAgent() if real_model else LLMAgent(understanding_service=RuleBasedUnderstanding())
     report = await BehaviorEvaluator().evaluate_conversations(
         agent,
         dataset.scenarios,

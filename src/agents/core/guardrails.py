@@ -138,9 +138,7 @@ class AgentGuardrails:
                     raise GuardrailViolationError("create_booking requires booking state")
                 locations = (booking.get("pickup"), booking.get("destination"))
                 if any(
-                    not isinstance(location, dict)
-                    or not location.get("place_id")
-                    or not location.get("display_name")
+                    not isinstance(location, dict) or not location.get("place_id") or not location.get("display_name")
                     for location in locations
                 ):
                     raise GuardrailViolationError("create_booking requires resolved concrete locations")

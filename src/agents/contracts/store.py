@@ -60,10 +60,7 @@ class InMemoryStateStore:
         if current is None:
             raise StateNotFoundError(session_id)
         if current.state_version != expected_version:
-            raise StateVersionConflictError(
-                f"expected state version {expected_version}, "
-                f"found {current.state_version}"
-            )
+            raise StateVersionConflictError(f"expected state version {expected_version}, found {current.state_version}")
 
         updated = current.apply(updates)
         self._states[session_id] = updated.model_copy(deep=True)

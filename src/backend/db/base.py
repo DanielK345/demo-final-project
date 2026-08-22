@@ -1,11 +1,12 @@
-"""Engine/session setup cho Postgres thật (Supabase) — additive, package MỚI.
+"""Async SQLAlchemy engine/session setup for Supabase Postgres.
 
 Thiết kế (xem `docs/database_supabase.md` để có bản đầy đủ + hướng dẫn tạo project
 Supabase):
 
-- App runtime (nhiều request ngắn, đồng thời) → nối qua **Transaction Pooler** của
-  Supabase (Supavisor, cổng 6543) bằng driver async `asyncpg`. Transaction pooler
-  không hỗ trợ prepared statement nên bắt buộc tắt statement cache
+- Persistent app/LiveKit workers → use a direct or session endpoint (port 5432)
+  and SQLAlchemy's bounded async pool so TLS connections survive between jobs.
+- Temporary/serverless runtimes → use Supavisor transaction mode (port 6543).
+  Transaction mode does not support prepared statements, so disable caches
   (`statement_cache_size=0`, `prepared_statement_cache_size=0`) — thiếu bước này sẽ
   gặp lỗi `prepared statement "..." already exists` ngẫu nhiên khi có nhiều request
   đồng thời (lỗi kinh điển asyncpg + PgBouncer/Supavisor transaction mode).
@@ -25,6 +26,7 @@ from __future__ import annotations
 
 from collections.abc import AsyncIterator
 
+from sqlalchemy.engine import make_url
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase
 from sqlalchemy.pool import NullPool
@@ -59,12 +61,41 @@ def to_sync_url(raw_url: str) -> str:
     return raw_url
 
 
+def _is_transaction_pooler(async_url: str) -> bool:
+    """Supabase reserves port 6543 for transaction pooling."""
+
+    return async_url.startswith("postgresql+asyncpg://") and make_url(async_url).port == 6543
+
+
 def _connect_args(async_url: str) -> dict[str, object]:
-    if async_url.startswith("postgresql+asyncpg://"):
+    if _is_transaction_pooler(async_url):
         # Transaction pooler (Supavisor) không hỗ trợ prepared statement — tắt hẳn
         # statement cache để asyncpg không tự tạo prepared statement ngầm.
         return {"statement_cache_size": 0, "prepared_statement_cache_size": 0}
     return {}
+
+
+def _engine_options(async_url: str) -> dict[str, object]:
+    """Choose the documented pool type for the endpoint and runtime mode."""
+
+    if async_url.startswith("sqlite+aiosqlite://"):
+        return {}
+
+    settings = get_settings()
+    use_null_pool = settings.database_pool_mode == "null" or (
+        settings.database_pool_mode == "auto" and _is_transaction_pooler(async_url)
+    )
+    if use_null_pool:
+        return {"poolclass": NullPool}
+
+    return {
+        "pool_size": settings.database_pool_size,
+        "max_overflow": settings.database_pool_max_overflow,
+        "pool_timeout": settings.database_pool_timeout_seconds,
+        "pool_recycle": settings.database_pool_recycle_seconds,
+        "pool_pre_ping": True,
+        "pool_use_lifo": True,
+    }
 
 
 _engine: AsyncEngine | None = None
@@ -76,15 +107,11 @@ def get_engine() -> AsyncEngine:
     if _engine is None:
         settings = get_settings()
         async_url = to_async_url(settings.database_url)
-        is_sqlite = async_url.startswith("sqlite+aiosqlite://")
         _engine = create_async_engine(
             async_url,
             echo=False,
-            # NullPool: để Supavisor tự quản lý pool phía nó (transaction mode) thay
-            # vì chồng thêm 1 lớp pool nữa ở app — tránh giữ connection "chết" trong
-            # pool app trong khi Supavisor đã tái sử dụng nó cho client khác.
-            poolclass=None if is_sqlite else NullPool,
             connect_args=_connect_args(async_url),
+            **_engine_options(async_url),
         )
         _session_factory = async_sessionmaker(_engine, expire_on_commit=False, class_=AsyncSession)
     return _engine

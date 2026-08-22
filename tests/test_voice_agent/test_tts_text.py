@@ -10,12 +10,8 @@ from src.voice_agent.tts_text import (
 
 def test_format_vietnamese_currency_reads_grouped_and_plain_amounts() -> None:
     assert format_vietnamese_currency("giá 32000 đồng") == "giá ba mươi hai nghìn đồng"
-    assert format_vietnamese_currency("giá 15 250 đồng") == (
-        "giá mười lăm nghìn hai trăm năm mươi đồng"
-    )
-    assert format_vietnamese_currency("giá 15.250 VND") == (
-        "giá mười lăm nghìn hai trăm năm mươi đồng"
-    )
+    assert format_vietnamese_currency("giá 15 250 đồng") == ("giá mười lăm nghìn hai trăm năm mươi đồng")
+    assert format_vietnamese_currency("giá 15.250 VND") == ("giá mười lăm nghìn hai trăm năm mươi đồng")
 
 
 def test_format_vietnamese_currency_does_not_change_eta_or_place_numbers() -> None:

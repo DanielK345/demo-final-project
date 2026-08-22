@@ -1,6 +1,8 @@
 # Phase 4 — Voice evaluation, model benchmark và LiveKit cutover
 
-Cập nhật: **2026-08-20** · Trạng thái: **READY TO IMPLEMENT**.
+Cập nhật: **2026-08-21** · Trạng thái: **PHASE 4A + DURABLE LIVEKIT CUTOVER IMPLEMENTED / PRODUCT GATES PENDING**.
+
+Runbook thực thi release: [`PHASE4_RELEASE_RUNBOOK.md`](PHASE4_RELEASE_RUNBOOK.md).
 
 ## 1. Mục tiêu
 
@@ -181,6 +183,56 @@ reports/voice-evaluation/<dataset_version>/<run_id>/
 
 Không commit audio/PII nếu chưa có policy. Có thể commit manifest/hash và aggregate
 report; audio consented lưu tại controlled storage do owner chỉ định.
+
+### Phase 4A — công cụ connection smoke và aggregation
+
+Repo dùng các primitive có sẵn của LiveKit thay vì dựng test/media core riêng:
+
+- `scripts/livekit_room_smoke.py` dùng `livekit.rtc.Room`, participant kind,
+  `AudioStream` và data channel để chạy một hoặc nhiều Room attempt thật;
+- latency từng turn và usage lấy từ native `ChatMessage.metrics` và
+  `session_usage_updated` đã ghi bởi `src/voice_agent/observability.py`;
+- `scripts/aggregate_livekit_evaluation.py` chỉ là glue code để tính percentile,
+  success rate và AloSM booking invariants từ structured state.
+
+Chạy worker với event log bật, sau đó chạy smoke tuần tự:
+
+```bash
+LIVEKIT_DEBUG_EVENT_LOG=true \
+LIVEKIT_DEBUG_TRANSCRIPTS=false \
+LIVEKIT_DEBUG_LOG_DIR=logs/livekit/phase4a-20260820-01 \
+make livekit-worker
+
+uv run python -m scripts.livekit_room_smoke \
+  --runs 30 \
+  --output reports/voice-evaluation/phase4a-v1/phase4a-20260820-01/connection-results.jsonl
+```
+
+Thêm `--booking` khi muốn chạy happy path thật qua LLM/tools/TTS. Không bật cờ này
+cho connection-only baseline nếu mục tiêu chỉ đo Room/dispatch/first audio.
+
+Tạo report:
+
+```bash
+uv run python -m scripts.aggregate_livekit_evaluation \
+  --log-dir logs/livekit/phase4a-20260820-01 \
+  --smoke-results reports/voice-evaluation/phase4a-v1/phase4a-20260820-01/connection-results.jsonl \
+  --dataset-version phase4a-v1 \
+  --run-id phase4a-20260820-01
+```
+
+Mỗi controlled run phải dùng log directory riêng; không trộn `logs/livekit/` cũ
+vào release report.
+
+Smoke runner chỉ công nhận first audio sau native agent state `speaking` và chờ
+agent trở lại `listening` để greeting hoàn tất trước khi đóng Room. Một frame đầu
+tiên ngay sau khi subscribe audio track không đủ chứng minh agent đã phát lời nói.
+
+Output bổ sung `connection-results.jsonl`, `failure-summary.json` và
+`business-invariants.json`. Script không copy transcript vào report. Metric
+`observed_speech_episode_no_final_rate` chỉ là diagnostic từ state transition;
+không được gọi là release-grade no-final-turn rate cho tới khi có audio manifest
+và turn correlation kiểm soát được.
 
 ## 9. Gate và quyết định cutover
 

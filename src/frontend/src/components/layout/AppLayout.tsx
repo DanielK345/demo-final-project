@@ -1,19 +1,14 @@
 import React from "react";
-import { Outlet } from "react-router-dom";
+import { Navigate, Outlet, useLocation } from "react-router-dom";
 import { Sidebar } from "./Sidebar";
 import { Topbar } from "./Topbar";
 import { MobileNav } from "./MobileNav";
 import { VoiceAssistantProvider } from "@/features/ai-assistant/context/VoiceAssistantContext";
 import { VoiceAIButton } from "@/features/ai-assistant/components/VoiceAIButton";
 import { VoiceAssistantPopup } from "@/features/ai-assistant/components/VoiceAssistantPopup";
+import { getUserRole } from "@/features/auth/storage";
 
-export const AppLayout: React.FC = () => {
-  return (
-    // Provider bọc TOÀN BỘ layout (không chỉ 1 trang) — Voice AI giờ là 1 nút nổi +
-    // popup khả dụng ở MỌI trang sau đăng nhập (mục 2-3), không còn là trang
-    // "/assistant" riêng. Mounted đúng 1 lần ở đây nên đóng/mở popup hay chuyển trang
-    // không làm mất phiên hội thoại đang dở (Scenario 6, mục 26).
-    <VoiceAssistantProvider>
+const AppShell: React.FC<{ isOperator: boolean }> = ({ isOperator }) => (
       <div className="app-surface min-h-screen flex bg-[#F4FBFA] text-[#191C1E] dark:bg-[#0B0E11] dark:text-slate-100 font-sans antialiased transition-colors duration-200">
         {/* Sidebar tự thu/phóng theo rê chuột (thuần CSS, xem Sidebar.tsx) — không còn
             nút ghim mở cố định (đã gỡ vì lỗi), nên không cần state/localStorage nào ở
@@ -29,9 +24,21 @@ export const AppLayout: React.FC = () => {
           </main>
         </div>
         <MobileNav />
-        <VoiceAIButton />
-        <VoiceAssistantPopup />
+        {!isOperator ? <VoiceAIButton /> : null}
+        {!isOperator ? <VoiceAssistantPopup /> : null}
       </div>
+);
+
+export const AppLayout: React.FC = () => {
+  const isOperator = getUserRole() === "OPERATOR" || getUserRole() === "ADMIN";
+  const location = useLocation();
+  if (isOperator && location.pathname !== "/operator") return <Navigate to="/operator" replace />;
+  if (isOperator) return <AppShell isOperator />;
+  // Customer-only provider: operator sessions must not create a ride session or
+  // mount the customer voice popup while they are handling the queue.
+  return (
+    <VoiceAssistantProvider>
+      <AppShell isOperator={false} />
     </VoiceAssistantProvider>
   );
 };

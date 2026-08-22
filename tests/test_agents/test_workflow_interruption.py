@@ -105,10 +105,7 @@ async def test_pause_and_resume_restore_exact_booking_step_and_control_state():
     assert paused_state.interrupted_workflow is not None
     assert paused_state.interrupted_workflow.workflow is WorkflowType.RIDE_BOOKING
     assert paused_state.interrupted_workflow.step == BookingStep.CONFIRM
-    assert (
-        paused_state.interrupted_workflow.confirmation
-        is ConfirmationStatus.AWAITING_CONFIRMATION
-    )
+    assert paused_state.interrupted_workflow.confirmation is ConfirmationStatus.AWAITING_CONFIRMATION
     assert paused_state.interrupted_workflow.retry_count == 1
     assert "booking" in paused_state.collected_data
 
