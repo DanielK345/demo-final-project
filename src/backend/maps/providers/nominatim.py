@@ -188,33 +188,6 @@ class NominatimProvider(GeocodingProvider):
         }
         if isinstance(address_parts, dict) and address_parts:
             parts = []
-            house_num = address_parts.get("house_number")
-            road_val = address_parts.get("road")
-            if house_num and road_val:
-                structured_address["road"] = f"{house_num} {road_val}"
-            elif road_val:
-                structured_address["road"] = str(road_val)
-
-            ward_val = address_parts.get("suburb") or address_parts.get("quarter") or address_parts.get("neighbourhood")
-            if ward_val:
-                structured_address["ward"] = str(ward_val)
-
-            district_val = address_parts.get("city_district") or address_parts.get("district") or address_parts.get("county")
-            if district_val:
-                structured_address["district"] = str(district_val)
-
-            city_val = address_parts.get("city") or address_parts.get("town") or address_parts.get("municipality")
-            if city_val:
-                structured_address["city"] = str(city_val)
-
-            state_val = address_parts.get("state") or address_parts.get("province")
-            if state_val:
-                structured_address["province"] = str(state_val)
-
-            country_val = address_parts.get("country")
-            if country_val:
-                structured_address["country"] = str(country_val)
-
             for key in (
                 "house_number",
                 "road",

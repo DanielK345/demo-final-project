@@ -35,8 +35,16 @@ class HandoffSeverity(StrEnum):
 
 
 _EMERGENCY_TERMS = (
-    "cap cuu", "tai nan", "bi thuong", "nguy hiem", "de doa", "cuop",
-    "hanh hung", "quay roi", "tai xe say", "khong an toan",
+    "cap cuu",
+    "tai nan",
+    "bi thuong",
+    "nguy hiem",
+    "de doa",
+    "cuop",
+    "hanh hung",
+    "quay roi",
+    "tai xe say",
+    "khong an toan",
 )
 _SAFETY_TERMS = ("so tai xe", "lai xe nguy hiem", "bi theo doi", "mac ket trong xe")
 _PAYMENT_TERMS = ("tru tien sai", "thu tien sai", "thu them tien", "tranh chap thanh toan")
@@ -45,8 +53,12 @@ _COMPLAINT_TERMS = ("khieu nai", "phan nan", "to cao", "khong hai long")
 _PRIVACY_TERMS = ("xoa du lieu", "rut dong y", "du lieu ca nhan", "quyen rieng tu", "xuat du lieu")
 _LEGAL_TERMS = ("phap nhan", "dieu khoan phap ly", "khoi kien", "boi thuong", "luat su")
 _HUMAN_TERMS = (
-    "tong dai vien", "nhan vien ho tro", "nguoi that", "gap nhan vien",
-    "chuyen nhan vien", "noi chuyen voi nhan vien",
+    "tong dai vien",
+    "nhan vien ho tro",
+    "nguoi that",
+    "gap nhan vien",
+    "chuyen nhan vien",
+    "noi chuyen voi nhan vien",
 )
 
 

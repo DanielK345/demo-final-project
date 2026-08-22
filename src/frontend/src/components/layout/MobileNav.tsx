@@ -1,9 +1,10 @@
 import React from "react";
 import { NavLink } from "react-router-dom";
-import { Home, Grid, History, User } from "lucide-react";
+import { Headphones, Home, Grid, History, User } from "lucide-react";
 import { cn } from "@/utils/cn";
+import { getUserRole } from "@/features/auth/storage";
 
-const mobileItems = [
+const customerMobileItems = [
   { path: "/", label: "Home", icon: Home },
   { path: "/booking", label: "Dịch vụ", icon: Grid },
   { path: "/activity", label: "Hoạt động", icon: History },
@@ -11,6 +12,9 @@ const mobileItems = [
 ];
 
 export const MobileNav: React.FC = () => {
+  const mobileItems = getUserRole() === "OPERATOR" || getUserRole() === "ADMIN"
+    ? [...customerMobileItems, { path: "/operator", label: "Tổng đài", icon: Headphones }]
+    : customerMobileItems;
   return (
     <nav className="md:hidden fixed bottom-5 left-1/2 -translate-x-1/2 w-[calc(100%-2rem)] max-w-md h-[72px] px-2 bg-white/88 backdrop-blur-2xl border border-white/90 rounded-[28px] flex items-center justify-around z-50 shadow-[0_16px_48px_rgba(19,73,74,0.2)] dark:bg-[#102021]/90 dark:border-white/10">
       {mobileItems.map((item) => {

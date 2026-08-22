@@ -60,16 +60,8 @@ def test_clear_fare_estimate_only_removes_stale_quote() -> None:
 
 
 def test_reduce_place_result_keeps_source_immutable() -> None:
-    original = BookingData(
-        pickup={"place_id": "old", "display_name": "Địa chỉ cũ"}
-    )
-    result = SearchPlaceResult.model_validate(
-        {
-            "candidates": [
-                {"place_id": "new", "display_name": "Địa chỉ mới"}
-            ]
-        }
-    )
+    original = BookingData(pickup={"place_id": "old", "display_name": "Địa chỉ cũ"})
+    result = SearchPlaceResult.model_validate({"candidates": [{"place_id": "new", "display_name": "Địa chỉ mới"}]})
 
     reduction = reduce_place_result(original, result, pickup=True)
 

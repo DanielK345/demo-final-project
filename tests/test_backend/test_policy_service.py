@@ -53,3 +53,18 @@ async def test_policy_rag_never_claims_green_sm_contact_is_alosm_contact():
     legal = next(item for item in documents if item["citation_id"] == "policy-legal-identity")
     assert "Không dùng hotline" in legal["content"]
     assert "Green SM/GSM" in legal["content"]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("question", "citation_id"),
+    [
+        ("Tôi muốn yêu cầu hoàn tiền, xử lý trong bao lâu?", "policy-refund"),
+        ("Sau khi xác nhận giá, giá có được tự ý thay đổi không?", "policy-price-change"),
+        ("Chính sách hủy chuyến và phí hủy là gì?", "policy-cancellation"),
+    ],
+)
+async def test_policy_rag_understands_natural_faq_questions(question: str, citation_id: str):
+    documents = await KnowledgeService().retrieve(question, top_k=1)
+
+    assert documents[0]["citation_id"] == citation_id

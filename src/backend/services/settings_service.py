@@ -25,6 +25,7 @@ class SettingsService:
         if not self._durable:
             return self.update_settings(user_id, updates)
         return await self._repository.update_settings(user_id, updates)
+
     settings_by_user: dict[str, dict[str, object]] = {}
 
     def get_settings(self, user_id: str) -> dict[str, object]:

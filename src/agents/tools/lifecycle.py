@@ -84,29 +84,21 @@ def correlate_tool_result(result: ToolResult, state: AgentState) -> None:
     if state.pending_tool_call_id is None or state.pending_tool_name is None:
         raise UnexpectedToolResultError("no tool result is currently pending")
     if result.call_id != state.pending_tool_call_id:
-        raise ToolResultMismatchError(
-            f"tool result call_id mismatch: expected {state.pending_tool_call_id}"
-        )
+        raise ToolResultMismatchError(f"tool result call_id mismatch: expected {state.pending_tool_call_id}")
     if result.tool_name is not state.pending_tool_name:
-        raise ToolResultMismatchError(
-            f"tool result name mismatch: expected {state.pending_tool_name.value}"
-        )
+        raise ToolResultMismatchError(f"tool result name mismatch: expected {state.pending_tool_name.value}")
 
 
 def parse_tool_result(result: ToolResult, state: AgentState) -> ResultPayload:
     correlate_tool_result(result, state)
     if result.status is ToolStatus.ERROR:
-        raise ToolResultPayloadError(
-            "failed tool results must be handled with normalize_tool_failure"
-        )
+        raise ToolResultPayloadError("failed tool results must be handled with normalize_tool_failure")
 
     model = _RESULT_MODELS[result.tool_name]
     try:
         return model.model_validate(result.data)
     except ValueError as exc:
-        raise ToolResultPayloadError(
-            f"invalid {result.tool_name.value} result payload"
-        ) from exc
+        raise ToolResultPayloadError(f"invalid {result.tool_name.value} result payload") from exc
 
 
 def normalize_tool_failure(result: ToolResult, state: AgentState) -> ToolFailure:

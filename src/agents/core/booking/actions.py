@@ -51,16 +51,11 @@ def request_place_selection_action(
     location_role = "điểm đón" if pickup else "điểm đến"
     return AgentAction(
         action_type=ActionType.ASK_USER,
-        message=(
-            f"{query} có nhiều vị trí phù hợp. Bạn xác nhận {location_role} cụ thể nào: "
-            f"{options}?"
-        ),
+        message=(f"{query} có nhiều vị trí phù hợp. Bạn xác nhận {location_role} cụ thể nào: {options}?"),
         state_updates={
             "current_workflow": WorkflowType.RIDE_BOOKING,
             "current_step": (
-                BookingStep.SELECT_PICKUP_CANDIDATE.value
-                if pickup
-                else BookingStep.SELECT_DESTINATION_CANDIDATE.value
+                BookingStep.SELECT_PICKUP_CANDIDATE.value if pickup else BookingStep.SELECT_DESTINATION_CANDIDATE.value
             ),
             "confirmation": ConfirmationStatus.NOT_REQUESTED,
             "retry_count": 0,

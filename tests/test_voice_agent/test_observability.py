@@ -7,6 +7,7 @@ from livekit.agents import (
     ConversationItemAddedEvent,
     FunctionToolsExecutedEvent,
     UserInputTranscribedEvent,
+    UserTranscriptionTimeoutEvent,
     llm,
 )
 
@@ -93,10 +94,37 @@ async def test_jsonl_observability_can_explicitly_include_transcripts(tmp_path: 
     observer.record(UserInputTranscribedEvent(transcript="đúng rồi", is_final=True))
     await event_log.close()
 
-    event = next(
-        item for item in _read_events(event_log.path) if item["event"] == "user_input_transcribed"
-    )
+    event = next(item for item in _read_events(event_log.path) if item["event"] == "user_input_transcribed")
     assert event["transcript"] == "đúng rồi"
+
+
+@pytest.mark.asyncio
+async def test_jsonl_observability_records_native_transcription_timeout_without_audio(
+    tmp_path: Path,
+) -> None:
+    event_log = SessionEventLog(
+        enabled=True,
+        include_transcripts=False,
+        directory=tmp_path,
+        userdata=_userdata("call-timeout"),
+        room_name="room-timeout",
+    )
+    observer = LiveKitSessionObserver(event_log)
+    await event_log.start()
+    observer.record(
+        UserTranscriptionTimeoutEvent(
+            speech_duration=1.25,
+            vad_speech_started_at=123.5,
+        )
+    )
+    await event_log.close()
+
+    event = next(
+        item for item in _read_events(event_log.path) if item["event"] == "user_transcription_timeout"
+    )
+    assert event["speech_duration"] == 1.25
+    assert event["vad_speech_started_at"] == 123.5
+    assert "transcript" not in event
 
 
 @pytest.mark.asyncio

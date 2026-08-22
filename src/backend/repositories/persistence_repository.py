@@ -67,6 +67,27 @@ def _user_dict(user: User, acceptance: PolicyAcceptance | None = None) -> dict[s
 
 
 def _session_dict(row: RideSession) -> dict[str, object]:
+    voice_state = row.voice_agent_state if isinstance(row.voice_agent_state, dict) else {}
+    booking_draft = voice_state.get("booking_draft")
+    booking_draft = booking_draft if isinstance(booking_draft, dict) else {}
+    lifecycle = str(voice_state.get("lifecycle_status") or "active")
+    has_completed_booking = bool(booking_draft.get("booking"))
+    voice_session_terminal = row.status != "ACTIVE" or lifecycle in {"completed", "cancelled"} or has_completed_booking
+    resumable_fields = (
+        "pickup_query",
+        "pickup",
+        "destination_query",
+        "destination",
+        "vehicle_type",
+        "quote",
+        "booking",
+    )
+    has_resumable_voice_state = (
+        row.status == "ACTIVE"
+        and lifecycle == "active"
+        and not has_completed_booking
+        and any(booking_draft.get(field) for field in resumable_fields)
+    )
     return {
         "session_id": row.id,
         "call_id": row.call_id,
@@ -91,6 +112,8 @@ def _session_dict(row: RideSession) -> dict[str, object]:
         "agent_state": row.agent_state,
         "voice_agent_state": row.voice_agent_state,
         "voice_state_revision": row.voice_state_revision,
+        "has_resumable_voice_state": has_resumable_voice_state,
+        "voice_session_terminal": voice_session_terminal,
         "turn_sequence": row.turn_sequence,
         "version": row.version,
         "created_at": _iso(row.created_at),
@@ -158,6 +181,7 @@ class PersistenceRepository:
         terms_version: str,
         privacy_version: str,
         source_sha256: str,
+        role: str = "CUSTOMER",
     ) -> dict[str, object]:
         async with self.factory() as db, db.begin():
             user = User(
@@ -165,7 +189,7 @@ class PersistenceRepository:
                 full_name=full_name,
                 phone=phone,
                 password_hash=password_hash,
-                role="CUSTOMER",
+                role=role,
             )
             # Flush the FK parent first. PolicyAcceptance intentionally stores only
             # user_id and has no ORM relationship to this transient User object, so
@@ -380,6 +404,7 @@ class PersistenceRepository:
             return {
                 "session_id": row.id,
                 "user_id": row.user_id,
+                "status": row.status,
                 "state": row.voice_agent_state,
                 "revision": row.voice_state_revision,
             }
@@ -437,6 +462,8 @@ class PersistenceRepository:
             "handoff_id",
             "booking_lifecycle_status",
             "feedback",
+            "voice_agent_state",
+            "voice_state_revision",
         }
         values = {key: value for key, value in updates.items() if key in allowed}
         values["updated_at"] = datetime.now(UTC)
@@ -591,12 +618,31 @@ class PersistenceRepository:
 
     async def accept_handoff(self, handoff_id: str, operator_id: str | None) -> dict[str, object] | None:
         async with self.factory() as db, db.begin():
-            row = (
-                await db.execute(select(Handoff).where(Handoff.id == handoff_id).with_for_update())
-            ).scalar_one_or_none()
-            if row is None:
+            row = (await db.execute(select(Handoff).where(Handoff.id == handoff_id).with_for_update())).scalar_one_or_none()
+            if row is None or row.status != "pending":
                 return None
             row.status, row.operator_id, row.accepted_at = "accepted", operator_id, datetime.now(UTC)
+            return self._handoff_dict(row)
+
+    async def get_handoff(self, handoff_id: str) -> dict[str, object] | None:
+        async with self.factory() as db:
+            row = await db.get(Handoff, handoff_id)
+            return self._handoff_dict(row) if row is not None else None
+
+    async def connect_handoff(self, handoff_id: str, operator_id: str) -> dict[str, object] | None:
+        async with self.factory() as db, db.begin():
+            row = (await db.execute(select(Handoff).where(Handoff.id == handoff_id).with_for_update())).scalar_one_or_none()
+            if row is None or row.status != "accepted" or row.operator_id != operator_id:
+                return None
+            row.status, row.connected_at = "connected", datetime.now(UTC)
+            return self._handoff_dict(row)
+
+    async def resolve_handoff(self, handoff_id: str, operator_id: str) -> dict[str, object] | None:
+        async with self.factory() as db, db.begin():
+            row = (await db.execute(select(Handoff).where(Handoff.id == handoff_id).with_for_update())).scalar_one_or_none()
+            if row is None or row.operator_id != operator_id or row.status not in {"accepted", "connected"}:
+                return None
+            row.status, row.resolved_at = "resolved", datetime.now(UTC)
             return self._handoff_dict(row)
 
     @staticmethod
@@ -615,7 +661,11 @@ class PersistenceRepository:
             "status": row.status,
             "created_at": row.created_at,
             "accepted_at": row.accepted_at,
+            "connected_at": row.connected_at,
+            "resolved_at": row.resolved_at,
             "operator_id": row.operator_id,
+            "room_name": row.room_name,
+            "context_snapshot": row.context_snapshot,
         }
 
     async def create_call(self, *, session_id: str | None, customer_phone_hash: str) -> dict[str, object]:

@@ -88,8 +88,7 @@ class TurnPolicy:
         if confidence is None or confidence >= self.policy.low_confidence_threshold:
             return None
         repeated = (
-            state.last_stt_confidence is not None
-            and state.last_stt_confidence < self.policy.low_confidence_threshold
+            state.last_stt_confidence is not None and state.last_stt_confidence < self.policy.low_confidence_threshold
         )
         if repeated:
             return deterministic_handoff_action(
@@ -136,7 +135,9 @@ class TurnPolicy:
                     state_updates={"confirmation": ConfirmationStatus.NOT_REQUESTED, "current_step": None},
                     reason="Booking confirmation was received but required state is incomplete.",
                 )
-            key = sha256(f"{state.session_id}:create:{booking.fare_estimate_id}:{booking.phone_number}".encode()).hexdigest()
+            key = sha256(
+                f"{state.session_id}:create:{booking.fare_estimate_id}:{booking.phone_number}".encode()
+            ).hexdigest()
             return request_create_booking_action(state, booking, CreateBookingTool(), idempotency_key=key)
         if _matches(normalized, _NEGATIONS):
             return AgentAction(
@@ -196,18 +197,11 @@ class TurnPolicy:
         state: AgentState,
     ) -> AgentAction | None:
         result = agent_input.tool_result
-        if (
-            result is None
-            or state.pending_tool_name is not None
-            or result.status is not ToolStatus.SUCCESS
-        ):
+        if result is None or state.pending_tool_name is not None or result.status is not ToolStatus.SUCCESS:
             return None
         try:
             booking = BookingData.model_validate(state.collected_data.get("booking", {}))
-            if (
-                result.tool_name is ToolName.CREATE_BOOKING
-                and result.call_id == booking.completed_booking_call_id
-            ):
+            if result.tool_name is ToolName.CREATE_BOOKING and result.call_id == booking.completed_booking_call_id:
                 payload = CreateBookingResult.model_validate(result.data)
                 if payload.booking_id == booking.booking_id:
                     return AgentAction(
@@ -215,10 +209,7 @@ class TurnPolicy:
                         message="Chuyến xe này đã được đặt thành công trước đó.",
                         reason="A completed create_booking result was replayed.",
                     )
-            if (
-                result.tool_name is ToolName.CANCEL_BOOKING
-                and result.call_id == booking.completed_cancellation_call_id
-            ):
+            if result.tool_name is ToolName.CANCEL_BOOKING and result.call_id == booking.completed_cancellation_call_id:
                 payload = CancelBookingResult.model_validate(result.data)
                 if payload.booking_id == booking.booking_id:
                     return AgentAction(

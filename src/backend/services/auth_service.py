@@ -59,10 +59,15 @@ class AuthService:
     ) -> dict[str, object]:
         if not self._durable:
             return self.register(full_name, phone, password, accepted_terms_version, accepted_privacy_version)
-        self._policy_service.assert_acceptance(terms_version=accepted_terms_version, privacy_version=accepted_privacy_version)
+        self._policy_service.assert_acceptance(
+            terms_version=accepted_terms_version, privacy_version=accepted_privacy_version
+        )
         user = await self._repository.create_user(
-            full_name=full_name, phone=phone, password_hash=_hash_password(password),
-            terms_version=accepted_terms_version, privacy_version=accepted_privacy_version,
+            full_name=full_name,
+            phone=phone,
+            password_hash=_hash_password(password),
+            terms_version=accepted_terms_version,
+            privacy_version=accepted_privacy_version,
             source_sha256=self._policy_service.catalog.source_sha256,
         )
         return await self._auth_response_durable(user)
@@ -76,7 +81,8 @@ class AuthService:
         if user.get("two_factor_enabled"):
             pending_token = token_urlsafe(24)
             await self._repository.create_auth_challenge(
-                raw_token=pending_token, user_id=str(user["user_id"]),
+                raw_token=pending_token,
+                user_id=str(user["user_id"]),
                 expires_at=datetime.now(UTC) + timedelta(seconds=_PENDING_2FA_TTL_SECONDS),
             )
             return {"requires_2fa": True, "pending_token": pending_token}
@@ -88,7 +94,9 @@ class AuthService:
         user = await self._repository.auth_challenge_user(pending_token)
         if user is None:
             raise ValueError("Yêu cầu xác thực đã hết hạn. Vui lòng đăng nhập lại.")
-        secret = self._cipher.decrypt(user.get("totp_secret_ciphertext") if isinstance(user.get("totp_secret_ciphertext"), str) else None)
+        secret = self._cipher.decrypt(
+            user.get("totp_secret_ciphertext") if isinstance(user.get("totp_secret_ciphertext"), str) else None
+        )
         if not secret or not pyotp.TOTP(secret).verify(code, valid_window=1):
             raise ValueError("Mã xác thực không đúng")
         consumed = await self._repository.consume_auth_challenge(pending_token)
@@ -103,8 +111,13 @@ class AuthService:
         if user is None:
             raise ValueError("Không tìm thấy người dùng")
         secret = pyotp.random_base32()
-        await self._repository.update_user_security(user_id, totp_pending_secret_ciphertext=self._cipher.encrypt(secret))
-        return {"secret": secret, "otpauth_url": pyotp.TOTP(secret).provisioning_uri(name=str(user["phone"]), issuer_name=_TOTP_ISSUER)}
+        await self._repository.update_user_security(
+            user_id, totp_pending_secret_ciphertext=self._cipher.encrypt(secret)
+        )
+        return {
+            "secret": secret,
+            "otpauth_url": pyotp.TOTP(secret).provisioning_uri(name=str(user["phone"]), issuer_name=_TOTP_ISSUER),
+        }
 
     async def confirm_two_factor_durable(self, user_id: str, code: str) -> None:
         if not self._durable:
@@ -115,13 +128,20 @@ class AuthService:
         secret = self._cipher.decrypt(encrypted if isinstance(encrypted, str) else None)
         if not secret or not pyotp.TOTP(secret).verify(code, valid_window=1):
             raise ValueError("Mã xác thực không đúng hoặc đã hết hạn — hãy bật lại 2FA để lấy mã mới.")
-        await self._repository.update_user_security(user_id, totp_secret_ciphertext=self._cipher.encrypt(secret), totp_pending_secret_ciphertext=None, two_factor_enabled=True)
+        await self._repository.update_user_security(
+            user_id,
+            totp_secret_ciphertext=self._cipher.encrypt(secret),
+            totp_pending_secret_ciphertext=None,
+            two_factor_enabled=True,
+        )
 
     async def disable_two_factor_durable(self, user_id: str) -> None:
         if not self._durable:
             self.disable_two_factor(user_id)
             return
-        await self._repository.update_user_security(user_id, totp_secret_ciphertext=None, totp_pending_secret_ciphertext=None, two_factor_enabled=False)
+        await self._repository.update_user_security(
+            user_id, totp_secret_ciphertext=None, totp_pending_secret_ciphertext=None, two_factor_enabled=False
+        )
 
     async def get_user_for_token_durable(self, token: str) -> dict[str, object] | None:
         if not self._durable:
@@ -151,13 +171,28 @@ class AuthService:
         user = await self._repository.user_by_id(user_id)
         if user is None or not _verify_password(old_password, str(user["password_hash"])):
             raise ValueError("Mật khẩu hiện tại không đúng")
-        await self._repository.update_user_security(user_id, password_hash=_hash_password(new_password), password_changed_at=datetime.now(UTC))
+        await self._repository.update_user_security(
+            user_id, password_hash=_hash_password(new_password), password_changed_at=datetime.now(UTC)
+        )
 
     async def _auth_response_durable(self, user: dict[str, object]) -> dict[str, object]:
-        session = await self._session_service.create_session_durable(str(user["user_id"]), "WEB_VOICE", "browser", phone=str(user["phone"]))
+        session = await self._session_service.create_session_durable(
+            str(user["user_id"]), "WEB_VOICE", "browser", phone=str(user["phone"])
+        )
         token = token_urlsafe(32)
-        await self._repository.issue_token(raw_token=token, user_id=str(user["user_id"]), session_id=str(session["session_id"]), expires_at=datetime.now(UTC) + timedelta(seconds=_TOKEN_TTL_SECONDS))
-        return {**self._public_user(user), "access_token": token, "expires_in": _TOKEN_TTL_SECONDS, "session_id": session["session_id"]}
+        await self._repository.issue_token(
+            raw_token=token,
+            user_id=str(user["user_id"]),
+            session_id=str(session["session_id"]),
+            expires_at=datetime.now(UTC) + timedelta(seconds=_TOKEN_TTL_SECONDS),
+        )
+        return {
+            **self._public_user(user),
+            "access_token": token,
+            "expires_in": _TOKEN_TTL_SECONDS,
+            "session_id": session["session_id"],
+        }
+
     """Small in-memory identity store for the MVP.
 
     Replace this adapter with a database provider before a production
@@ -320,9 +355,7 @@ class AuthService:
         return True
 
     def _auth_response(self, user: dict[str, object]) -> dict[str, object]:
-        session = self._session_service.create_session(
-            user["user_id"], "WEB_VOICE", "browser", phone=user.get("phone")
-        )
+        session = self._session_service.create_session(user["user_id"], "WEB_VOICE", "browser", phone=user.get("phone"))
         token = self._issue_token(user["user_id"], session["session_id"])
         return {
             **self._public_user(user),

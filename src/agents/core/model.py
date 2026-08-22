@@ -81,25 +81,29 @@ class OpenAIConversationModel:
                 {"role": "user", "content": json.dumps(context, ensure_ascii=False, separators=(",", ":"))},
             ]
             for exchange in exchanges:
-                messages.extend([
-                    {
-                        "role": "assistant",
-                        "content": None,
-                        "tool_calls": [{
-                            "id": exchange.call.call_id,
-                            "type": "function",
-                            "function": {
-                                "name": exchange.call.name,
-                                "arguments": json.dumps(exchange.call.arguments, ensure_ascii=False),
-                            },
-                        }],
-                    },
-                    {
-                        "role": "tool",
-                        "tool_call_id": exchange.call.call_id,
-                        "content": json.dumps(exchange.result, ensure_ascii=False),
-                    },
-                ])
+                messages.extend(
+                    [
+                        {
+                            "role": "assistant",
+                            "content": None,
+                            "tool_calls": [
+                                {
+                                    "id": exchange.call.call_id,
+                                    "type": "function",
+                                    "function": {
+                                        "name": exchange.call.name,
+                                        "arguments": json.dumps(exchange.call.arguments, ensure_ascii=False),
+                                    },
+                                }
+                            ],
+                        },
+                        {
+                            "role": "tool",
+                            "tool_call_id": exchange.call.call_id,
+                            "content": json.dumps(exchange.result, ensure_ascii=False),
+                        },
+                    ]
+                )
             response = await self.client.chat.completions.create(
                 model=self.model,
                 messages=messages,

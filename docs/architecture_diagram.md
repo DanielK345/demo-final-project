@@ -7,15 +7,13 @@ Cập nhật: **2026-08-16** · Trạng thái: `CURRENT`.
 ```mermaid
 flowchart LR
     FE[React/Vite frontend] -->|HTTP| BE[FastAPI backend]
-    FE -->|Voice REST/WS| VOICE[Voice routes + gateway]
-    VOICE --> ASR[ASR providers]
-    ASR --> RW[Transcript normalization/rewrite]
-    RW --> BE
+    FE <-->|Realtime media/data| LK[LiveKit Room]
+    LK <--> VOICE[LiveKit AgentSession worker]
+    VOICE <--> AI[STT / LLM / TTS plugins]
+    VOICE --> BE
     BE --> AGENT[Core Agent]
     AGENT -->|AgentAction/ToolCall| BE
     BE --> DOMAIN[Auth/Session/Booking/Trip/Handoff services]
-    BE --> TTS[TTSOrchestrator]
-    TTS --> FE
     DOMAIN -. current adapters .-> RAM[(Process memory)]
     DOMAIN -. target .-> PG[(PostgreSQL/Supabase)]
     BE -. external blocked .-> EXT[Maps/Fleet/Booking/Telephony/Payment]
@@ -28,22 +26,22 @@ Core Agent không gọi external API/DB và không tạo side effect.
 
 | Thành phần | Sở hữu | Không sở hữu |
 |---|---|---|
-| Frontend | UI state, playback, user interaction | Fare/voucher rule, booking truth |
+| Frontend | UI state, LiveKit Room interaction | Fare/voucher rule, booking truth |
 | Backend | Auth/session, orchestration, tool execution, idempotency | Tự bịa provider result |
 | Core Agent | Typed state, semantic action, confirmation policy | HTTP/DB/TTS/booking side effect |
-| Voice | Audio/ASR/rewrite/TTS transport và quality gate | Business state riêng |
+| LiveKit worker | AgentSession, model plugins, typed voice tools, handoff | Business persistence riêng |
 | Provider adapters | Place/route/fleet/booking/telephony result | Conversation policy |
 
 ## Luồng booking
 
 ```text
-Auth -> Session -> ASR/text -> AgentState
+Auth -> Session -> LiveKit transcript/text -> AgentState
 -> resolve pickup/destination
 -> route/fleet/quote/promotion
 -> explicit confirmation
 -> idempotent create_booking
 -> provider result
--> reviewed TTS hoặc handoff
+-> LiveKit TTS hoặc handoff
 ```
 
 Free-form location không được coi là resolved. Sửa location/vehicle làm vô hiệu
@@ -58,9 +56,8 @@ migrate nằm tại [`database_supabase.md`](database_supabase.md).
 
 ## Voice
 
-Voice có ba transport trên một pipeline chung: `/voice/turn`, `/voice/speak` và
-`/voice/stream`. Chi tiết tại
-[`voice-ai/voice-runtime-architecture.md`](voice-ai/voice-runtime-architecture.md).
+Voice dùng một transport production là LiveKit Room. Worker tại `src/voice_agent/`
+sở hữu AgentSession, turn detection, model plugins, state recovery và handoff.
 
 ## Security và operations
 

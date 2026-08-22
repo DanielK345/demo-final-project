@@ -155,7 +155,7 @@ outbox_events: worker poll PENDING → PROCESSED
 ## 5. Connection đúng mục đích
 
 ```env
-# Runtime FastAPI: Supavisor transaction pooler, thường cổng 6543
+# Runtime FastAPI/LiveKit chạy lâu: direct hoặc Supavisor session pooler, cổng 5432
 DATABASE_URL=postgresql://...
 
 # Alembic: direct/session connection, thường cổng 5432
@@ -166,7 +166,7 @@ QUOTE_SIGNING_KEY=...
 FIELD_ENCRYPTION_KEY=...
 ```
 
-### 5.1 Tại sao cần 2 URL
+Runtime dùng bounded SQLAlchemy async pool với `pre_ping` và `recycle` cho direct/session endpoint. Nếu cấu hình transaction endpoint cổng 6543, `DATABASE_POOL_MODE=auto` tự chuyển sang `NullPool` và tắt prepared-statement cache. Alembic dùng psycopg2 và URL migration riêng. Không dùng owner credential của migration làm credential runtime production lâu dài.
 
 | Concern | Runtime URL | Migration URL |
 |---|---|---|

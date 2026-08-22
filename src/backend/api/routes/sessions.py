@@ -24,6 +24,7 @@ router = APIRouter(prefix="/sessions", tags=["sessions"])
 controller = SessionController()
 _history_service = ConversationHistoryService()
 _SESSION_AUTH_MESSAGE = "Phiên hội thoại không hợp lệ. Vui lòng đăng nhập lại."
+_SESSION_CHANGED_MESSAGE = "Phiên hội thoại đã thay đổi. Vui lòng dùng phiên hiện tại hoặc bắt đầu phiên mới."
 
 
 def _token_from_header(authorization: str | None) -> str:
@@ -57,15 +58,17 @@ async def _require_session_access(session_id: str, authorization: str | None) ->
     bound_session_id = await auth_service.get_session_for_token_durable(token)
     if not bound_session_id or bound_session_id != session_id:
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=_SESSION_AUTH_MESSAGE,
+            # Token vẫn hợp lệ; chỉ có session mà client đang giữ đã cũ. Trả 401 ở
+            # đây khiến frontend hiểu nhầm là hết đăng nhập và xóa luôn token.
+            status_code=status.HTTP_409_CONFLICT,
+            detail=_SESSION_CHANGED_MESSAGE,
         )
 
     session = await controller.service.get_session_durable(session_id)
     if session is None or session.get("user_id") != user["user_id"]:
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=_SESSION_AUTH_MESSAGE,
+            status_code=status.HTTP_409_CONFLICT,
+            detail=_SESSION_CHANGED_MESSAGE,
         )
     return user["user_id"]
 

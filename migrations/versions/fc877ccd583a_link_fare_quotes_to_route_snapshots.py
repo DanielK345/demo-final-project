@@ -45,4 +45,3 @@ def downgrade() -> None:
     op.drop_index("ix_fare_quotes_route_snapshot_id", table_name="fare_quotes")
     op.drop_constraint("fk_fare_quotes_route_snapshot_id", "fare_quotes", type_="foreignkey")
     op.drop_column("fare_quotes", "route_snapshot_id")
-

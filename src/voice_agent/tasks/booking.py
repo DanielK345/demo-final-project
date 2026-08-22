@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import re
 import unicodedata
 from collections.abc import Awaitable, Callable
@@ -34,6 +35,8 @@ from src.voice_agent.tools import (
     QuoteToolsService,
 )
 from src.voice_agent.transcript_rewrite import rewrite_livekit_user_turn
+
+logger = logging.getLogger(__name__)
 
 
 class BookingOutcome(BaseModel):
@@ -105,6 +108,19 @@ def requires_location_clarification(
     )
 
 
+def can_auto_select_place(candidates: list[object]) -> bool:
+    """Auto-select only one deterministic exact/alias gazetteer result.
+
+    Fuzzy results and landmarks with multiple pickup points remain explicit
+    clarification turns because a location is a booking-critical entity.
+    """
+
+    return len(candidates) == 1 and getattr(candidates[0], "provider", None) in {
+        "local_gazetteer",
+        "local_landmark_mock_exact",
+    }
+
+
 class BookingTask(AgentTask[BookingOutcome]):
     """Collect and validate one booking while preserving the single AloSM persona."""
 
@@ -140,8 +156,11 @@ class BookingTask(AgentTask[BookingOutcome]):
                 "LUXURY là xe cao cấp và VND là đồng. "
                 "Phải dùng search_place cho lời người dùng nói về địa điểm; không tự tạo place_id. "
                 "Chỉ dùng select_place với candidate_id có trong kết quả tìm kiếm hiện hành. "
+                "Nếu search_place báo đã tự chọn một kết quả khớp duy nhất thì không hỏi xác nhận "
+                "địa điểm đó lần nữa. Với kết quả mơ hồ, phải hỏi khách chọn candidate. "
                 "Thu thập đủ điểm đón, điểm đến và loại xe rồi gọi estimate_fare. "
-                "Sau khi có giá, gọi prepare_booking_confirmation và đọc lại đầy đủ thông tin. "
+                "estimate_fare đồng thời khóa báo giá ở trạng thái chờ xác nhận; đọc lại đầy đủ "
+                "thông tin mà tool trả về và không tự bỏ qua bước này. "
                 "Chỉ gọi confirm_booking khi lượt nói mới nhất của khách xác nhận đặt chuyến rõ ràng. "
                 "Chỉ gọi create_booking sau khi confirm_booking thành công. "
                 "Điểm đón, điểm đến và loại xe đã xác nhận là các trường đã khóa. Không được gọi "
@@ -151,7 +170,9 @@ class BookingTask(AgentTask[BookingOutcome]):
                 "phải được giữ nguyên. Hệ thống sẽ tự xoá giá và xác nhận cũ. Không được tự bịa giá, "
                 "ETA hoặc mã chuyến. "
                 "Nếu tool báo ASR_LOW_CONFIDENCE thì yêu cầu khách nói lại hoặc nhập tay. "
-                "Nếu khách yêu cầu gặp người thật hoặc không thể tiếp tục, gọi request_handoff."
+                "Nếu khách yêu cầu gặp người thật, tổng đài viên thật, nhân viên thật, operator hoặc yêu cầu chuyển máy, "
+                "bắt buộc gọi request_handoff ngay; không được nói bạn là người thật hay chưa có chức năng chuyển. "
+                "Nếu không thể tiếp tục cũng gọi request_handoff."
             ),
         )
 
@@ -188,6 +209,49 @@ class BookingTask(AgentTask[BookingOutcome]):
             if getattr(item, "role", None) == "user":
                 return item if isinstance(item, llm.ChatMessage) else None
         return None
+
+    async def _create_handoff(self, userdata: AloSMSessionData, reason: str) -> BookingOutcome:
+        room = getattr(getattr(self.session, "room_io", None), "room", None)
+        room_name = getattr(room, "name", None)
+        record = await self._handoffs.create(userdata, reason=reason, room_name=room_name)
+        userdata.handoff_requested = True
+        userdata.handoff = HandoffState(
+            handoff_id=str(record["handoff_id"]),
+            status="pending",
+            reason_code=str(record.get("reason_code") or "LIVEKIT_VOICE_HANDOFF"),
+            room_name=str(record.get("room_name") or room_name or "") or None,
+        )
+        userdata.record_failure(
+            "HANDOFF_REQUIRED",
+            "Yêu cầu đã được chuyển tới tổng đài viên.",
+            retryable=False,
+            fallback_action="handoff",
+        )
+        await self._state_store.save(userdata)
+        await publish_booking_state(self.session)
+        return BookingOutcome(
+            status="handoff",
+            message="Đã chuyển yêu cầu cùng trạng thái đặt xe hiện tại tới tổng đài viên.",
+        )
+
+    async def on_user_turn_completed(self, turn_ctx: llm.ChatContext, new_message: llm.ChatMessage) -> None:
+        # Human-handoff intent is booking-critical. Detect it before the task
+        # LLM responds so an ambiguous location turn cannot swallow the request.
+        if HandoffToolsService.is_handoff_request(new_message.text_content or ""):
+            try:
+                outcome = await self._create_handoff(self.session.userdata, new_message.text_content or "")
+            except Exception:
+                logger.exception("failed to create deterministic human handoff session=%s", self.session.userdata.app_session_id)
+                self.session.userdata.record_failure(
+                    "HANDOFF_REQUIRED",
+                    "Chưa thể tạo yêu cầu chuyển tổng đài viên.",
+                    retryable=True,
+                    fallback_action="retry",
+                )
+                await publish_booking_state(self.session)
+                return
+            if not self.done():
+                self.complete(outcome)
 
     async def _commit(self, context: RunContext[AloSMSessionData]) -> None:
         try:
@@ -266,6 +330,20 @@ class BookingTask(AgentTask[BookingOutcome]):
             )
             await self._commit(context)
             return "Không tìm thấy địa điểm trong dữ liệu demo. Hãy hỏi khách tên địa điểm khác hoặc rõ hơn."
+        if can_auto_select_place(candidates):
+            selected = draft.select_place(target, candidates[0].place_id)
+            context.userdata.clear_failure()
+            await self._commit(context)
+            return json.dumps(
+                {
+                    "target": target,
+                    "auto_selected": True,
+                    "place_id": selected.place_id,
+                    "display_name": selected.display_name,
+                    "instruction": "Đã tự chọn exact match duy nhất; tiếp tục trường còn thiếu, không hỏi lại.",
+                },
+                ensure_ascii=False,
+            )
         context.userdata.clear_failure()
         await self._commit(context)
         return json.dumps(
@@ -320,11 +398,21 @@ class BookingTask(AgentTask[BookingOutcome]):
 
     @function_tool()
     async def estimate_fare(self, context: RunContext[AloSMSessionData]) -> str:
-        """Create a deterministic demo quote after all required fields are resolved."""
+        """Create a quote and atomically move it to awaiting confirmation."""
         draft = self._draft(context)
         try:
-            quote = self._quotes.estimate(draft)
+            quote = await self._quotes.estimate(
+                user_id=context.userdata.user_id,
+                app_session_id=context.userdata.app_session_id,
+                draft=draft,
+            )
             draft.set_quote(quote)
+            # Awaiting-confirmation is a business invariant, not an optional
+            # second LLM tool choice. Keeping quote creation and confirmation
+            # preparation atomic prevents a valid spoken confirmation from
+            # failing when the model narrates the quote without calling another
+            # tool first.
+            draft.request_confirmation()
         except ValueError as exc:
             context.userdata.record_failure(
                 "QUOTE_UNAVAILABLE",
@@ -332,19 +420,6 @@ class BookingTask(AgentTask[BookingOutcome]):
                 fallback_action="retry",
             )
             await self._commit(context)
-            raise ToolError(str(exc)) from exc
-        context.userdata.clear_failure()
-        await self._commit(context)
-        return json.dumps(quote.model_dump(), ensure_ascii=False)
-
-    @function_tool()
-    async def prepare_booking_confirmation(self, context: RunContext[AloSMSessionData]) -> str:
-        """Freeze the current quote and return the exact summary that must be read to the customer."""
-        draft = self._draft(context)
-        try:
-            draft.request_confirmation()
-            quote = draft.quote_or_raise()
-        except ValueError as exc:
             raise ToolError(str(exc)) from exc
         context.userdata.clear_failure()
         await self._commit(context)
@@ -378,14 +453,17 @@ class BookingTask(AgentTask[BookingOutcome]):
         context.disallow_interruptions()
         draft = self._draft(context)
         try:
-            booking = self._bookings.create(
+            booking = await self._bookings.create(
+                user_id=context.userdata.user_id,
                 app_session_id=context.userdata.app_session_id,
                 draft=draft,
             )
             draft.set_booking(booking)
+            context.userdata.lifecycle_status = "completed"
         except ValueError as exc:
             raise ToolError(str(exc)) from exc
         except Exception as exc:
+            logger.exception("failed to create booking handoff session=%s", context.userdata.app_session_id)
             context.userdata.record_failure(
                 "BOOKING_RESULT_UNKNOWN",
                 "Chưa xác định được kết quả tạo chuyến; không tự động tạo lại.",
@@ -418,7 +496,7 @@ class BookingTask(AgentTask[BookingOutcome]):
         """
         context.disallow_interruptions()
         try:
-            record = await self._handoffs.create(context.userdata, reason=reason)
+            outcome = await self._create_handoff(context.userdata, reason)
         except Exception as exc:
             context.userdata.record_failure(
                 "HANDOFF_REQUIRED",
@@ -428,34 +506,23 @@ class BookingTask(AgentTask[BookingOutcome]):
             )
             await self._commit(context)
             raise ToolError("HANDOFF_CREATE_FAILED") from exc
-        context.userdata.handoff_requested = True
-        context.userdata.handoff = HandoffState(
-            handoff_id=str(record["handoff_id"]),
-            status="pending",
-            reason_code=str(record.get("reason_code") or "LIVEKIT_VOICE_HANDOFF"),
-        )
-        context.userdata.record_failure(
-            "HANDOFF_REQUIRED",
-            "Yêu cầu đã được chuyển tới tổng đài viên.",
-            retryable=False,
-            fallback_action="handoff",
-        )
-        await self._commit(context)
-        outcome = BookingOutcome(
-            status="handoff",
-            message="Đã chuyển yêu cầu cùng trạng thái đặt xe hiện tại tới tổng đài viên.",
-        )
         if not self.done():
             self.complete(outcome)
         return None
 
     @function_tool()
-    async def cancel_booking_flow(self, reason: str) -> None:
+    async def cancel_booking_flow(
+        self,
+        context: RunContext[AloSMSessionData],
+        reason: str,
+    ) -> None:
         """End this booking task when the customer explicitly cancels the flow.
 
         Args:
             reason: Short reason stated by the customer.
         """
+        context.userdata.lifecycle_status = "cancelled"
+        await self._commit(context)
         outcome = BookingOutcome(status="cancelled", message=f"Đã dừng đặt xe: {reason}.")
         if not self.done():
             self.complete(outcome)

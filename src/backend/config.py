@@ -1,7 +1,7 @@
 from functools import lru_cache
 from typing import Literal
 
-from pydantic import AliasChoices, Field
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -45,80 +45,32 @@ class Settings(BaseSettings):
     agent_rewrite_timeout_seconds: float = Field(default=5.0, gt=0)
     agent_rewrite_reasoning_effort: Literal["none", "low", "medium"] = "none"
 
-    # Voice prototype (STT/TTS)
-    google_api_key: str = Field(
-        default="",
-        validation_alias=AliasChoices("GOOGLE_API_KEY", "GEMINI_API_KEY"),
-    )
-    voice_provider: Literal["auto", "openai", "gemini", "zipformer"] = "auto"
-    voice_stt_model: str = "gpt-4o-transcribe"
-    # Used only after the configured/local STT provider is unavailable. Whisper
-    # is an STT model, so it must never be used as a fallback for Edge TTS.
-    voice_stt_fallback_model: str = "whisper-1"
-    # OpenAI is the primary TTS path for /voice/turn. Edge remains available as
-    # a local fallback when the speech API is unavailable or no key is set.
-    voice_tts_provider: Literal["openai", "edge"] = "openai"
-    voice_tts_model: str = "tts-1"
-    # Tên riêng cho giọng OpenAI của pipeline `/voice/turn`. Không nhận alias
-    # `VOICE_TTS_VOICE`: tên legacy đó thuộc Voice runtime Edge-TTS và từng làm
-    # OpenAI nhận nhầm tên giọng `vi-VN-*` không hợp lệ.
-    openai_tts_voice: str = Field(
-        default="nova",
-        validation_alias="VOICE_OPENAI_TTS_VOICE",
-    )
-
-    @property
-    def voice_tts_voice(self) -> str:
-        """OpenAI voice; deliberately isolated from legacy VOICE_TTS_VOICE."""
-        return self.openai_tts_voice
-    voice_gemini_model: str = "gemini-2.0-flash"
-    voice_timeout_seconds: float = Field(default=30.0, gt=0)
-    # Post-ASR guard for short filler/noise vocalisations that pass energy VAD.
-    voice_brief_ambiguous_sound_enabled: bool = True
-    voice_brief_ambiguous_sound_max_duration_ms: int = Field(default=700, ge=100, le=3000)
-    voice_brief_ambiguous_sound_max_confidence: float = Field(default=0.40, ge=0.0, le=1.0)
-
-    # Post-ASR Vietnamese correction. Only the current transcript is sent and
-    # phone/email/ID/number values are replaced with immutable placeholders.
-    voice_transcript_rewrite_enabled: bool = True
-    voice_transcript_rewrite_model: str = "openai/gpt-5.6-luna-pro"
-    voice_transcript_rewrite_base_url: str | None = "https://openrouter.ai/api/v1"
-    voice_transcript_rewrite_timeout_seconds: float = Field(default=5.0, gt=0)
-    voice_transcript_rewrite_reasoning_effort: Literal["none", "low", "medium"] = "none"
-    voice_transcript_rewrite_minimum_confidence: float = Field(default=0.85, ge=0.0, le=1.0)
-    # Bounded, privacy-redacted conversational memory for ASR normalization.
-    # One turn is at most one user and one assistant message.
-    voice_transcript_rewrite_context_window_turns: int = Field(default=3, ge=0, le=8)
-    voice_transcript_rewrite_memory_max_corrections: int = Field(default=6, ge=0, le=20)
-
-    # Legacy Gemini place rewriter compatibility. The active voice paths use
-    # VOICE_TRANSCRIPT_REWRITE_* above; retain these fields so importing the old
-    # adapter cannot crash after a merge. Disabled by default to avoid a second
-    # LLM rewrite of the same transcript.
-    asr_place_rewrite_enabled: bool = False
-    asr_place_rewrite_model: str = "gemini-2.0-flash"
-    asr_place_rewrite_timeout_seconds: float = Field(default=3.0, gt=0)
-
     def llm_api_key_for(self, base_url: str | None) -> str:
         """Select a gateway credential without reusing it for speech APIs."""
         if base_url and "openrouter.ai" in base_url.lower():
             return self.openrouter_api_key
         return self.openai_api_key
 
-    # Database — DATABASE_URL dùng cho app runtime (Supabase Transaction Pooler,
-    # cổng 6543, driver async asyncpg khi deploy thật — xem docs/database_supabase.md).
+    # Database — persistent backends should use a Supabase direct/session endpoint
+    # (port 5432) with the bounded application pool below. Transaction endpoints
+    # (port 6543) are detected and kept on NullPool unless explicitly overridden.
     # DATABASE_URL_MIGRATIONS (optional) dùng riêng cho Alembic (Direct Connection,
     # cổng 5432, driver sync psycopg2) — để trống thì Alembic dùng lại DATABASE_URL.
     database_url: str = "sqlite:///./data/app.db"
     database_url_migrations: str = ""
     database_readiness_timeout_seconds: float = Field(default=2.0, gt=0, le=30)
+    database_pool_mode: Literal["auto", "bounded", "null"] = "auto"
+    database_pool_size: int = Field(default=5, ge=1, le=50)
+    database_pool_max_overflow: int = Field(default=5, ge=0, le=50)
+    database_pool_timeout_seconds: float = Field(default=5.0, gt=0, le=60)
+    database_pool_recycle_seconds: int = Field(default=300, ge=30, le=3600)
     quote_signing_key: str = ""
     field_encryption_key: str = ""
 
     # ---- Maps / Geocoding / Routing ----
-    # Provider-neutral config. MAPS_PROVIDER selects the active stack ("osm" or "openstreetmap").
-    maps_provider: str = "osm"
-    maps_api_key: str = ""   # Not required for public/self-hosted Nominatim/OSRM
+    # Provider-neutral config. MAPS_PROVIDER selects the active stack.
+    maps_provider: str = ""  # "osm" to enable Nominatim + OSRM
+    maps_api_key: str = ""  # Not required for self-hosted Nominatim/OSRM
     maps_base_url: str = ""
 
     # Geocoding (Nominatim)

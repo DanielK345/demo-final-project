@@ -304,11 +304,7 @@ def _tool_names(turn: dict[str, object]) -> list[str]:
 def _decision_names(turn: dict[str, object]) -> list[str]:
     calls = turn["semantic_decisions"]
     assert isinstance(calls, list)
-    return [
-        str(call["tool"])
-        for call in calls
-        if isinstance(call, dict) and "tool" in call
-    ]
+    return [str(call["tool"]) for call in calls if isinstance(call, dict) and "tool" in call]
 
 
 def _state(turn: dict[str, object]) -> dict[str, object]:
@@ -592,14 +588,9 @@ async def case_change_vehicle() -> dict[str, object]:
 
 
 async def case_out_of_scope() -> dict[str, object]:
-    message = (
-        "Mình chỉ hỗ trợ đặt xe và các vấn đề chuyến đi của AloSM. "
-        "Bạn có muốn đặt một chuyến xe không?"
-    )
+    message = "Mình chỉ hỗ trợ đặt xe và các vấn đề chuyến đi của AloSM. Bạn có muốn đặt một chuyến xe không?"
     harness = _new_harness(tool("respond", message=message, expects_response=True))
-    conversation = [
-        await harness.turn("Viết giúp tôi một chương trình Python quản lý kho")
-    ]
+    conversation = [await harness.turn("Viết giúp tôi một chương trình Python quản lý kho")]
     turn = conversation[0]
     assistant = turn["assistant"]
     assert isinstance(assistant, dict)
@@ -713,10 +704,7 @@ async def execute_case(definition: CaseDefinition) -> dict[str, object]:
         result = await definition.function()
         assertions = result.get("assertions")
         assert isinstance(assertions, list)
-        passed = all(
-            isinstance(assertion, dict) and assertion.get("passed") is True
-            for assertion in assertions
-        )
+        passed = all(isinstance(assertion, dict) and assertion.get("passed") is True for assertion in assertions)
         return {
             "id": definition.case_id,
             "title": definition.title,
@@ -751,11 +739,7 @@ def run_selected_pytest() -> dict[str, object]:
         text=True,
         check=False,
     )
-    output = "\n".join(
-        part.strip()
-        for part in (completed.stdout, completed.stderr)
-        if part.strip()
-    )
+    output = "\n".join(part.strip() for part in (completed.stdout, completed.stderr) if part.strip())
     return {
         "command": " ".join(command),
         "selected_tests": SELECTED_TESTS,
@@ -808,11 +792,7 @@ async def main() -> int:
             "passed": passed,
             "failed": len(cases) - passed,
             "pytest_exit_code": pytest_result["exit_code"],
-            "overall_status": (
-                "passed"
-                if passed == len(cases) and pytest_result["exit_code"] == 0
-                else "failed"
-            ),
+            "overall_status": ("passed" if passed == len(cases) and pytest_result["exit_code"] == 0 else "failed"),
         },
         "pytest": pytest_result,
         "case_files": case_files,

@@ -8,7 +8,6 @@ from src.backend.services.agent_tool_executor import AgentToolExecutor
 from src.backend.services.booking_service import BookingService
 from src.backend.services.pricing_service import PricingService
 from src.backend.services.session_service import SessionService
-from src.backend.services.transcript_rewriter import _minimal_context
 
 
 class _ScriptedConversationModel:
@@ -85,12 +84,6 @@ async def test_vinuni_to_ho_guom_can_reach_confirmation_and_create_booking():
     assert "xác nhận điểm đón cụ thể" in pickup_question["message"]
     assert "Cổng chính VinUni" in pickup_question["message"]
     assert "Cổng ký túc xá VinUni" in pickup_question["message"]
-    rewrite_context = _minimal_context(service.get_session(str(session_id)))
-    assert rewrite_context["location_selection"]["target"] == "pickup"
-    assert "cổng thành cũng" in rewrite_context["location_selection"]["candidates"][0][
-        "asr_aliases"
-    ]
-
     destination_question = await service.process_message(
         str(session_id),
         "Tôi chọn cổng chính VinUni",

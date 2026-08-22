@@ -1,6 +1,6 @@
 """LiveKit-native AloSM voice-agent runtime.
 
-This package is intentionally isolated from the legacy ``src.voice`` runtime.
+This package owns the production realtime voice runtime.
 Migration phases must not route LiveKit sessions through the old orchestration
 loop.
 """

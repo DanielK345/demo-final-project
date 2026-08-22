@@ -77,16 +77,13 @@ class TurnSession:
         return {
             "event": self.event,
             "state": {
-                "active_capability": (
-                    self.updates.get("current_workflow", self.state.current_workflow)
-                ),
+                "active_capability": (self.updates.get("current_workflow", self.state.current_workflow)),
                 "confirmation": self.updates.get("confirmation", self.state.confirmation),
                 "booking": booking,
                 "trip_lookup": self.trip.model_dump(mode="json"),
                 "faq": self.faq.model_dump(mode="json"),
             },
             "conversation_history": [
-                {"role": item.role.value, "content": item.content}
-                for item in self.state.conversation_history[-8:]
+                {"role": item.role.value, "content": item.content} for item in self.state.conversation_history[-8:]
             ],
         }

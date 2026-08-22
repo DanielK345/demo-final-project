@@ -14,7 +14,6 @@ primary_region = "sin" # Singapore region for lowest latency to Vietnam
 [env]
   APP_ENV = "production"
   PORT = "8000"
-  VOICE_RUNTIME = "livekit"
   LOG_LEVEL = "INFO"
 
 [http_service]

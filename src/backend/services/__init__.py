@@ -7,16 +7,14 @@ from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from src.backend.services.booking_service import BookingService
-    from src.backend.services.call_service import CallService
     from src.backend.services.handoff_service import HandoffService
     from src.backend.services.session_service import SessionService
     from src.backend.services.trip_service import TripService
 
-__all__ = ["BookingService", "CallService", "HandoffService", "SessionService", "TripService"]
+__all__ = ["BookingService", "HandoffService", "SessionService", "TripService"]
 
 _EXPORTS = {
     "BookingService": "src.backend.services.booking_service",
-    "CallService": "src.backend.services.call_service",
     "HandoffService": "src.backend.services.handoff_service",
     "SessionService": "src.backend.services.session_service",
     "TripService": "src.backend.services.trip_service",

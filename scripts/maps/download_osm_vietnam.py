@@ -57,7 +57,11 @@ def download(output_dir: Path, *, force: bool = False) -> None:
                     downloaded += len(chunk)
                     if total > 0:
                         pct = downloaded / total * 100
-                        print(f"\r  Progress: {downloaded / (1024*1024):.1f} / {total / (1024*1024):.1f} MB ({pct:.1f}%)", end="", flush=True)
+                        print(
+                            f"\r  Progress: {downloaded / (1024 * 1024):.1f} / {total / (1024 * 1024):.1f} MB ({pct:.1f}%)",
+                            end="",
+                            flush=True,
+                        )
 
             elapsed = time.monotonic() - start
             size_mb = target.stat().st_size / (1024 * 1024)

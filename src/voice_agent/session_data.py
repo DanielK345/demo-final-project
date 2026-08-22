@@ -24,6 +24,7 @@ FailureCode = Literal[
     "HANDOFF_REQUIRED",
 ]
 FallbackAction = Literal["repeat_or_text", "retry", "handoff", "none"]
+SessionLifecycle = Literal["active", "completed", "cancelled"]
 
 _VEHICLE_SPOKEN_LABELS: dict[VehicleType, str] = {
     "MOTORBIKE": "xe máy",
@@ -105,8 +106,10 @@ class HandoffState(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     handoff_id: str
-    status: Literal["pending", "accepted", "resolved"] = "pending"
+    status: Literal["pending", "accepted", "connected", "resolved", "failed"] = "pending"
     reason_code: str
+    operator_id: str | None = None
+    room_name: str | None = None
 
 
 class TranscriptCorrectionMemory(BaseModel):
@@ -332,6 +335,7 @@ class AloSMSessionData(BaseModel):
     recovered: bool = False
     last_failure: VoiceFailure | None = None
     handoff: HandoffState | None = None
+    lifecycle_status: SessionLifecycle = "active"
 
     def remember_rewrite(self, raw_text: str, normalized_text: str, *, limit: int) -> None:
         """Keep a bounded call-local correction memory without durable transcript retention."""
@@ -357,6 +361,7 @@ class AloSMSessionData(BaseModel):
             "booking_draft": self.booking_draft.model_dump(mode="json"),
             "last_failure": (self.last_failure.model_dump(mode="json") if self.last_failure else None),
             "handoff": self.handoff.model_dump(mode="json") if self.handoff else None,
+            "lifecycle_status": self.lifecycle_status,
         }
 
     def restore(self, state: dict[str, object], revision: int) -> None:
@@ -366,6 +371,10 @@ class AloSMSessionData(BaseModel):
         self.last_failure = VoiceFailure.model_validate(state["last_failure"]) if state.get("last_failure") else None
         self.handoff = HandoffState.model_validate(state["handoff"]) if state.get("handoff") else None
         self.handoff_requested = self.handoff is not None
+        lifecycle = state.get("lifecycle_status") or "active"
+        if lifecycle not in {"active", "completed", "cancelled"}:
+            raise ValueError("VOICE_SESSION_LIFECYCLE_UNSUPPORTED")
+        self.lifecycle_status = lifecycle
         self.persistence_revision = revision
         self.recovered = True
 

@@ -113,10 +113,7 @@ def _correction_has_raw_evidence(
 
 def _raw_contains_phone(raw_transcript: str, value: str) -> bool:
     expected = _normalize_phone(value)
-    return any(
-        normalize_phone(match.group()) == expected
-        for match in PHONE_CANDIDATE_PATTERN.finditer(raw_transcript)
-    )
+    return any(normalize_phone(match.group()) == expected for match in PHONE_CANDIDATE_PATTERN.finditer(raw_transcript))
 
 
 def _normalize_phone(value: str) -> str:

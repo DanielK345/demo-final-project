@@ -110,8 +110,15 @@ class TestPlaceResolutionStatus:
     """Place resolution state machine (§17, §38)."""
 
     def test_all_states_exist(self):
-        expected = {"UNRESOLVED", "CANDIDATES", "RESOLVED", "AMBIGUOUS",
-                    "NOT_FOUND", "OUT_OF_SERVICE_AREA", "PROVIDER_ERROR"}
+        expected = {
+            "UNRESOLVED",
+            "CANDIDATES",
+            "RESOLVED",
+            "AMBIGUOUS",
+            "NOT_FOUND",
+            "OUT_OF_SERVICE_AREA",
+            "PROVIDER_ERROR",
+        }
         actual = {s.value for s in PlaceResolutionStatus}
         assert expected == actual
 

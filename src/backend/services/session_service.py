@@ -62,8 +62,12 @@ class SessionService:
     ) -> dict[str, object]:
         if not self._durable:
             return self.create_session(user_id, channel, device_id, phone=phone)
-        session = await self._repository.create_session(user_id=user_id, channel=channel, device_id=device_id, phone=phone)
-        self._conversation_logger.start_session(session_id=str(session["session_id"]), user_id=user_id, channel=channel, device_id=device_id)
+        session = await self._repository.create_session(
+            user_id=user_id, channel=channel, device_id=device_id, phone=phone
+        )
+        self._conversation_logger.start_session(
+            session_id=str(session["session_id"]), user_id=user_id, channel=channel, device_id=device_id
+        )
         return {key: session[key] for key in ("session_id", "status", "channel", "created_at")}
 
     async def get_session_durable(self, session_id: str) -> dict[str, object]:
@@ -90,7 +94,9 @@ class SessionService:
         if not self._durable:
             return self.end_session(session_id, reason)
         ended_at = datetime.now(UTC)
-        updated = await self._repository.update_session(session_id, {"status": "ENDED", "end_reason": reason, "ended_at": ended_at})
+        updated = await self._repository.update_session(
+            session_id, {"status": "ENDED", "end_reason": reason, "ended_at": ended_at}
+        )
         if updated is None:
             raise KeyError("Không tìm thấy phiên hội thoại")
         return {"session_id": session_id, "status": "ENDED", "ended_at": ended_at.isoformat()}
@@ -101,11 +107,31 @@ class SessionService:
         current = await self.get_session_durable(session_id)
         if current.get("status") != "ACTIVE":
             raise ValueError("Chỉ có thể đặt lại một phiên hội thoại đang hoạt động")
-        fields = {"intent": None, "pickup": None, "destination": None, "vehicle_type": None, "confirmation_status": "pending", "failed_count": 0, "booking_id": None, "handoff_triggered": False, "handoff_id": None, "booking_lifecycle_status": None, "feedback": None, "current_workflow": None, "current_step": None, "agent_state": None, "turn_sequence": 0}
+        fields = {
+            "intent": None,
+            "pickup": None,
+            "destination": None,
+            "vehicle_type": None,
+            "confirmation_status": "pending",
+            "failed_count": 0,
+            "booking_id": None,
+            "handoff_triggered": False,
+            "handoff_id": None,
+            "booking_lifecycle_status": None,
+            "feedback": None,
+            "current_workflow": None,
+            "current_step": None,
+            "agent_state": None,
+            "voice_agent_state": None,
+            "voice_state_revision": 0,
+            "turn_sequence": 0,
+        }
         await self.update_session_durable(session_id, fields)
         return {"session_id": session_id, "status": "ACTIVE", "reset_at": datetime.now(UTC).isoformat()}
 
-    async def submit_feedback_durable(self, session_id: str, rating: int, comment: str | None = None) -> dict[str, object]:
+    async def submit_feedback_durable(
+        self, session_id: str, rating: int, comment: str | None = None
+    ) -> dict[str, object]:
         if not self._durable:
             return self.submit_feedback(session_id, rating, comment)
         current = await self.get_session_durable(session_id)
@@ -222,6 +248,8 @@ class SessionService:
                 "current_workflow": None,
                 "current_step": None,
                 "agent_state": None,
+                "voice_agent_state": None,
+                "voice_state_revision": 0,
                 "turn_sequence": 0,
             }
         )
@@ -246,10 +274,8 @@ class SessionService:
         if session["status"] != "ACTIVE":
             raise ValueError("Phiên hội thoại đã kết thúc")
 
-        # ASR rewriting is owned by VoiceService (REST) and VoiceGateway (WS),
-        # where the STT provider, gazetteer and rewrite trace are available.
-        # Rewriting here used a second, stale Gemini implementation after the
-        # merge, which both duplicated LLM calls and referenced removed config.
+        # Voice input reaches this service only after LiveKit has produced the
+        # final transcript. Text input uses the same normalization boundary.
         normalized_message = message.strip()
 
         user_id = session.get("user_id")
@@ -385,9 +411,7 @@ class SessionService:
             if lifecycle:
                 session["booking_lifecycle_status"] = lifecycle
 
-        session["current_workflow"] = (
-            agent_state.current_workflow.value if agent_state.current_workflow else None
-        )
+        session["current_workflow"] = agent_state.current_workflow.value if agent_state.current_workflow else None
         session["current_step"] = agent_state.current_step
         session["handoff_triggered"] = action.action_type is action_type.HANDOFF
         if action.action_type is action_type.END_SESSION:

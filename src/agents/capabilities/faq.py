@@ -48,7 +48,8 @@ def register_faq(registry: ToolRegistry, policy: AgentPolicy) -> None:
         assert isinstance(payload, RetrieveKnowledgeResult)
         now = datetime.now(UTC)
         documents = [
-            item for item in payload.documents
+            item
+            for item in payload.documents
             if item.score >= policy.min_knowledge_score
             and (item.effective_at is None or item.effective_at <= now)
             and (item.expires_at is None or item.expires_at > now)
@@ -58,10 +59,12 @@ def register_faq(registry: ToolRegistry, policy: AgentPolicy) -> None:
         session.persist("faq")
         session.updates.update(clear_pending_tool_updates())
         session.updates.update(current_step=None, retry_count=0)
-        return ContinueToolLoop({
-            "knowledge_result": [item.model_dump(mode="json") for item in documents],
-            "grounding_rule": "Chỉ trả lời từ tài liệu này; nếu rỗng phải nói chưa có thông tin.",
-        })
+        return ContinueToolLoop(
+            {
+                "knowledge_result": [item.model_dump(mode="json") for item in documents],
+                "grounding_rule": "Chỉ trả lời từ tài liệu này; nếu rỗng phải nói chưa có thông tin.",
+            }
+        )
 
     registry.register(RegisteredTool(definition("retrieve_knowledge"), retrieve))
     registry.register_reducer(ToolName.RETRIEVE_KNOWLEDGE, reduce)

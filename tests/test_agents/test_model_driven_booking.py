@@ -39,7 +39,9 @@ def apply(state: AgentState, action) -> AgentState:
 
 @pytest.mark.asyncio
 async def test_active_booking_greeting_is_answered_naturally_without_becoming_a_place():
-    model = ScriptedConversationModel(ModelDecision(message="Chào bạn! Mình vẫn đang giữ yêu cầu đặt xe. Bạn muốn đón ở đâu?"))
+    model = ScriptedConversationModel(
+        ModelDecision(message="Chào bạn! Mình vẫn đang giữ yêu cầu đặt xe. Bạn muốn đón ở đâu?")
+    )
     agent = LLMAgent(conversation_model=model)
     state = AgentState(
         session_id="session-1",
@@ -60,7 +62,9 @@ async def test_active_booking_greeting_is_answered_naturally_without_becoming_a_
 
 @pytest.mark.asyncio
 async def test_greeting_does_not_start_an_empty_booking_workflow():
-    agent = LLMAgent(conversation_model=ScriptedConversationModel(ModelDecision(message="Chào bạn! Tôi có thể giúp gì?")))
+    agent = LLMAgent(
+        conversation_model=ScriptedConversationModel(ModelDecision(message="Chào bạn! Tôi có thể giúp gì?"))
+    )
     state = AgentState(session_id="session-1")
 
     action = await agent.handle(
@@ -75,9 +79,7 @@ async def test_greeting_does_not_start_an_empty_booking_workflow():
 
 @pytest.mark.asyncio
 async def test_trip_lookup_remains_an_external_backend_tool():
-    agent = LLMAgent(
-        conversation_model=ScriptedConversationModel(tool("lookup_trip", booking_id="BK-123"))
-    )
+    agent = LLMAgent(conversation_model=ScriptedConversationModel(tool("lookup_trip", booking_id="BK-123")))
     state = AgentState(session_id="session-1")
 
     action = await agent.handle(
@@ -187,11 +189,17 @@ async def test_faq_response_is_grounded_in_current_backend_documents():
                 tool_name="retrieve_knowledge",
                 call_id="rag-1",
                 status=ToolStatus.SUCCESS,
-                data={"documents": [
-                    {"content": "Miễn phí chờ 5 phút", "source": "policy/2026", "score": 0.95,
-                     "citation_id": "wait-policy"},
-                    {"content": "Nội dung yếu", "source": "old", "score": 0.2},
-                ]},
+                data={
+                    "documents": [
+                        {
+                            "content": "Miễn phí chờ 5 phút",
+                            "source": "policy/2026",
+                            "score": 0.95,
+                            "citation_id": "wait-policy",
+                        },
+                        {"content": "Nội dung yếu", "source": "old", "score": 0.2},
+                    ]
+                },
             ),
         ),
         state,
@@ -228,9 +236,7 @@ async def test_transient_model_failure_keeps_state_and_only_handoffs_after_thres
     state = AgentState(
         session_id="session-1",
         current_workflow=WorkflowType.RIDE_BOOKING,
-        collected_data={
-            "booking": BookingData(destination_query="bệnh viện").model_dump(mode="json")
-        },
+        collected_data={"booking": BookingData(destination_query="bệnh viện").model_dump(mode="json")},
     )
 
     first = await agent.handle(
@@ -253,10 +259,7 @@ async def test_transient_model_failure_keeps_state_and_only_handoffs_after_thres
     assert second.action_type is ActionType.ASK_USER
     assert first.state_updates["model_failure_count"] == 1
     assert second.state_updates["model_failure_count"] == 2
-    assert (
-        state_after_first_failure.collected_data["booking"]["destination_query"]
-        == "bệnh viện"
-    )
+    assert state_after_first_failure.collected_data["booking"]["destination_query"] == "bệnh viện"
     assert third.action_type is ActionType.HANDOFF
     assert third.state_updates["model_failure_count"] == 3
 

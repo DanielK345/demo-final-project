@@ -165,8 +165,7 @@ class OSRMProvider(RoutingProvider):
         d_lon = validate_longitude(dest_lon)
 
         # CRITICAL: OSRM uses longitude,latitude ordering
-        steps_param = "true" if steps else "false"
-        path = f"/route/v1/{profile}/{p_lon},{p_lat};{d_lon},{d_lat}?overview=full&geometries=geojson&steps={steps_param}&alternatives=false"
+        path = f"/route/v1/{profile}/{p_lon},{p_lat};{d_lon},{d_lat}?overview=full&geometries=geojson&steps=false"
 
         data = await self._get(path)
 

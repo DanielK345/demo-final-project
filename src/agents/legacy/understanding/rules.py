@@ -1,6 +1,7 @@
 import re
 
 from src.agents.core.phone_policy import extract_valid_mobile_phone, normalize_phone
+from src.agents.faq_intent import is_faq_query
 from src.agents.legacy.understanding.booking import extract_passenger_count, extract_vehicle
 from src.agents.legacy.understanding.models import (
     BookingSelection,
@@ -105,7 +106,15 @@ class RuleBasedUnderstanding:
         "không cho tôi xuống xe",
         "tai nạn",
     )
-    _FAQ_TERMS = ("dịch vụ", "giá", "thanh toán", "chính sách", "hoạt động")
+    _FAQ_TERMS = (
+        "dịch vụ",
+        "giá",
+        "phí",
+        "thanh toán",
+        "hoàn tiền",
+        "chính sách",
+        "hoạt động",
+    )
     _CONFIRM_TERMS = ("đúng", "đồng ý", "xác nhận", "đặt đi", "đặt giúp")
     _REJECT_TERMS = ("không", "chưa", "hủy", "sai rồi")
 
@@ -122,7 +131,7 @@ class RuleBasedUnderstanding:
             intent = UnderstandingIntent.RIDE_BOOKING
         elif any(term in normalized for term in self._LOOKUP_TERMS):
             intent = UnderstandingIntent.TRIP_LOOKUP
-        elif any(term in normalized for term in self._FAQ_TERMS):
+        elif is_faq_query(transcript) or any(term in normalized for term in self._FAQ_TERMS):
             intent = UnderstandingIntent.FAQ
 
         route = _ROUTE_PATTERN.search(transcript)
@@ -169,22 +178,14 @@ class RuleBasedUnderstanding:
         correction_requested = _GENERIC_CORRECTION.search(transcript) is not None
         if correction_requested and not corrections:
             field = next(
-                (
-                    candidate
-                    for candidate, pattern in _CORRECTION_FIELDS
-                    if pattern.search(transcript)
-                ),
+                (candidate for candidate, pattern in _CORRECTION_FIELDS if pattern.search(transcript)),
                 None,
             )
             if field is not None:
                 corrections.append(Correction(field=field))
         if context.current_step == "SELECT_CORRECTION_FIELD" and not corrections:
             field = next(
-                (
-                    candidate
-                    for candidate, pattern in _CORRECTION_FIELDS
-                    if pattern.search(transcript)
-                ),
+                (candidate for candidate, pattern in _CORRECTION_FIELDS if pattern.search(transcript)),
                 None,
             )
             if field is not None:
@@ -197,11 +198,7 @@ class RuleBasedUnderstanding:
             confirmation = ConfirmationIntent.CONFIRM
 
         pickup_query = route.group("pickup").strip(" .") if route else None
-        destination_query = (
-            self._clean_destination_query(route.group("destination"))
-            if route
-            else None
-        )
+        destination_query = self._clean_destination_query(route.group("destination")) if route else None
         if (
             route is None
             and confirmation is ConfirmationIntent.NOT_APPLICABLE
@@ -223,9 +220,7 @@ class RuleBasedUnderstanding:
             intent=intent,
             pickup_query=pickup_query,
             destination_query=destination_query,
-            phone_number=(
-                phone_number
-            ),
+            phone_number=(phone_number),
             vehicle_type=extract_vehicle(transcript),
             passenger_count=extract_passenger_count(transcript),
             luggage_count=self._extract_count(transcript, _LUGGAGE_PATTERN),

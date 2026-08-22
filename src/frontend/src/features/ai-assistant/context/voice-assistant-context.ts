@@ -1,7 +1,6 @@
 import { createContext } from "react";
 import type { BookingLifecycleStatus, BookingProgress } from "@/features/ride/api";
 import type { CompletedBooking } from "@/features/ai-assistant/components/BookingSuccessPanel";
-import type { TranscriptRewriteTrace } from "@/features/voice/api";
 
 // Tách riêng khỏi VoiceAssistantContext.tsx: file đó chỉ nên export component
 // (Fast Refresh của Vite yêu cầu file component không lẫn export khác — oxlint
@@ -19,7 +18,6 @@ export type Message = {
   id: string;
   role: "user" | "assistant";
   text: string;
-  transcriptRewrite?: TranscriptRewriteTrace;
 };
 
 export interface VoiceAssistantValue {
@@ -44,9 +42,8 @@ export interface VoiceAssistantValue {
   sessionId: string | null;
   sessionEnded: boolean;
   sendText: (value: string) => Promise<void>;
-  handleVoiceRecorded: (audio: Blob) => Promise<void>;
   endSession: () => Promise<void>;
-  newSession: () => Promise<void>;
+  newSession: () => Promise<boolean>;
   resetConversation: () => Promise<void>;
 
   // Tiến trình đặt xe (đổ trực tiếp từ state thật trả về mỗi lượt — không tự bịa field)
@@ -74,10 +71,6 @@ export interface VoiceAssistantValue {
   openTranscript: (sessionId: string) => void;
   closeTranscript: () => void;
 
-  // Voice Call Mode
-  isMuted: boolean;
-  toggleMuted: () => void;
-  reportError: (message: string) => void;
 }
 
 export const VoiceAssistantContext = createContext<VoiceAssistantValue | null>(null);

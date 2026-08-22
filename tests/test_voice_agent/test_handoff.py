@@ -43,3 +43,9 @@ async def test_handoff_summary_excludes_raw_query_and_full_address() -> None:
     assert "VinUni" in summary
     assert "câu ASR thô" not in summary
     assert "Địa chỉ đầy đủ" not in summary
+
+
+def test_handoff_intent_detects_human_request_before_llm_response() -> None:
+    assert HandoffToolsService.is_handoff_request("Chuyển cho tôi gặp người thật đi")
+    assert HandoffToolsService.is_handoff_request("Tôi muốn gặp tổng đài viên thật")
+    assert not HandoffToolsService.is_handoff_request("Tôi muốn đổi điểm đón")

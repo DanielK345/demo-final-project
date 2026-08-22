@@ -10,7 +10,7 @@ quyền cao hơn ví dụ trong tài liệu. Agent tool contract nằm tại
 
 | Miền | Endpoint chính |
 |---|---|
-| Health | `GET /health`, `/ready`; ASR `/health/live`, `/health/ready`, `/metrics` |
+| Health | `GET /health`, `/ready` |
 | Auth | `POST /api/v1/auth/register`, `/login`, `/2fa/*`, `/change-password`; `GET /auth/me` |
 | Policy | `GET /api/v1/policies/current`, `/policies/current/source`; register bắt buộc policy versions |
 | Session | `POST /api/v1/sessions`, `GET/PATCH /sessions/{id}`, `POST /messages`, `/resume`, `/feedback`, `/end` |
@@ -19,12 +19,10 @@ quyền cao hơn ví dụ trong tài liệu. Agent tool contract nằm tại
 | Trip | `GET /api/v1/trips/status` |
 | Handoff | `POST/GET /api/v1/handoffs`, `POST /handoffs/{id}/accept` |
 | Settings | `GET/PUT /api/v1/users/me/settings` |
-| Voice | `POST /api/v1/voice/turn`, `/speak`; health/metrics dưới `/api/v1/voice/*` |
-| Local ASR | `POST /v1/audio/transcriptions` |
+| LiveKit | connection details/token endpoints dưới `/api/v1/livekit/*` |
 | Compatibility | `POST /api/v1/chat`, `GET /api/v1/status` |
 
-WebSocket: `/api/v1/voice/stream` cho Voice Gateway và
-`/api/v1/calls/{call_id}/stream` cho call transport hiện hành.
+Media, transcript và data-channel realtime đi qua LiveKit Room.
 
 ## Shared rules
 
@@ -41,7 +39,7 @@ WebSocket: `/api/v1/voice/stream` cho Voice Gateway và
 
 ```text
 POST /sessions
-  -> POST /sessions/{id}/messages hoặc Voice turn
+  -> POST /sessions/{id}/messages hoặc LiveKit AgentSession
   -> Backend adapter gọi Core Agent
   -> apply state_updates
   -> execute CALL_TOOL nếu có
@@ -52,14 +50,12 @@ POST /sessions
 Action hợp lệ: `ASK_USER`, `RESPOND`, `CALL_TOOL`, `HANDOFF`, `END_SESSION`.
 Chỉ `CALL_TOOL` chứa `tool_call`.
 
-## Voice contracts
+## LiveKit voice contracts
 
-- `/voice/turn`: multipart audio + session, trả transcript/rewrite metadata,
-  assistant text và optional validated audio/TTS metadata.
-- `/voice/speak`: JSON text + review context, trả audio và `X-TTS-*` headers.
-- `/voice/stream`: control JSON + PCM16 binary; server trả status/transcript/
-  message/handoff/error JSON và `audio_meta` trước binary TTS.
-- Không route nào được trả transcript/audio giả khi provider unavailable.
+- Backend cấp participant token ngắn hạn và chỉ sau khi kiểm tra auth/session ownership.
+- Browser publish microphone và nhận audio/transcript qua LiveKit Room.
+- Worker publish booking/handoff state qua data channel; side effect vẫn qua typed backend tools.
+- LiveKit API key/secret không được xuất hiện trong payload frontend.
 
 ## Error behavior
 

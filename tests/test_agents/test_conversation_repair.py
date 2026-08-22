@@ -112,9 +112,7 @@ def test_repeat_returns_only_the_spoken_part_of_interrupted_message():
 def test_repeat_asks_for_a_new_request_without_audible_history():
     state = AgentState(
         session_id="session-001",
-        conversation_history=[
-            assistant_message("turn-001", "Không phát được", DeliveryStatus.FAILED)
-        ],
+        conversation_history=[assistant_message("turn-001", "Không phát được", DeliveryStatus.FAILED)],
     )
 
     action = repair(DialogueAct.REPEAT, state)

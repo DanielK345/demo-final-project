@@ -1,0 +1,156 @@
+{
+  "llm_node_ttft_ms": {
+    "count": 30,
+    "p50": 1257.593,
+    "p90": 1979.021,
+    "p95": 2417.955,
+    "worst": 2898.906
+  },
+  "playback_latency_ms": {
+    "count": 30,
+    "p50": 0.4,
+    "p90": 0.546,
+    "p95": 0.746,
+    "worst": 4.739
+  },
+  "tts_node_ttfb_ms": {
+    "count": 30,
+    "p50": 246.772,
+    "p90": 461.713,
+    "p95": 707.929,
+    "worst": 1221.997
+  },
+  "worker_agent_session_built_duration_ms": {
+    "count": 30,
+    "p50": 922.882,
+    "p90": 1617.946,
+    "p95": 1750.117,
+    "worst": 2044.949
+  },
+  "worker_agent_session_built_elapsed_ms": {
+    "count": 30,
+    "p50": 4095.576,
+    "p90": 6312.078,
+    "p95": 8831.498,
+    "worst": 22009.175
+  },
+  "worker_greeting_requested_elapsed_ms": {
+    "count": 30,
+    "p50": 6032.492,
+    "p90": 9042.125,
+    "p95": 13748.565,
+    "worst": 24812.16
+  },
+  "worker_initial_state_published_elapsed_ms": {
+    "count": 30,
+    "p50": 6031.328,
+    "p90": 9041.297,
+    "p95": 13747.619,
+    "worst": 24810.124
+  },
+  "worker_job_entry_elapsed_ms": {
+    "count": 30,
+    "p50": 0.673,
+    "p90": 1.174,
+    "p95": 2.518,
+    "worst": 5.075
+  },
+  "worker_session_start_called_elapsed_ms": {
+    "count": 30,
+    "p50": 4095.932,
+    "p90": 6312.384,
+    "p95": 8831.883,
+    "worst": 22009.444
+  },
+  "worker_session_started_duration_ms": {
+    "count": 30,
+    "p50": 1485.25,
+    "p90": 1795.785,
+    "p95": 4599.717,
+    "worst": 7206.502
+  },
+  "worker_session_started_elapsed_ms": {
+    "count": 30,
+    "p50": 5669.979,
+    "p90": 8631.59,
+    "p95": 13431.606,
+    "worst": 23669.949
+  },
+  "worker_state_restore_completed_duration_ms": {
+    "count": 30,
+    "p50": 3117.438,
+    "p90": 5214.041,
+    "p95": 6971.057,
+    "worst": 20168.691
+  },
+  "worker_state_restore_completed_elapsed_ms": {
+    "count": 30,
+    "p50": 3157.722,
+    "p90": 5261.231,
+    "p95": 7094.28,
+    "worst": 20258.495
+  },
+  "tool_duration_ms": {
+    "count": 0,
+    "p50": null,
+    "p90": null,
+    "p95": null,
+    "worst": null
+  },
+  "agent_join_after_room_ms": {
+    "count": 30,
+    "p50": 4724.303,
+    "p90": 6503.795,
+    "p95": 11642.303,
+    "worst": 11855.823
+  },
+  "booking_state_after_join_ms": {
+    "count": 30,
+    "p50": 1185.791,
+    "p90": 1615.345,
+    "p95": 3386.849,
+    "worst": 6130.393
+  },
+  "credential_issue_ms": {
+    "count": 30,
+    "p50": 0.528,
+    "p90": 0.961,
+    "p95": 1.304,
+    "worst": 1.434
+  },
+  "first_audio_after_join_ms": {
+    "count": 30,
+    "p50": 3252.181,
+    "p90": 4471.771,
+    "p95": 8476.868,
+    "worst": 8549.893
+  },
+  "greeting_complete_after_join_ms": {
+    "count": 30,
+    "p50": 10729.817,
+    "p90": 13909.15,
+    "p95": 15660.605,
+    "worst": 24378.266
+  },
+  "room_connect_ms": {
+    "count": 30,
+    "p50": 1925.595,
+    "p90": 3451.511,
+    "p95": 4585.33,
+    "worst": 15581.409
+  },
+  "room_to_worker_job_entry_ms": {
+    "count": 4,
+    "p50": 419.865,
+    "p90": 1006.746,
+    "p95": 1006.746,
+    "worst": 1006.746
+  },
+  "worker_job_entry_to_agent_join_ms": {
+    "count": 30,
+    "p50": 4951.816,
+    "p90": 7173.697,
+    "p95": 12171.938,
+    "worst": 22899.285
+  }
+}

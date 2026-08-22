@@ -10,7 +10,6 @@ from src.voice_agent.config import LiveKitVoiceSettings
 def _settings() -> LiveKitVoiceSettings:
     return LiveKitVoiceSettings(
         _env_file=None,
-        voice_runtime="livekit",
         livekit_url="wss://alosm.test.livekit.cloud",
         livekit_api_key="test-api-key",
         livekit_api_secret="test-api-secret-with-enough-entropy",
@@ -93,66 +92,22 @@ def test_new_call_instance_gets_a_fresh_room() -> None:
     assert first["video"]["room"] != second["video"]["room"]
 
 
-class _FakeDispatchClient:
-    def __init__(self, *, fail: bool = False) -> None:
-        self.fail = fail
-        self.requests: list[object] = []
-
-    async def create_dispatch(self, request: object) -> None:
-        self.requests.append(request)
-        if self.fail:
-            raise RuntimeError("dispatch unavailable")
-
-
-class _FakeLiveKitAPI:
-    def __init__(self, dispatch: _FakeDispatchClient) -> None:
-        self.agent_dispatch = dispatch
-
-    async def __aenter__(self):
-        return self
-
-    async def __aexit__(self, *_: object) -> None:
-        return None
-
-
-@pytest.mark.asyncio
-async def test_prepare_dispatches_same_room_embedded_in_participant_token(monkeypatch) -> None:
-    dispatch = _FakeDispatchClient()
-    monkeypatch.setattr(
-        "src.backend.services.livekit_service.api.LiveKitAPI",
-        lambda **_: _FakeLiveKitAPI(dispatch),
-    )
-    service = LiveKitTokenService(_settings())
-
-    prepared = await service.prepare_for_user(
-        user_id="usr_1",
-        app_session_id="sess_1",
-        call_instance_id="11111111-1111-4111-8111-111111111111",
+def test_operator_token_is_scoped_to_accepted_handoff_room() -> None:
+    details = LiveKitTokenService(_settings()).issue_for_operator(
+        operator_id="operator-1",
+        handoff_id="handoff-1",
+        room_name="alosm-room-1",
     )
 
-    claims = jwt.decode(prepared.details.participant_token, options={"verify_signature": False})
-    request = dispatch.requests[0]
-    assert prepared.agent_prepared is True
-    assert request.room == claims["video"]["room"]
-    assert request.agent_name == "alosm-voice"
-    assert json.loads(request.metadata)["app_session_id"] == "sess_1"
-
-
-@pytest.mark.asyncio
-async def test_prepare_failure_returns_token_dispatch_fallback(monkeypatch) -> None:
-    dispatch = _FakeDispatchClient(fail=True)
-    monkeypatch.setattr(
-        "src.backend.services.livekit_service.api.LiveKitAPI",
-        lambda **_: _FakeLiveKitAPI(dispatch),
-    )
-    service = LiveKitTokenService(_settings())
-
-    prepared = await service.prepare_for_user(
-        user_id="usr_1",
-        app_session_id="sess_1",
-        call_instance_id="11111111-1111-4111-8111-111111111111",
-    )
-
-    claims = jwt.decode(prepared.details.participant_token, options={"verify_signature": False})
-    assert prepared.agent_prepared is False
-    assert claims["roomConfig"]["agents"][0]["agentName"] == "alosm-voice"
+    claims = jwt.decode(details.participant_token, options={"verify_signature": False})
+    assert claims["sub"].startswith("operator-")
+    assert claims["video"]["room"] == "alosm-room-1"
+    assert claims["video"]["roomJoin"] is True
+    assert claims["video"]["canPublish"] is True
+    assert claims["video"]["canSubscribe"] is True
+    assert json.loads(claims["metadata"]) == {
+        "schema_version": "1",
+        "role": "operator",
+        "operator_id": "operator-1",
+        "handoff_id": "handoff-1",
+    }

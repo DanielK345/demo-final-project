@@ -32,6 +32,7 @@ export const LoginForm: React.FC = () => {
           user_id: result.user_id,
           full_name: result.full_name,
           session_id: result.session_id,
+          role: result.role,
         });
         navigate("/");
         return;
@@ -46,8 +47,9 @@ export const LoginForm: React.FC = () => {
         user_id: result.user_id,
         full_name: result.full_name,
         session_id: result.session_id,
+        role: result.role,
       });
-      navigate("/");
+      navigate(result.role === "OPERATOR" || result.role === "ADMIN" ? "/operator" : "/");
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Không thể đăng nhập");
     } finally {
@@ -67,8 +69,9 @@ export const LoginForm: React.FC = () => {
         user_id: result.user_id,
         full_name: result.full_name,
         session_id: result.session_id,
+        role: result.role,
       });
-      navigate("/");
+      navigate(result.role === "OPERATOR" || result.role === "ADMIN" ? "/operator" : "/");
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Mã xác thực không đúng");
     } finally {

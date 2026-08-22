@@ -101,9 +101,7 @@ class LLMAgent:
                 ToolName.CANCEL_BOOKING,
                 ToolName.CREATE_HANDOFF,
             }:
-                validated = self.guardrails.safe_reconciliation_handoff(
-                    f"Guardrail violation: {exc}"
-                )
+                validated = self.guardrails.safe_reconciliation_handoff(f"Guardrail violation: {exc}")
             else:
                 validated = self.guardrails.safe_handoff(f"Guardrail violation: {exc}")
         return record_turn_history(agent_input, state, validated)

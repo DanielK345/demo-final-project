@@ -75,7 +75,5 @@ def register_trip_lookup(registry: ToolRegistry) -> None:
         return ContinueToolLoop({"trip_lookup_result": payload.model_dump(mode="json")})
 
     registry.register(RegisteredTool(definition("lookup_trip"), lookup))
-    registry.register(
-        RegisteredTool(definition("select_trip"), select, lambda session: bool(session.trip.candidates))
-    )
+    registry.register(RegisteredTool(definition("select_trip"), select, lambda session: bool(session.trip.candidates)))
     registry.register_reducer(ToolName.LOOKUP_TRIP, reduce)

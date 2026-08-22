@@ -15,8 +15,6 @@ services:
     envVars:
       - key: APP_ENV
         value: production
-      - key: VOICE_RUNTIME
-        value: livekit
       - key: LOG_LEVEL
         value: INFO
       - key: CORS_ORIGINS
@@ -56,8 +54,6 @@ services:
     envVars:
       - key: APP_ENV
         value: production
-      - key: VOICE_RUNTIME
-        value: livekit
       - key: LOG_LEVEL
         value: INFO
       - key: DATABASE_URL

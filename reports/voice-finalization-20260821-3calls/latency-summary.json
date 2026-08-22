@@ -1,0 +1,142 @@
+{
+  "e2e_latency_ms": {
+    "count": 21,
+    "p50": 6246.68,
+    "p90": 15777.897,
+    "p95": 109270.479,
+    "worst": 162239.331
+  },
+  "end_of_turn_delay_ms": {
+    "count": 24,
+    "p50": 1900.071,
+    "p90": 2377.644,
+    "p95": 2614.111,
+    "worst": 2667.131
+  },
+  "llm_node_ttft_ms": {
+    "count": 28,
+    "p50": 1068.524,
+    "p90": 1753.499,
+    "p95": 2518.648,
+    "worst": 11891.23
+  },
+  "on_user_turn_completed_delay_ms": {
+    "count": 25,
+    "p50": 0.003,
+    "p90": 0.005,
+    "p95": 0.005,
+    "worst": 0.01
+  },
+  "playback_latency_ms": {
+    "count": 28,
+    "p50": 0.286,
+    "p90": 0.372,
+    "p95": 0.78,
+    "worst": 2.682
+  },
+  "transcription_delay_ms": {
+    "count": 24,
+    "p50": 1897.341,
+    "p90": 2372.454,
+    "p95": 2611.282,
+    "worst": 2663.661
+  },
+  "tts_node_ttfb_ms": {
+    "count": 28,
+    "p50": 262.472,
+    "p90": 292.038,
+    "p95": 300.849,
+    "worst": 548.853
+  },
+  "worker_agent_session_built_duration_ms": {
+    "count": 3,
+    "p50": 13372.988,
+    "p90": 14186.218,
+    "p95": 14186.218,
+    "worst": 14186.218
+  },
+  "worker_agent_session_built_elapsed_ms": {
+    "count": 3,
+    "p50": 13381.101,
+    "p90": 14256.482,
+    "p95": 14256.482,
+    "worst": 14256.482
+  },
+  "worker_greeting_requested_elapsed_ms": {
+    "count": 3,
+    "p50": 17877.141,
+    "p90": 19609.686,
+    "p95": 19609.686,
+    "worst": 19609.686
+  },
+  "worker_initial_state_published_elapsed_ms": {
+    "count": 3,
+    "p50": 17875.943,
+    "p90": 19608.238,
+    "p95": 19608.238,
+    "worst": 19608.238
+  },
+  "worker_job_entry_elapsed_ms": {
+    "count": 3,
+    "p50": 0.655,
+    "p90": 4.475,
+    "p95": 4.475,
+    "worst": 4.475
+  },
+  "worker_process_setup_status_elapsed_ms": {
+    "count": 3,
+    "p50": 0.853,
+    "p90": 4.882,
+    "p95": 4.882,
+    "worst": 4.882
+  },
+  "worker_session_start_called_elapsed_ms": {
+    "count": 3,
+    "p50": 16526.348,
+    "p90": 17608.926,
+    "p95": 17608.926,
+    "worst": 17608.926
+  },
+  "worker_session_started_duration_ms": {
+    "count": 3,
+    "p50": 1633.612,
+    "p90": 1701.438,
+    "p95": 1701.438,
+    "worst": 1701.438
+  },
+  "worker_session_started_elapsed_ms": {
+    "count": 3,
+    "p50": 17618.127,
+    "p90": 19242.551,
+    "p95": 19242.551,
+    "worst": 19242.551
+  },
+  "worker_state_restore_completed_duration_ms": {
+    "count": 3,
+    "p50": 16524.324,
+    "p90": 17601.053,
+    "p95": 17601.053,
+    "worst": 17601.053
+  },
+  "worker_state_restore_completed_elapsed_ms": {
+    "count": 3,
+    "p50": 16525.836,
+    "p90": 17608.009,
+    "p95": 17608.009,
+    "worst": 17608.009
+  },
+  "tool_duration_ms": {
+    "count": 33,
+    "p50": 836.186,
+    "p90": 2949.452,
+    "p95": 5460.381,
+    "worst": 7896.584
+  },
+  "agent_task_duration_ms": {
+    "count": 3,
+    "p50": 156392.293,
+    "p90": 204639.631,
+    "p95": 204639.631,
+    "worst": 204639.631
+  }
+}

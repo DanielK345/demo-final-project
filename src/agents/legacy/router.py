@@ -1,6 +1,7 @@
 from src.agents.contracts.schemas import AgentInput, WorkflowType
 from src.agents.contracts.state import AgentState
 from src.agents.core.policy import AgentPolicy
+from src.agents.faq_intent import is_faq_query
 from src.agents.legacy.understanding.models import UnderstandingIntent, UnderstandingResult
 
 
@@ -40,7 +41,15 @@ class AgentRouter:
         "không cho tôi xuống xe",
         "tai nạn",
     )
-    _FAQ_TERMS = ("dịch vụ", "giá", "thanh toán", "chính sách", "hoạt động")
+    _FAQ_TERMS = (
+        "dịch vụ",
+        "giá",
+        "phí",
+        "thanh toán",
+        "hoàn tiền",
+        "chính sách",
+        "hoạt động",
+    )
 
     def __init__(self, policy: AgentPolicy | None = None) -> None:
         self.policy = policy or AgentPolicy()
@@ -54,19 +63,14 @@ class AgentRouter:
         if self.requires_immediate_handoff(agent_input, state):
             return WorkflowType.HUMAN_HANDOFF
 
-        if (
-            understanding is not None
-            and understanding.intent is UnderstandingIntent.HUMAN_HANDOFF
-        ):
+        if understanding is not None and understanding.intent is UnderstandingIntent.HUMAN_HANDOFF:
             return WorkflowType.HUMAN_HANDOFF
 
         if state.current_workflow is not None:
             return state.current_workflow
 
         if agent_input.tool_result is not None:
-            raise ToolResultRoutingError(
-                "Tool result cannot be routed without a current workflow"
-            )
+            raise ToolResultRoutingError("Tool result cannot be routed without a current workflow")
 
         if understanding is not None:
             workflow = self._workflow_from_understanding(understanding.intent)
@@ -114,7 +118,7 @@ class AgentRouter:
             return WorkflowType.RIDE_BOOKING
         if any(term in normalized_transcript for term in self._LOOKUP_TERMS):
             return WorkflowType.TRIP_LOOKUP
-        if any(term in normalized_transcript for term in self._FAQ_TERMS):
+        if is_faq_query(transcript) or any(term in normalized_transcript for term in self._FAQ_TERMS):
             return WorkflowType.FAQ
         raise UnsupportedIntentError("No workflow matched the current input")
 
@@ -129,10 +133,7 @@ class AgentRouter:
             return False
         transcript = agent_input.transcript.casefold()
         explicit_handoff = any(term in transcript for term in self._HANDOFF_TERMS)
-        retry_limit_reached = (
-            state.current_workflow is None
-            and state.retry_count >= self.policy.max_retry_count
-        )
+        retry_limit_reached = state.current_workflow is None and state.retry_count >= self.policy.max_retry_count
         low_confidence = (
             bool(agent_input.transcript.strip())
             and agent_input.stt_confidence is not None

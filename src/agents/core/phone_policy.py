@@ -1,8 +1,6 @@
 import re
 
-PHONE_CANDIDATE_PATTERN = re.compile(
-    r"(?<!\d)(?:\+?84|0)(?:[ .-]?\d){9}(?!\d)"
-)
+PHONE_CANDIDATE_PATTERN = re.compile(r"(?<!\d)(?:\+?84|0)(?:[ .-]?\d){9}(?!\d)")
 _VIETNAM_MOBILE_PATTERN = re.compile(r"^0(?:3|5|7|8|9)\d{8}$")
 
 

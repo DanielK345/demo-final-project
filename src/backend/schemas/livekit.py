@@ -25,9 +25,12 @@ class LiveKitTokenResponseDTO(BaseModel):
     participant_token: str
 
 
-class LiveKitPrepareRequestDTO(BaseModel):
-    call_instance_id: str
+class LiveKitOperatorTokenRequestDTO(BaseModel):
+    handoff_id: str
 
 
-class LiveKitPrepareResponseDTO(LiveKitTokenResponseDTO):
-    agent_prepared: bool
+class LiveKitOperatorTokenResponseDTO(BaseModel):
+    server_url: str
+    participant_token: str
+    handoff_id: str
+    room_name: str

@@ -1,6 +1,6 @@
 # AI Logs — kết nối và vận hành
 
-Cập nhật: **2026-08-16**.
+Cập nhật: **2026-08-20**.
 
 ## Trạng thái
 
@@ -9,8 +9,10 @@ Cập nhật: **2026-08-16**.
 - `AI_LOG_SERVER`, `AI_LOG_API_KEY`, `AI_LOG_DIR` có trong `.env` local.
 - DNS/TLS/HTTP tới `ai-logs.note.transformerlabs.ai/api/ingest` hoạt động.
 - Authenticated empty-batch canary trả HTTP `202`; credential được endpoint chấp nhận.
-- Queue local còn 392 entry. Chưa xuất queue này trong lần reconnect vì nó chứa
-  prompt/tool response của project và cần phê duyệt rõ trước khi truyền ra ngoài.
+- Git chỉ lưu runbook và source của logging; không commit từng lượt hội thoại thô.
+- Prompt/tool response local chỉ được gửi qua pipeline redaction tới endpoint đã
+  được owner phê duyệt. Queue/archive vẫn bị `.gitignore` loại khỏi commit vì có
+  thể chứa PII hoặc nội dung nội bộ dù credential đã được che.
 
 ## Luồng dữ liệu
 
@@ -66,4 +68,6 @@ Lưu ý: hai lệnh trên gửi prompt/tool response đang chờ lên server c�
 - Trên 500 entry: gửi batch cũ nhất, phần còn lại giữ cho lần sau.
 - Hook không tìm thấy Python: không chặn IDE/git; cần sửa Python PATH rồi chạy lại.
 
-Không commit `.env`, `.ai-log/session.jsonl`, archive hay API key.
+Không commit `.env`, `.ai-log/session.jsonl`, archive, raw transcript hay API key.
+Muốn chứng minh một lượt đã được ingest, dùng entry ID/timestamp đã redaction trong
+server/archive được kiểm soát; không copy toàn bộ hội thoại vào repository.

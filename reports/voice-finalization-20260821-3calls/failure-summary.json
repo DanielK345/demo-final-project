@@ -1,0 +1,29 @@
+{
+  "session_count": 3,
+  "error_event_count": 1,
+  "errors_by_type": {
+    "LLMError": 1
+  },
+  "errors_by_source": {
+    "LLM": 1
+  },
+  "tool_statuses": {
+    "done": 29,
+    "error": 7
+  },
+  "speaking_turns": 34,
+  "final_transcripts": 25,
+  "transcription_timeout_count": 2,
+  "unmatched_speech_episodes": 9,
+  "observed_speech_episode_no_final_rate": 0.2647,
+  "sessions_with_speech": 3,
+  "session_transcript_coverage_rate": 1.0,
+  "smoke": {
+    "attempt_count": 0,
+    "passed_count": 0,
+    "success_rate": null,
+    "check_rates": {},
+    "failure_stages": {},
+    "input_modes": {}
+  }
+}

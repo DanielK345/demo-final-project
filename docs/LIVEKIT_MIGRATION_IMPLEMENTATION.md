@@ -1,6 +1,6 @@
 # AloSM — LiveKit migration implementation handoff
 
-Cập nhật: **2026-08-19** · Trạng thái: **PHASE 3 HARDENING + LIVEKIT TRANSCRIPT REWRITE IMPLEMENTED / E2E RECHECK REQUIRED**
+Cập nhật: **2026-08-20** · Trạng thái: **PHASE 3 IMPLEMENTED / PHASE 4 EVALUATION NEXT**
 
 > Đây là tài liệu phải đọc đầu tiên trước khi code migration LiveKit. Nó chốt kiến
 > trúc đích và cách triển khai. Code hiện tại vẫn là runtime truth cho tới khi từng
@@ -724,13 +724,21 @@ trong local session đã được phép debug; không dùng cấu hình này là
 
 ### Phase 4 — Evaluation và cutover
 
+- khóa baseline Google Chirp 2 → GPT-4.1 mini → Sonic 3;
 - LiveKit behavioral tests + tool mocks;
-- ASR audio benchmark;
-- browser/device E2E;
-- latency/cost A/B với flow cũ;
-- chuyển feature flag/default sang LiveKit.
+- ASR WER/CER/entity benchmark theo accent/noise;
+- first-turn, missed-turn, false interruption và barge-in benchmark;
+- browser/device/network E2E;
+- task completion/correction/fallback/handoff evaluation;
+- latency p50/p95 và cost A/B theo từng stage;
+- model A/B có kiểm soát trên cùng dataset;
+- chuyển feature flag/default production sang LiveKit sau gate.
 
 Gate: mọi acceptance criterion mục 14 đạt.
+
+Execution plan, dataset contract, metrics và evidence layout nằm tại
+[`PHASE4_EVALUATION_PLAN.md`](./PHASE4_EVALUATION_PLAN.md). Không tune theo cảm giác
+hoặc đổi nhiều model trong cùng một run.
 
 ### Phase 5 — Xóa legacy
 
@@ -763,7 +771,7 @@ Gate: `rg` không còn production caller vào legacy path; full tests/build pass
 
 ## 15. Coding-agent checklist trước mỗi thay đổi
 
-1. Đọc tài liệu này và `LIVEKIT_REFACTOR_RESEARCH.md`.
+1. Đọc `CODING_AGENT_HANDOFF.md`, tài liệu này và `PHASE4_EVALUATION_PLAN.md`.
 2. Xác định phase đang thực hiện; không nhảy thẳng sang xóa legacy.
 3. Không thêm orchestration ngoài extension point LiveKit.
 4. Không tạo Agent thứ hai nếu không có persona/model/permission boundary mới được

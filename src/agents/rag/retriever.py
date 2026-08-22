@@ -14,4 +14,3 @@ class BaseRetriever(ABC):
     @abstractmethod
     async def retrieve(self, query: str, top_k: int = 3) -> list[RetrievalResult]:
         """Return ranked, source-carrying documents for grounded answers."""
-

@@ -1,6 +1,7 @@
 import React, { useEffect } from "react";
 import { createBrowserRouter, Navigate, RouterProvider } from "react-router-dom";
 import { RequireAuth } from "@/features/auth/RequireAuth";
+import { RequireRole } from "@/features/auth/RequireRole";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { useVoiceAssistant } from "@/features/ai-assistant/context/useVoiceAssistant";
 import { LoginPage } from "@/pages/Login/LoginPage";
@@ -13,6 +14,7 @@ import { ProfilePage } from "@/pages/Profile/ProfilePage";
 import { NotFoundPage } from "@/pages/NotFound/NotFoundPage";
 import { PoliciesPage } from "@/pages/Policies/PoliciesPage";
 import { CookieConsentBanner } from "@/features/policies/CookieConsentBanner";
+import { OperatorPage } from "@/pages/Operator/OperatorPage";
 
 // Voice AI không còn là trang riêng "/assistant" — giờ là nút nổi + popup khả dụng ở
 // mọi trang (xem AppLayout.tsx). Route này chỉ còn để không phá các đường dẫn cũ đã
@@ -51,6 +53,14 @@ const router = createBrowserRouter([
       { path: "/activity", element: <ActivityPage /> },
       { path: "/payment", element: <PaymentPage /> },
       { path: "/profile", element: <ProfilePage /> },
+      {
+        path: "/operator",
+        element: (
+          <RequireRole roles={["OPERATOR", "ADMIN"]}>
+            <OperatorPage />
+          </RequireRole>
+        ),
+      },
       { path: "/assistant", element: <AssistantRedirect /> },
     ],
   },

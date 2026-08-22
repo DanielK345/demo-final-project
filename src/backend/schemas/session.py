@@ -20,6 +20,8 @@ class SessionDTO(BaseModel):
     channel: str = "WEB_TEXT"
     current_workflow: str | None = None
     current_step: str | None = None
+    has_resumable_voice_state: bool = False
+    voice_session_terminal: bool = False
 
 
 class CreateSessionDTO(BaseModel):

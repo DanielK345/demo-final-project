@@ -31,6 +31,8 @@ def test_reset_conversation_keeps_active_session_but_clears_agent_memory(monkeyp
         "current_workflow": "RIDE_BOOKING",
         "current_step": "CONFIRM",
         "agent_state": {"conversation_history": [{"content": "old memory"}]},
+        "voice_agent_state": {"schema_version": "1", "booking_draft": {"vehicle_type": "CAR_4"}},
+        "voice_state_revision": 3,
         "turn_sequence": 4,
     }
 
@@ -43,6 +45,8 @@ def test_reset_conversation_keeps_active_session_but_clears_agent_memory(monkeyp
     assert session["session_id"] == "sess_reset"
     assert session["status"] == "ACTIVE"
     assert session["agent_state"] is None
+    assert session["voice_agent_state"] is None
+    assert session["voice_state_revision"] == 0
     assert session["turn_sequence"] == 0
     assert session["pickup"] is None
     assert session["destination"] is None
