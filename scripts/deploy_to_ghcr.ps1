@@ -35,9 +35,9 @@ if (-not $Token) {
 $CleanNamespace = $Namespace.ToLower().Trim()
 $CleanImageName = $ImageName.ToLower().Trim()
 if ($CleanNamespace -match "/") {
-    $FullImageName = "ghcr.io/$CleanNamespace:$Tag"
+    $FullImageName = "ghcr.io/${CleanNamespace}:${Tag}"
 } else {
-    $FullImageName = "ghcr.io/$CleanNamespace/$CleanImageName:$Tag"
+    $FullImageName = "ghcr.io/${CleanNamespace}/${CleanImageName}:${Tag}"
 }
 
 Write-Host "`nTarget Image: $FullImageName" -ForegroundColor Magenta
