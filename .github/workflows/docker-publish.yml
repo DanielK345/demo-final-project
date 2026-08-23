@@ -4,11 +4,6 @@ on:
   push:
     branches:
       - feature/voice-ai
-    paths:
-      - 'Dockerfile'
-      - 'src/**'
-      - 'requirements.txt'
-      - 'pyproject.toml'
   workflow_dispatch:
 
 jobs:
