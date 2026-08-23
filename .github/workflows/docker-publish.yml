@@ -3,7 +3,9 @@ name: Build and Push Docker to GHCR
 on:
   push:
     branches:
-      - feature/voice-ai
+      - main
+      - develop
+      - "feature/**"
   workflow_dispatch:
 
 jobs:
@@ -32,9 +34,8 @@ jobs:
         id: repo-names
         run: |
           echo "REPO_LOWER=$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_ENV"
-          echo "ACTOR_LOWER=$(echo '${{ github.actor }}' | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_ENV"
 
-      - name: Build and Push Docker Image
+      - name: Build and Push Backend Docker Image
         uses: docker/build-push-action@v5
         with:
           context: .
@@ -43,6 +44,6 @@ jobs:
           tags: |
             ghcr.io/${{ env.REPO_LOWER }}:latest
             ghcr.io/${{ env.REPO_LOWER }}/backend:latest
-            ghcr.io/${{ env.ACTOR_LOWER }}/alosm-backend:latest
+            ghcr.io/${{ env.REPO_LOWER }}:${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max

@@ -63,13 +63,20 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Lowercase Repository Name
+        id: repo-names
+        run: |
+          echo "REPO_LOWER=$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_ENV"
+
       - name: Build and push Backend Image
         uses: docker/build-push-action@v5
         with:
           context: .
           file: ./Dockerfile
           push: true
-          tags: ghcr.io/${{ github.repository }}/backend:latest
+          tags: |
+            ghcr.io/${{ env.REPO_LOWER }}:latest
+            ghcr.io/${{ env.REPO_LOWER }}/backend:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -79,7 +86,7 @@ jobs:
           context: .
           file: ./Dockerfile.asr
           push: true
-          tags: ghcr.io/${{ github.repository }}/asr-server:latest
+          tags: ghcr.io/${{ env.REPO_LOWER }}/asr-server:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -89,6 +96,6 @@ jobs:
           context: ./src/frontend
           file: ./src/frontend/Dockerfile
           push: true
-          tags: ghcr.io/${{ github.repository }}/frontend:latest
+          tags: ghcr.io/${{ env.REPO_LOWER }}/frontend:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
