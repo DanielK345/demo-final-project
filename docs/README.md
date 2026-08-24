@@ -31,6 +31,7 @@ Scope mentor gốc được giữ tại [GSM-08_VOICE_AGENT_SCOPE.md](GSM-08_VOI
 | Performance | [performance/latency-remediation-plan.md](performance/latency-remediation-plan.md) |
 | Policy | [policies/policy-integration-plan.md](policies/policy-integration-plan.md) |
 | Verification/readiness | [verification/README.md](verification/README.md) |
+| Deployment | [DEPLOYMENT_GUIDE.md](DEPLOYMENT_GUIDE.md), [DEPLOYMENT_FLY_IO.md](DEPLOYMENT_FLY_IO.md), [DEPLOYMENT_RENDER.md](DEPLOYMENT_RENDER.md) |
 
 ## Reference tách biệt
 

@@ -35,6 +35,10 @@ httpx>=0.28.0
 
 # Voice AI (docs/voice-ai/voice-runtime-architecture.md) — additive, không sửa dòng nào ở trên
 numpy>=1.26.0
+pyyaml>=6.0.3           # pricing/policy catalogs loaded by backend and LiveKit worker
+livekit-agents==1.6.8
+livekit-plugins-google==1.6.6
+livekit-plugins-openai==1.5.0
 sherpa-onnx==1.13.4   # local CPU ZipFormer runtime (pinned)
 psutil==7.2.2         # real CPU/RAM telemetry for ASR benchmark
 # src/voice/audio/codec.py — resample PCM16
