@@ -1,0 +1,19 @@
+{
+  "passed": false,
+  "violation_count": 1,
+  "violations": [
+    {
+      "type": "durable_booking_verification_failed",
+      "run_number": 4,
+      "app_session_id": "sess_adc20c95203c",
+      "failed_checks": [
+        "durable_session_exists",
+        "durable_session_ended",
+        "durable_session_booking_matches",
+        "durable_state_advanced",
+        "durable_quote_matches",
+        "durable_booking_matches"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,124 @@
+{
+  "session_count": 10,
+  "error_event_count": 0,
+  "errors_by_type": {},
+  "errors_by_source": {},
+  "tool_statuses": {
+    "done": 104,
+    "error": 3
+  },
+  "speaking_turns": 40,
+  "final_transcripts": 0,
+  "unmatched_speech_episodes": 40,
+  "observed_speech_episode_no_final_rate": 1.0,
+  "sessions_with_speech": 10,
+  "session_transcript_coverage_rate": 0.0,
+  "smoke": {
+    "attempt_count": 10,
+    "passed_count": 9,
+    "success_rate": 0.9,
+    "check_rates": {
+      "agent_audio": {
+        "passed": 10,
+        "applicable": 10,
+        "rate": 1.0
+      },
+      "agent_joined": {
+        "passed": 10,
+        "applicable": 10,
+        "rate": 1.0
+      },
+      "agent_spoke": {
+        "passed": 10,
+        "applicable": 10,
+        "rate": 1.0
+      },
+      "booking_completed": {
+        "passed": 9,
+        "applicable": 9,
+        "rate": 1.0
+      },
+      "booking_requires_confirmation": {
+        "passed": 10,
+        "applicable": 10,
+        "rate": 1.0
+      },
+      "booking_result_audio": {
+        "passed": 9,
+        "applicable": 9,
+        "rate": 1.0
+      },
+      "booking_state_received": {
+        "passed": 10,
+        "applicable": 10,
+        "rate": 1.0
+      },
+      "destination_selected": {
+        "passed": 10,
+        "applicable": 10,
+        "rate": 1.0
+      },
+      "durable_booking_matches": {
+        "passed": 9,
+        "applicable": 9,
+        "rate": 1.0
+      },
+      "durable_quote_matches": {
+        "passed": 9,
+        "applicable": 9,
+        "rate": 1.0
+      },
+      "durable_session_booking_matches": {
+        "passed": 9,
+        "applicable": 9,
+        "rate": 1.0
+      },
+      "durable_session_ended": {
+        "passed": 9,
+        "applicable": 9,
+        "rate": 1.0
+      },
+      "durable_session_exists": {
+        "passed": 9,
+        "applicable": 9,
+        "rate": 1.0
+      },
+      "durable_state_advanced": {
+        "passed": 9,
+        "applicable": 9,
+        "rate": 1.0
+      },
+      "greeting_completed": {
+        "passed": 10,
+        "applicable": 10,
+        "rate": 1.0
+      },
+      "pickup_selected": {
+        "passed": 10,
+        "applicable": 10,
+        "rate": 1.0
+      },
+      "quote_confirmation_requested": {
+        "passed": 9,
+        "applicable": 9,
+        "rate": 1.0
+      },
+      "room_connected": {
+        "passed": 10,
+        "applicable": 10,
+        "rate": 1.0
+      },
+      "single_booking_id": {
+        "passed": 10,
+        "applicable": 10,
+        "rate": 1.0
+      }
+    },
+    "failure_stages": {
+      "quote_confirmation": 1
+    },
+    "input_modes": {
+      "livekit_text": 10
+    }
+  }
+}

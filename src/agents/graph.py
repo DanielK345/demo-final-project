@@ -1,29 +1,12 @@
-from langgraph.graph import END, StateGraph
+"""Compatibility wrapper for the Backend's legacy graph import.
 
-from src.agents.nodes.example_node import analyze_node, respond_node
-from src.agents.state import AgentState
+The current Agent no longer uses LangGraph. Backend routes kept from the older
+app still import ``src.agents.graph.agent`` and call ``ainvoke``; expose the new
+turn adapter under the old names so BE/FE can remain unchanged.
+"""
 
+from src.agents.turn_adapter import AgentTurnAdapter, agent, build_turn_adapter
 
-def should_continue(state: AgentState) -> str:
-    """Route based on whether an error occurred during analysis."""
-    if state.get("error"):
-        return END
-    return "respond"
+AgentGraphAdapter = AgentTurnAdapter
 
-
-def build_graph() -> StateGraph:
-    graph = StateGraph(AgentState)
-
-    # Add nodes
-    graph.add_node("analyze", analyze_node)
-    graph.add_node("respond", respond_node)
-
-    # Add edges
-    graph.set_entry_point("analyze")
-    graph.add_conditional_edges("analyze", should_continue)
-    graph.add_edge("respond", END)
-
-    return graph.compile()
-
-
-agent = build_graph()
+__all__ = ["AgentGraphAdapter", "AgentTurnAdapter", "agent", "build_turn_adapter"]

@@ -1,0 +1,36 @@
+{
+  "language": "vi",
+  "version": 2,
+  "confusions": [
+    {
+      "canonical": "v",
+      "asr_variants": ["b"],
+      "scope": "syllable_onset",
+      "examples": ["VinUni -> Bin Uni"]
+    },
+    {
+      "canonical": "ph",
+      "asr_variants": ["v"],
+      "scope": "syllable_onset",
+      "examples": ["phụ -> vụ"]
+    },
+    {
+      "canonical": "in",
+      "asr_variants": ["inh"],
+      "scope": "syllable_rhyme",
+      "examples": ["Vin -> Vinh"]
+    },
+    {
+      "canonical": "inh",
+      "asr_variants": ["in"],
+      "scope": "syllable_rhyme",
+      "examples": ["BinhUni -> BinUni (step toward VinUni)"]
+    },
+    {
+      "canonical": "ô",
+      "asr_variants": ["u"],
+      "scope": "vowel",
+      "examples": ["cổng -> cũng"]
+    }
+  ]
+}

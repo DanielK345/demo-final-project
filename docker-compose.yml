@@ -1,4 +1,4 @@
-version: "3.8"
+version: "3.9"
 
 services:
   backend:
@@ -9,11 +9,39 @@ services:
       - "8000:8000"
     env_file:
       - .env
+    depends_on:
+      asr-server:
+        condition: service_healthy
+    environment:
+      - ZIPFORMER_WS_URL=ws://asr-server:9000/v1/stt
+
+  asr-server:
+    build:
+      context: .
+      dockerfile: asr_server/Dockerfile
+    ports:
+      - "9000:9000"
+    env_file:
+      - .env
     volumes:
-      - ./data:/app/data
-    restart: unless-stopped
+      - ./data/models/asr:/app/data/models/asr:ro
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
+      test: ["CMD", "curl", "-f", "http://localhost:9000/ready"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 120s
+
+  voice-agent:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: python -m src.voice_agent.server start
+    env_file:
+      - .env
+    environment:
+      - ZIPFORMER_WS_URL=ws://asr-server:9000/v1/stt
+    depends_on:
+      asr-server:
+        condition: service_healthy
+    restart: unless-stopped

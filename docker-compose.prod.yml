@@ -1,0 +1,126 @@
+services:
+
+  # ── 1. Redis Cache & Distributed Lock ──────────────────────────────
+  redis:
+    image: redis:7-alpine
+    restart: always
+    command: ["redis-server", "--appendonly", "yes", "--maxmemory", "256mb", "--maxmemory-policy", "allkeys-lru"]
+    volumes:
+      - redis_data:/data
+    networks:
+      - alosm-internal
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── 2. Zipformer Streaming ASR Server (Port 9000) ──────────────────
+  asr-server:
+    build:
+      context: .
+      dockerfile: Dockerfile.asr
+    restart: always
+    environment:
+      - ASR_SERVER_HOST=0.0.0.0
+      - ASR_SERVER_PORT=9000
+      - ASR_NUM_THREADS=4
+      - SHERPA_PROVIDER=cpu
+      - ZIPFORMER_MODEL_DIR=/app/data/models/asr/sherpa-onnx-zipformer-vi-30M-int8-2026-02-09
+    volumes:
+      - asr_models:/app/data/models/asr
+    networks:
+      - alosm-internal
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+
+  # ── 3. FastAPI Web Backend (Port 8000) ──────────────────────────────
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: always
+    environment:
+      - APP_ENV=production
+      - LOG_LEVEL=INFO
+      - MAPS_CACHE_BACKEND=redis
+      - MAPS_CACHE_REDIS_URL=redis://redis:6379/0
+      - REDIS_URL=redis://redis:6379/1
+    env_file:
+      - .env.production
+    volumes:
+      - backend_data:/app/data
+    networks:
+      - alosm-internal
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+
+  # ── 4. LiveKit Voice Agent Worker ──────────────────────────────────
+  voice-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: ["python", "-m", "src.voice_agent.server", "start"]
+    restart: always
+    environment:
+      - APP_ENV=production
+      - LOG_LEVEL=INFO
+    env_file:
+      - .env.production
+    volumes:
+      - asr_models:/app/data/models/asr:ro
+    networks:
+      - alosm-internal
+    depends_on:
+      backend:
+        condition: service_healthy
+      asr-server:
+        condition: service_healthy
+
+  # ── 5. Frontend React Web UI ───────────────────────────────────────
+  frontend:
+    build:
+      context: ./src/frontend
+      dockerfile: Dockerfile
+      args:
+        - VITE_API_BASE_URL=
+    restart: always
+    networks:
+      - alosm-internal
+
+  # ── 6. Nginx Gateway & Reverse Proxy (Ports 80/443) ────────────────
+  gateway:
+    image: nginx:alpine
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./deploy/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./deploy/nginx/conf.d:/etc/nginx/conf.d:ro
+      - ./deploy/ssl:/etc/nginx/ssl:ro
+      - ./deploy/certbot/www:/var/www/certbot:ro
+    networks:
+      - alosm-internal
+    depends_on:
+      - backend
+      - frontend
+      - asr-server
+
+networks:
+  alosm-internal:
+    driver: bridge
+
+volumes:
+  redis_data:
+  asr_models:
+  backend_data:

@@ -1,0 +1,78 @@
+schema_version: "1.0.0"
+version: "2026-08-16"
+effective_from: "2026-08-16"
+currency: "VND"
+region: "HAN"
+status: "DEMO"
+data_quality: "DEMO"
+owner: "Product / Operations"
+approver: "Finance Lead"
+source_type: "PUBLIC_REFERENCE"
+imported_from: "pricing.yaml"
+source_sha256: "6AFF08BD3DAFD6C8833F423D9CEC6DAE1F74E60932EA3696B3096C6B97315718"
+source_urls:
+  - "https://www.greensm.com/vn-vi/news/gia-taxi-xanh-sm-bao-nhieu"
+  - "https://www.greensm.com/vn-vi/greensm-car"
+  - "https://www.greensm.com/vn-vi/greensm-bike"
+vehicles:
+  MOTORBIKE:
+    display_name: "AloSM Bike"
+    capacity: 1
+    luggage_capacity: 0
+    source_ref: "Green SM Bike; base rate requires Finance verification"
+    base_fare: 13200
+    base_km: 2
+    tiers:
+      - {up_to_km: null, per_km: 4200}
+    per_minute: 275
+    min_fare: 13200
+    surcharges: {night_22_to_2359: 10000, night_00_to_0559: 20000, holiday: 5000, change_destination: 5000, add_stop: 5000}
+  CAR_4:
+    display_name: "AloSM Car 4 chỗ"
+    capacity: 4
+    luggage_capacity: 2
+    source_ref: "Green SM Car public Hanoi reference"
+    base_fare: 30500
+    base_km: 2
+    tiers:
+      - {up_to_km: 12, per_km: 14700}
+      - {up_to_km: 25, per_km: 13800}
+      - {up_to_km: null, per_km: 11900}
+    per_minute: 1000
+    min_fare: 30500
+    surcharges: {night_22_to_0600: 20000, add_stop: 10000, change_destination: 10000, waiting_per_hour: 60000}
+  CAR_7:
+    display_name: "AloSM Car 7 chỗ"
+    capacity: 7
+    luggage_capacity: 4
+    source_ref: "Inferred from Green SM Car + 15%; not an official Green SM class"
+    base_fare: 35000
+    base_km: 2
+    tiers:
+      - {up_to_km: 12, per_km: 16900}
+      - {up_to_km: 25, per_km: 15900}
+      - {up_to_km: null, per_km: 13700}
+    per_minute: 1000
+    min_fare: 35000
+    surcharges: {night_22_to_0600: 20000, add_stop: 10000, change_destination: 10000, waiting_per_hour: 60000}
+  LUXURY:
+    display_name: "AloSM Premium"
+    capacity: 4
+    luggage_capacity: 3
+    source_ref: "Green SM Premium public Hanoi reference"
+    base_fare: 34400
+    base_km: 2
+    tiers:
+      - {up_to_km: 12, per_km: 16000}
+      - {up_to_km: 25, per_km: 14900}
+      - {up_to_km: null, per_km: 12900}
+    per_minute: 1000
+    min_fare: 34400
+    surcharges: {night_22_to_0600: 20000, add_stop: 10000, change_destination: 10000, waiting_per_hour: 60000}
+cancellation_policy:
+  status: "DEMO"
+  free_cancel_before_accept: true
+  free_cancel_window_seconds: 300
+  cancellation_fee_vnd: 15000
+  driver_arrived_fee_vnd: 25000
+  driver_no_show_refund_minutes: 10

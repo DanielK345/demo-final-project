@@ -1,0 +1,22 @@
+[Unit]
+Description=AloSM FastAPI Backend API Service
+After=network.target redis.target
+
+[Service]
+Type=simple
+User=alosm
+Group=alosm
+WorkingDirectory=/opt/alosm
+EnvironmentFile=/opt/alosm/.env.production
+ExecStart=/opt/alosm/.venv/bin/uvicorn src.backend.main:app --host 0.0.0.0 --port 8000 --workers 4
+Restart=always
+RestartSec=5s
+LimitNOFILE=65536
+
+# Security sandbox
+ProtectSystem=full
+ProtectHome=true
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target

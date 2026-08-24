@@ -1,25 +1,49 @@
 # Core
 fastapi>=0.115.0
 uvicorn[standard]>=0.34.0
+python-multipart>=0.0.9
 pydantic>=2.10.0
 pydantic-settings>=2.7.0
 python-dotenv>=1.0.0
+redis>=5.2.0
+celery>=5.4.0
+pyotp>=2.9.0               # 2FA TOTP thật (AuthService) — thuần Python, không cần dịch vụ ngoài
+
+# Database / persistence
+sqlalchemy>=2.0.0
+alembic>=1.14.0
+psycopg2-binary>=2.9.0    # driver sync — dùng bởi Alembic (migrations/env.py)
+asyncpg>=0.30.0           # driver async — dùng bởi app runtime (src/backend/db/base.py)
+aiosqlite>=0.20.0         # driver async cho SQLite — local dev/test, không cần Supabase để chạy pytest
+cryptography>=45.0.0      # application-level encryption for TOTP and sensitive fields
+tzdata>=2024.1            # zoneinfo cần package này trên Windows (ZoneInfo("Asia/Ho_Chi_Minh") ở conversation_logger.py)
 
 # AI / LangChain
 langchain>=0.3.0
 langchain-openai>=0.3.0
 langgraph>=0.2.0
+openai>=1.60.0
 
-# Database (uncomment as needed)
-# sqlalchemy>=2.0.0
-# alembic>=1.14.0
-# psycopg2-binary>=2.9.0
-
-# Vector Store (uncomment as needed)
-# chromadb>=0.5.0
+#Vector Store (uncomment as needed)
+chromadb>=0.5.0
 
 # Dev tools
 ruff>=0.8.0
 pytest>=8.0.0
 pytest-asyncio>=0.24.0
 httpx>=0.28.0
+
+# Voice AI (docs/voice-ai/voice-runtime-architecture.md) — additive, không sửa dòng nào ở trên
+numpy>=1.26.0
+pyyaml>=6.0.3           # pricing/policy catalogs loaded by backend and LiveKit worker
+livekit-agents==1.6.8
+livekit-plugins-google==1.6.6
+livekit-plugins-openai==1.5.0
+sherpa-onnx==1.13.4   # local CPU ZipFormer runtime (pinned)
+psutil==7.2.2         # real CPU/RAM telemetry for ASR benchmark
+# src/voice/audio/codec.py — resample PCM16
+rapidfuzz>=3.9.0          # src/voice/asr/biasing.py — fuzzy correction địa danh
+edge-tts==7.2.8           # src/voice/tts/edge_tts_provider.py
+# onnxruntime>=1.18.0     # src/voice/audio/vad.py SileroVAD — bật khi có model .onnx thật
+# asr/groq_provider.py gọi Groq qua httpx trực tiếp (OpenAI-compatible REST) — không
+# cần SDK `groq` riêng, dùng chung httpx đã có ở trên.

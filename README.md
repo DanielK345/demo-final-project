@@ -1,201 +1,206 @@
-# 🤖 AI20K Agent Template
+# AloSM AI Booking Assistant
 
-Template chính thức cho học viên **VinUni AI20K Build Phase** — cung cấp sẵn cấu trúc dự án, code mẫu, và hướng dẫn kỹ thuật chi tiết để xây dựng AI Agent đạt điểm cao (35+/50).
+Web MVP đặt xe bằng **text hoặc voice**. Phạm vi chính gồm Login/Auth và Homepage với AloSM Assistant; chưa gồm live tracking, trip history, payment hoặc wallet.
 
-> 📖 **Technical Guidebook:** [phoenix.note.transformerlabs.ai/technical-book](https://phoenix.note.transformerlabs.ai/technical-book)
+Agent coding mới nên bắt đầu tại
+[`docs/CODING_AGENT_HANDOFF.md`](docs/CODING_AGENT_HANDOFF.md), sau đó đọc
+[`docs/LIVEKIT_TEAM_SETUP.md`](docs/LIVEKIT_TEAM_SETUP.md) và
+[`docs/PHASE4_EVALUATION_PLAN.md`](docs/PHASE4_EVALUATION_PLAN.md).
 
-## 🎯 Template này dùng để làm gì?
+Kiến trúc tổng thể: [`docs/MVP_ARCHITECTURE.md`](docs/MVP_ARCHITECTURE.md) ·
+Runtime truth: [`docs/PROJECT_SOURCE_OF_TRUTH.md`](docs/PROJECT_SOURCE_OF_TRUTH.md)
 
-Khi tham gia AI20K Build Phase, mỗi đội cần xây dựng một AI Agent hoàn chỉnh — từ kiến trúc, code, test, đến deploy. Thay vì bắt đầu từ con số không, template này cung cấp:
+Setup LiveKit chi tiết cho thành viên mới, mức độ tích hợp BE/FE/DB, catalog địa
+điểm, ưu/nhược điểm và troubleshooting:
+[`docs/LIVEKIT_TEAM_SETUP.md`](docs/LIVEKIT_TEAM_SETUP.md).
 
-- **Cấu trúc thư mục chuẩn** — đã được thiết kế theo best practices (separation of concerns)
-- **Code mẫu** cho các phần cốt lõi: LangGraph agent, FastAPI API, config, schemas
-- **Docker + CI/CD sẵn** — Dockerfile multi-stage, GitHub Actions workflow
-- **Hướng dẫn kỹ thuật 10 chương** — từ clone template đến nộp bài Demo Day
-- **Checklist 10 deliverables** — đảm bảo không bỏ sót yêu cầu BTC
-- **AI Usage Logging tự động** — Pre-configured hooks cho Claude Code, Cursor, Codex, Gemini CLI, Antigravity, và GitHub Copilot
+## 1. Setup
 
-## ⚡ Quick Start
-
-### Bước 1: Fork hoặc Clone
-
-```bash
-# Clone template
-git clone https://github.com/AI20K-Build-Cohort-2/starter-code-template.git team-YOUR_TEAM_NAME
-cd team-YOUR_TEAM_NAME
-
-# Xóa git history cũ và khởi tạo lại
-rm -rf .git
-git init
-git add .
-git commit -m "feat: khởi tạo dự án từ template"
-```
-
-### Bước 2: Setup môi trường
+Yêu cầu: Python 3.12, [uv](https://docs.astral.sh/uv/), Node.js/npm và FFmpeg/FFprobe.
 
 ```bash
-# Tạo virtual environment
-python3.11 -m venv .venv
-source .venv/bin/activate
-
-# Cài dependencies
-pip install -e ".[dev]"
-
-# Cấu hình API keys
+uv sync
 cp .env.example .env
-# Mở .env và thêm OPENAI_API_KEY của bạn
-# Đồng thời cập nhật AI_LOG_API_KEY bằng key riêng từ link mời của BTC
-# (giá trị trong .env.example chỉ là placeholder)
+uv run alembic upgrade head
+
+cd src/frontend
+npm ci
 ```
 
-### Bước 3: Cài AI Logging Hooks
+Chạy hai terminal:
 
 ```bash
-# Linux / macOS / Git Bash
-bash scripts/setup_hooks.sh
+# Terminal 1 — backend: http://localhost:8000
+uv run uvicorn src.main:app --reload --host 0.0.0.0 --port 8000
 
-# Windows PowerShell
-# powershell -ExecutionPolicy Bypass -File scripts\setup_hooks.ps1
+# Terminal 2 — frontend: http://localhost:5173
+cd src/frontend
+npm run dev
 ```
 
-Hooks tự động log mọi AI prompt khi dùng Claude Code, Cursor, Codex, Gemini CLI, Antigravity, hoặc GitHub Copilot. Không cần thao tác thủ công.
+Demo account chỉ dùng trực tiếp khi `APP_ENV=test`. Với durable development database,
+hãy đăng ký qua UI hoặc dùng account đã được seed trong database dev:
 
-### Bước 4: Chạy server
+```text
+Phone:    0901234567
+Password: Password123!
+```
+
+### Chạy LiveKit Voice Agent
+
+LiveKit runtime cần ba tiến trình; mỗi lệnh chạy trong một terminal riêng. Chỉ
+chạy một worker `alosm-voice` để tránh nhiều job test cùng tồn tại:
 
 ```bash
-# Chạy FastAPI backend
-uvicorn src.main:app --reload --port 8000
+# Terminal 1 — FastAPI control/business plane
+make livekit-backend
 
-# Mở Swagger UI
-# http://localhost:8000/docs
+# Terminal 2 — native LiveKit AgentServer/AgentSession worker
+make livekit-worker
+
+# Terminal 3 — React dùng LiveKit useSession
+make livekit-frontend
 ```
 
-### Bước 5: Đọc hướng dẫn
+Các lệnh trên chạy LiveKit voice và Core Agent text độc lập. Nếu lần đầu agent chưa
+tham gia do cold start/dispatch tạm thời, UI tự tạo lại đúng một cuộc gọi; nếu vẫn
+lỗi, nút **Tạo lại cuộc gọi** sẽ đóng LiveKit session cũ và tạo call ID, Room và
+agent dispatch mới.
 
-📖 Mở **[Technical Guidebook](https://phoenix.note.transformerlabs.ai/technical-book)** và làm theo từng chương.
+Để debug lỗi mất câu, ngắt giọng hoặc nhận sai địa điểm trong local test, chạy
+worker với native LiveKit event logging. Terminal vẫn hiện event ngắn và bản đầy đủ
+được lưu dạng JSONL trong `logs/livekit/`:
 
-## 📁 Cấu trúc dự án
-
-```
-├── src/
-│   ├── agents/           # 🧠 LangGraph Agent
-│   │   ├── graph.py      #    State graph (nodes + edges)
-│   │   ├── state.py      #    State schema (TypedDict)
-│   │   ├── nodes/        #    Node functions
-│   │   └── tools/        #    Agent tools (@tool)
-│   ├── api/              # 🌐 FastAPI Backend
-│   │   └── routes.py     #    API endpoints
-│   ├── models/           # 📋 Pydantic schemas
-│   ├── services/         # 🔧 Business logic (LLM, etc.)
-│   ├── config.py         # ⚙️ Pydantic Settings
-│   └── main.py           # 🚀 App entry point
-├── tests/                # 🧪 pytest suite
-│   ├── test_agents/      #    Agent/graph tests
-│   └── test_api/         #    API endpoint tests
-├── scripts/              # 🔌 AI Logging Hooks
-│   ├── log_hook.py       #    Auto-log cho Claude/Cursor/Codex/Gemini/Copilot
-│   ├── log_antigravity.py#    Antigravity IDE prompt scanner
-│   ├── log_manual.py     #    Manual log cho ChatGPT / web tools
-│   ├── submit_log.py     #    Submit logs on git push
-│   └── setup_hooks.sh    #    One-time hook installer
-├── .claude/ .codex/ .cursor/ .gemini/  # Per-tool hook configs
-├── .agents/              # Antigravity rules + workflows
-├── .ai-log/              # 📊 AI usage logs (auto-generated)
-├── docs/
-│   ├── guide/            # 📖 Technical Guidebook (10 chapters)
-│   └── architecture_diagram.md
-├── eval/                 # 📊 Evaluation results
-├── presentation/         # 🎤 Demo Day slides
-├── .github/workflows/    # ⚡ CI/CD (GitHub Actions)
-├── .github/hooks/        # 🪝 Copilot hook config
-├── Dockerfile            # 🐳 Multi-stage build
-├── docker-compose.yml    # 🐙 Full stack orchestration
-└── README_boilerplate.md # 📝 README template cho đội của bạn
-```
-
-## 📚 Technical Guidebook — 10 Chương
-
-| Chương | Nội dung | Thời gian |
-|---------|----------|-----------|
-| 1 | Lời mở đầu — Mục tiêu, cách sử dụng | 15 phút |
-| 2 | Khởi tạo dự án — Clone, setup, git workflow | 4 giờ |
-| 3 | Thiết kế kiến trúc — 3-tier, diagrams, ADR | 6 giờ |
-| 4 | **LangGraph Agent** — State, nodes, edges, tools, RAG | 8 giờ |
-| 5 | FastAPI — Routes, validation, error handling, streaming | 6 giờ |
-| 6 | Giao diện — Next.js + Streamlit quickstart | 6 giờ |
-| 7 | DevOps — Docker, CI/CD, deploy, logging | 6 giờ |
-| 8 | Kiểm thử — Unit test, integration test, RAGAS | 4 giờ |
-| 9 | Demo Day — 10 deliverables, checklist, tips | 2 giờ |
-| 10 | Tài nguyên — Khóa học, docs, BMAD method | tham khảo |
-
-📖 **Đọc online:** [phoenix.note.transformerlabs.ai/technical-book](https://phoenix.note.transformerlabs.ai/technical-book)
-
-## 📋 10 Deliverables cho Demo Day
-
-| # | Deliverable | File vị trí | Template có sẵn |
-|---|-------------|-------------|:---:|
-| 1 | Source Code | `src/` | ✅ |
-| 2 | README.md | `README_boilerplate.md` → copy thành `README.md` | ✅ |
-| 3 | Architecture Diagram | `docs/architecture_diagram.md` | ✅ |
-| 4 | AI Logs | LangSmith (3 env vars) + Auto AI Usage Logging | ✅ |
-| 5 | Live URL | Deploy lên Render/Vercel | ⚡ CI/CD sẵn |
-| 6 | Video Demo | `presentation/` | 📝 |
-| 7 | Pitch Deck | `presentation/` | 📝 |
-| 8 | Development Journal | `JOURNAL.md` | ✅ |
-| 9 | Worklog | `WORKLOG.md` | ✅ |
-| 10 | Evaluation Evidence | `eval/` | 📝 |
-
-## 🛠 Tech Stack
-
-| Layer | Technology | Version |
-|-------|-----------|---------|
-| AI Agent | LangGraph + LangChain | Latest |
-| Backend | FastAPI + Uvicorn | 0.100+ |
-| LLM | OpenAI GPT-4o-mini | API |
-| Frontend | Next.js / Streamlit | 14+ / 1.30+ |
-| Database | SQLite (dev) / PostgreSQL (prod) | — |
-| DevOps | Docker + GitHub Actions | — |
-| Testing | pytest + pytest-asyncio | 8+ |
-
-## 📊 AI Usage Logging
-
-Template đã tích hợp sẵn auto-logging hooks cho 6 AI tools:
-
-| Tool | Cơ chế | Config |
-|------|--------|--------|
-| Claude Code | `.claude/settings.json` hooks | Tự động |
-| Cursor | `.cursor/hooks.json` | Tự động |
-| OpenAI Codex CLI | `.codex/hooks.json` | Tự động |
-| Gemini CLI | `.gemini/settings.json` | Tự động |
-| GitHub Copilot | `.github/hooks/hooks.json` | Tự động |
-| Antigravity IDE | Pre-push scan transcript | Tự động trên `git push` |
-
-Tất cả prompts và tool calls được log vào `.ai-log/session.jsonl` và tự động submit lên grading server mỗi khi `git push`.
-
-**ChatGPT / web tools khác** — log thủ công:
 ```bash
-bash scripts/_pyrun.sh scripts/log_manual.py --tool chatgpt --prompt "What you asked"
+LIVEKIT_DEBUG_EVENT_LOG=true \
+LIVEKIT_DEBUG_TRANSCRIPTS=true \
+make livekit-worker
 ```
 
-> ⚠️ Chạy `bash scripts/setup_hooks.sh` một lần sau khi clone để cài pre-push hook.
+Transcript mặc định không được lưu; chỉ bật `LIVEKIT_DEBUG_TRANSCRIPTS=true` cho
+phiên local đã được phép debug. Logger không ghi raw audio, token, credential, tool
+arguments hoặc provider payload.
 
-## 📖 Đọc Technical Guidebook
+## 2. Environment variables
 
-**Online (khuyến nghị):** [phoenix.note.transformerlabs.ai/technical-book](https://phoenix.note.transformerlabs.ai/technical-book)
+Copy `.env.example` thành `.env`; không commit secret.
 
-Đăng nhập bằng GitHub (cùng account đã được BTC mời vào org `AI20K-Build-Cohort-2`)
-→ chọn tab **Technical Book** ở sidebar trái → đọc 10 chương + topic sections,
-có table of contents bên phải, hỗ trợ light/dark/cyberpunk theme.
+| Biến | Khi nào cần | Giá trị/vai trò |
+|---|---|---|
+| `APP_ENV` | Luôn có | `development`, `test` hoặc `production` |
+| `DATABASE_URL` | Luôn có | SQLite local hoặc PostgreSQL runtime URL |
+| `DATABASE_URL_MIGRATIONS` | Supabase/PostgreSQL | Connection riêng cho Alembic |
+| `AGENT_LLM_ENABLED` | Chat/booking qua LLM | `true` |
+| `AGENT_LLM_MODEL` | Chat/booking qua LLM | Model hỗ trợ tool calling |
+| `AGENT_LLM_BASE_URL` | LLM | OpenAI endpoint hoặc OpenRouter endpoint |
+| `OPENAI_API_KEY` | Core Agent hoặc LiveKit provider OpenAI | Không thay thế bằng OpenRouter key |
+| `OPENROUTER_API_KEY` | LLM/rewrite qua OpenRouter | Chỉ dùng với `openrouter.ai` base URL |
+| `LIVEKIT_URL`, `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET` | Voice realtime | Cùng một LiveKit project |
+| `LIVEKIT_STT_*`, `LIVEKIT_LLM_*`, `LIVEKIT_TTS_*` | Voice model | Provider/model cho worker LiveKit |
+| `QUOTE_SIGNING_KEY` | Durable quote | Secret tối thiểu 32 ký tự |
+| `FIELD_ENCRYPTION_KEY` | 2FA fields | Secret tối thiểu 32 ký tự |
+| `VITE_API_URL` | Frontend deploy khác origin | Mặc định `http://localhost:8000` |
 
-**Offline:** mọi chương đều ở thư mục `docs/guide/` trong template này — mở bằng
-bất kỳ markdown viewer/editor nào (VS Code, Obsidian, GitHub UI, …).
+### OpenRouter cho Core Agent text
 
-## 🔗 Liên kết
+```env
+OPENROUTER_API_KEY=...
+AGENT_LLM_ENABLED=true
+AGENT_LLM_BASE_URL=https://openrouter.ai/api/v1
+AGENT_LLM_MODEL=openai/gpt-5.6-luna-pro
+```
 
-- 📖 **Technical Guidebook:** [phoenix.note.transformerlabs.ai/technical-book](https://phoenix.note.transformerlabs.ai/technical-book)
-- 🏫 **AI20K Program:** VinUni AI20K Build Phase
-- 👨‍🏫 **Mentor:** Đặng Hải Lộc
+### Database
 
-## 📄 License
+Local không cần Supabase:
 
-MIT — Sử dụng tự do cho mục đích giáo dục.
+```env
+DATABASE_URL=sqlite:///./data/app.db
+```
+
+Với Supabase, project này dùng transaction pooler cho app và direct/session connection cho migration:
+
+```env
+DATABASE_URL=postgresql://postgres.<PROJECT_REF>:<PASSWORD>@<POOLER_HOST>:5432/postgres
+DATABASE_URL_MIGRATIONS=postgresql://postgres:<PASSWORD>@db.<PROJECT_REF>.supabase.co:5432/postgres
+```
+
+Direct connection thường cần IPv6; lấy đúng URL từ nút **Connect** trong Supabase Dashboard. Không đưa database password hoặc service-role key vào frontend. Chi tiết: [`docs/database_supabase.md`](docs/database_supabase.md) và [Supabase connection guide](https://supabase.com/docs/guides/database/connecting-to-postgres).
+
+Tạo hai application secrets độc lập:
+
+```bash
+python -c "import secrets; print(secrets.token_urlsafe(48))"
+```
+
+## 3. Sample queries
+
+Happy path Hà Nội hiện yêu cầu chọn candidate cụ thể cho VinUni và Hồ Gươm:
+
+```text
+User: Cho tôi xe 4 chỗ từ VinUni tới Hồ Gươm.
+User: Tôi chọn Cổng chính VinUni.
+User: Tôi chọn Bưu điện Hà Nội.
+User: Đúng, tôi xác nhận đặt chuyến này.
+```
+
+Các câu thử Voice rewrite:
+
+```text
+Đón tôi ở Bình Yuni rồi đi Hồ Cương.
+Tôi chọn cổng thành cũng.       # khi Agent đang hỏi cổng VinUni
+Không, tôi muốn sửa điểm đến.
+```
+
+API examples:
+
+```bash
+# Login
+curl -X POST http://localhost:8000/api/v1/auth/login \
+  -H 'Content-Type: application/json' \
+  -d '{"phone":"0901234567","password":"Password123!"}'
+
+# Text turn
+curl -X POST http://localhost:8000/api/v1/sessions/<SESSION_ID>/messages \
+  -H 'Authorization: Bearer <ACCESS_TOKEN>' \
+  -H 'Content-Type: application/json' \
+  -d '{"message":"Cho tôi xe 4 chỗ từ VinUni tới Hồ Gươm","source":"TEXT"}'
+
+# Voice uses the LiveKit connection-details endpoint and native Room transport.
+```
+
+## 4. Tests và eval evidence
+
+```bash
+# Full backend/agent/voice suite
+uv run pytest -q
+uv run ruff check src tests eval_cases
+
+# Frontend
+cd src/frontend
+npm run lint
+npm run build
+```
+
+Chạy 6 Agent workflow evals nhiều lượt và selected regression tests:
+
+```bash
+uv run python -m eval_cases.run_agent_workflow_evals
+```
+
+Kết quả tổng hợp nằm tại [`eval_cases/agent_workflow_eval_summary.json`](eval_cases/agent_workflow_eval_summary.json). Mỗi case có một JSON riêng ghi toàn bộ lượt user/agent, semantic decision, backend tool call và state sau lượt đó trong [`eval_cases/results/`](eval_cases/results/). Các case gồm happy path, đổi điểm đón, đổi điểm đến, đổi loại xe, yêu cầu ngoài phạm vi và handoff tổng đài viên. Xem [`eval_cases/README.md`](eval_cases/README.md) để tái chạy evidence.
+
+Các eval dùng scripted semantic decisions để tái lập nhưng vẫn chạy production Agent/state machine/backend tools ở chế độ in-memory; không gọi provider thật và không cần API key.
+
+## 5. Project layout
+
+| Thư mục | Nội dung |
+|---|---|
+| `src/frontend/` | React Login, Homepage và Assistant popup |
+| `src/backend/` | FastAPI routes, services, repositories và provider adapters |
+| `src/agents/` | Core Agent model/tool loop, typed state và guardrails |
+| `src/voice_agent/` | LiveKit AgentSession, booking tools, persistence và handoff |
+| `migrations/` | Alembic migrations |
+| `data/gazetteer/` | Hà Nội places, ASR aliases và landmark candidates |
+| `eval_cases/` | Reproducible MVP evaluation và JSON evidence |
+| `docs/` | Architecture, runtime contracts và operations guides |

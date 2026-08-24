@@ -1,0 +1,65 @@
+{
+  "llm_node_ttft_ms": {
+    "count": 1,
+    "p50": 1834.679,
+    "p90": 1834.679,
+    "p95": 1834.679,
+    "worst": 1834.679
+  },
+  "playback_latency_ms": {
+    "count": 1,
+    "p50": 0.165,
+    "p90": 0.165,
+    "p95": 0.165,
+    "worst": 0.165
+  },
+  "tts_node_ttfb_ms": {
+    "count": 1,
+    "p50": 262.594,
+    "p90": 262.594,
+    "p95": 262.594,
+    "worst": 262.594
+  },
+  "tool_duration_ms": {
+    "count": 0,
+    "p50": null,
+    "p90": null,
+    "p95": null,
+    "worst": null
+  },
+  "agent_join_after_room_ms": {
+    "count": 3,
+    "p50": 5479.573,
+    "p90": 18712.975,
+    "p95": 18712.975,
+    "worst": 18712.975
+  },
+  "booking_state_after_join_ms": {
+    "count": 3,
+    "p50": 1077.388,
+    "p90": 1146.254,
+    "p95": 1146.254,
+    "worst": 1146.254
+  },
+  "credential_issue_ms": {
+    "count": 3,
+    "p50": 0.537,
+    "p90": 0.643,
+    "p95": 0.643,
+    "worst": 0.643
+  },
+  "first_audio_after_join_ms": {
+    "count": 3,
+    "p50": 1254.294,
+    "p90": 1340.128,
+    "p95": 1340.128,
+    "worst": 1340.128
+  },
+  "room_connect_ms": {
+    "count": 3,
+    "p50": 2961.945,
+    "p90": 3315.954,
+    "p95": 3315.954,
+    "worst": 3315.954
+  }
+}

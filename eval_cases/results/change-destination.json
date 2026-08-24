@@ -1,0 +1,413 @@
+{
+  "schema_version": "2.0",
+  "generated_at": "2026-08-16T20:02:45.210408+00:00",
+  "mode": "offline_deterministic_agent_workflow",
+  "case": {
+    "id": "AGENT-003",
+    "title": "Đổi điểm đến giữa chừng",
+    "goal": "Giữ điểm đón, đổi điểm đến và tạo lại bản xác nhận.",
+    "status": "failed",
+    "duration_ms": 17.534,
+    "conversation": [
+      {
+        "turn": 1,
+        "user": "Cho tôi xe 4 chỗ từ VinUni tới Hồ Gươm",
+        "assistant": {
+          "action": "ASK_USER",
+          "message": "VinUni có nhiều vị trí phù hợp. Bạn xác nhận điểm đón cụ thể nào: 1. Cổng chính VinUni — Đường San Hô, Vinhomes Ocean Park, Đa Tốn, Gia Lâm, Hà Nội; 2. Cổng phụ VinUni — Trường Đại học VinUni, Vinhomes Ocean Park, Đa Tốn, Gia Lâm, Hà Nội; 3. Cổng ký túc xá VinUni — Ký túc xá VinUni, Vinhomes Ocean Park, Đa Tốn, Gia Lâm, Hà Nội?",
+          "booking": null
+        },
+        "semantic_decisions": [
+          {
+            "tool": "update_booking",
+            "arguments": {
+              "pickup_query": "VinUni",
+              "destination_query": "Hồ Gươm",
+              "vehicle_type": "CAR_4"
+            }
+          }
+        ],
+        "backend_tools": [
+          {
+            "tool": "search_place",
+            "params": {
+              "query": "VinUni"
+            },
+            "result": {
+              "tool_status": "SUCCESS",
+              "candidates": [
+                {
+                  "place_id": "place_71e69b1e78a8",
+                  "display_name": "Cổng chính VinUni"
+                },
+                {
+                  "place_id": "place_b21e03fa12e3",
+                  "display_name": "Cổng phụ VinUni"
+                },
+                {
+                  "place_id": "place_23f5f35883ee",
+                  "display_name": "Cổng ký túc xá VinUni"
+                }
+              ]
+            }
+          }
+        ],
+        "state_after_turn": {
+          "workflow": "RIDE_BOOKING",
+          "step": "SELECT_PICKUP_CANDIDATE",
+          "confirmation": "NOT_REQUESTED",
+          "booking": {
+            "pickup_query": "VinUni",
+            "pickup": null,
+            "destination_query": "Hồ Gươm",
+            "destination": null,
+            "vehicle_type": "CAR_4",
+            "fare_estimate_id": null,
+            "fare_amount": null,
+            "currency": null,
+            "booking_id": null,
+            "booking_status": null
+          },
+          "handoff": null
+        }
+      },
+      {
+        "turn": 2,
+        "user": "Tôi chọn cổng chính VinUni",
+        "assistant": {
+          "action": "ASK_USER",
+          "message": "Hồ Gươm có nhiều vị trí phù hợp. Bạn xác nhận điểm đến cụ thể nào: 1. Đền Ngọc Sơn — Phố Đinh Tiên Hoàng, Hoàn Kiếm, Hà Nội; 2. Bưu điện Hà Nội — 75 Đinh Tiên Hoàng, Tràng Tiền, Hoàn Kiếm, Hà Nội; 3. Quảng trường Đông Kinh Nghĩa Thục — 7 Đinh Tiên Hoàng, Hàng Trống, Hoàn Kiếm, Hà Nội; 4. Tượng đài Vua Lý Thái Tổ — Vườn hoa Lý Thái Tổ, phố Lê Lai, Tràng Tiền, Hoàn Kiếm, Hà Nội?",
+          "booking": null
+        },
+        "semantic_decisions": [
+          {
+            "tool": "select_place",
+            "arguments": {
+              "target": "pickup",
+              "index": 1
+            }
+          }
+        ],
+        "backend_tools": [
+          {
+            "tool": "search_place",
+            "params": {
+              "query": "Hồ Gươm"
+            },
+            "result": {
+              "tool_status": "SUCCESS",
+              "candidates": [
+                {
+                  "place_id": "place_472b2814f93d",
+                  "display_name": "Đền Ngọc Sơn"
+                },
+                {
+                  "place_id": "place_4b3912dcfb3c",
+                  "display_name": "Bưu điện Hà Nội"
+                },
+                {
+                  "place_id": "place_f61d65f24827",
+                  "display_name": "Quảng trường Đông Kinh Nghĩa Thục"
+                },
+                {
+                  "place_id": "place_584cb7fae18f",
+                  "display_name": "Tượng đài Vua Lý Thái Tổ"
+                }
+              ]
+            }
+          }
+        ],
+        "state_after_turn": {
+          "workflow": "RIDE_BOOKING",
+          "step": "SELECT_DESTINATION_CANDIDATE",
+          "confirmation": "NOT_REQUESTED",
+          "booking": {
+            "pickup_query": "VinUni",
+            "pickup": {
+              "place_id": "place_71e69b1e78a8",
+              "display_name": "Cổng chính VinUni",
+              "address": "Đường San Hô, Vinhomes Ocean Park, Đa Tốn, Gia Lâm, Hà Nội"
+            },
+            "destination_query": "Hồ Gươm",
+            "destination": null,
+            "vehicle_type": "CAR_4",
+            "fare_estimate_id": null,
+            "fare_amount": null,
+            "currency": null,
+            "booking_id": null,
+            "booking_status": null
+          },
+          "handoff": null
+        }
+      },
+      {
+        "turn": 3,
+        "user": "Tôi chọn Bưu điện Hà Nội",
+        "assistant": {
+          "action": "ASK_USER",
+          "message": "Bạn xác nhận đặt xe đón tại Cổng chính VinUni và đến Bưu điện Hà Nội, loại ô tô 4 chỗ, giá dự kiến 95.180 đồng, đúng không?",
+          "booking": null
+        },
+        "semantic_decisions": [
+          {
+            "tool": "select_place",
+            "arguments": {
+              "target": "destination",
+              "index": 2
+            }
+          }
+        ],
+        "backend_tools": [
+          {
+            "tool": "estimate_fare",
+            "params": {
+              "pickup_place_id": "place_71e69b1e78a8",
+              "destination_place_id": "place_4b3912dcfb3c",
+              "vehicle_type": "CAR_4"
+            },
+            "result": {
+              "tool_status": "SUCCESS",
+              "estimate_id": "est_bd64ece1f33e",
+              "fare_amount": 95180,
+              "currency": "VND",
+              "eta_minutes": 16
+            }
+          }
+        ],
+        "state_after_turn": {
+          "workflow": "RIDE_BOOKING",
+          "step": "CONFIRM",
+          "confirmation": "AWAITING_CONFIRMATION",
+          "booking": {
+            "pickup_query": "VinUni",
+            "pickup": {
+              "place_id": "place_71e69b1e78a8",
+              "display_name": "Cổng chính VinUni",
+              "address": "Đường San Hô, Vinhomes Ocean Park, Đa Tốn, Gia Lâm, Hà Nội"
+            },
+            "destination_query": "Hồ Gươm",
+            "destination": {
+              "place_id": "place_4b3912dcfb3c",
+              "display_name": "Bưu điện Hà Nội",
+              "address": "75 Đinh Tiên Hoàng, Tràng Tiền, Hoàn Kiếm, Hà Nội"
+            },
+            "vehicle_type": "CAR_4",
+            "fare_estimate_id": "est_bd64ece1f33e",
+            "fare_amount": 95180.0,
+            "currency": "VND",
+            "booking_id": null,
+            "booking_status": null
+          },
+          "handoff": null
+        }
+      },
+      {
+        "turn": 4,
+        "user": "Không",
+        "assistant": {
+          "action": "ASK_USER",
+          "message": "Bạn muốn sửa thông tin nào: điểm đón, điểm đến, loại xe hay số người?",
+          "booking": null
+        },
+        "semantic_decisions": [],
+        "backend_tools": [],
+        "state_after_turn": {
+          "workflow": "RIDE_BOOKING",
+          "step": null,
+          "confirmation": "NOT_REQUESTED",
+          "booking": {
+            "pickup_query": "VinUni",
+            "pickup": {
+              "place_id": "place_71e69b1e78a8",
+              "display_name": "Cổng chính VinUni",
+              "address": "Đường San Hô, Vinhomes Ocean Park, Đa Tốn, Gia Lâm, Hà Nội"
+            },
+            "destination_query": "Hồ Gươm",
+            "destination": {
+              "place_id": "place_4b3912dcfb3c",
+              "display_name": "Bưu điện Hà Nội",
+              "address": "75 Đinh Tiên Hoàng, Tràng Tiền, Hoàn Kiếm, Hà Nội"
+            },
+            "vehicle_type": "CAR_4",
+            "fare_estimate_id": "est_bd64ece1f33e",
+            "fare_amount": 95180.0,
+            "currency": "VND",
+            "booking_id": null,
+            "booking_status": null
+          },
+          "handoff": null
+        }
+      },
+      {
+        "turn": 5,
+        "user": "Đổi điểm đến sang Ga Hà Nội",
+        "assistant": {
+          "action": "ASK_USER",
+          "message": "Bạn xác nhận đặt xe đón tại Cổng chính VinUni và đến Bưu điện Hà Nội, loại ô tô 4 chỗ, giá dự kiến 95.180 đồng, đúng không?",
+          "booking": null
+        },
+        "semantic_decisions": [],
+        "backend_tools": [],
+        "state_after_turn": {
+          "workflow": "RIDE_BOOKING",
+          "step": "CONFIRM",
+          "confirmation": "AWAITING_CONFIRMATION",
+          "booking": {
+            "pickup_query": "VinUni",
+            "pickup": {
+              "place_id": "place_71e69b1e78a8",
+              "display_name": "Cổng chính VinUni",
+              "address": "Đường San Hô, Vinhomes Ocean Park, Đa Tốn, Gia Lâm, Hà Nội"
+            },
+            "destination_query": "Hồ Gươm",
+            "destination": {
+              "place_id": "place_4b3912dcfb3c",
+              "display_name": "Bưu điện Hà Nội",
+              "address": "75 Đinh Tiên Hoàng, Tràng Tiền, Hoàn Kiếm, Hà Nội"
+            },
+            "vehicle_type": "CAR_4",
+            "fare_estimate_id": "est_bd64ece1f33e",
+            "fare_amount": 95180.0,
+            "currency": "VND",
+            "booking_id": null,
+            "booking_status": null
+          },
+          "handoff": null
+        }
+      },
+      {
+        "turn": 6,
+        "user": "Xác nhận",
+        "assistant": {
+          "action": "RESPOND",
+          "message": "Chuyến xe đã được đặt thành công. Xe dự kiến đến sau 16 phút.",
+          "booking": {
+            "booking_id": "book_b3f5dcc4",
+            "status": "CONFIRMED",
+            "lifecycle_status": "SUCCESS",
+            "estimated_fare": 95180
+          }
+        },
+        "semantic_decisions": [],
+        "backend_tools": [
+          {
+            "tool": "create_booking",
+            "params": {
+              "pickup_place_id": "place_71e69b1e78a8",
+              "destination_place_id": "place_4b3912dcfb3c",
+              "phone_number": "0901234567",
+              "vehicle_type": "CAR_4",
+              "fare_estimate_id": "est_bd64ece1f33e",
+              "idempotency_key": "<sha256-present>"
+            },
+            "result": {
+              "tool_status": "SUCCESS",
+              "fare_amount": 95180,
+              "currency": "VND",
+              "eta_minutes": 16,
+              "booking_id": "book_b3f5dcc4",
+              "backend_status": "CONFIRMED"
+            }
+          }
+        ],
+        "state_after_turn": {
+          "workflow": null,
+          "step": null,
+          "confirmation": "NOT_REQUESTED",
+          "booking": {
+            "pickup_query": "VinUni",
+            "pickup": {
+              "place_id": "place_71e69b1e78a8",
+              "display_name": "Cổng chính VinUni",
+              "address": "Đường San Hô, Vinhomes Ocean Park, Đa Tốn, Gia Lâm, Hà Nội"
+            },
+            "destination_query": "Hồ Gươm",
+            "destination": {
+              "place_id": "place_4b3912dcfb3c",
+              "display_name": "Bưu điện Hà Nội",
+              "address": "75 Đinh Tiên Hoàng, Tràng Tiền, Hoàn Kiếm, Hà Nội"
+            },
+            "vehicle_type": "CAR_4",
+            "fare_estimate_id": "est_bd64ece1f33e",
+            "fare_amount": 95180.0,
+            "currency": "VND",
+            "booking_id": "book_b3f5dcc4",
+            "booking_status": "CONFIRMED"
+          },
+          "handoff": null
+        }
+      }
+    ],
+    "assertions": [
+      {
+        "name": "pickup preserved",
+        "passed": true,
+        "expected": "Cổng chính VinUni",
+        "actual": "Cổng chính VinUni"
+      },
+      {
+        "name": "new destination resolved",
+        "passed": false,
+        "expected": "Ga Hà Nội",
+        "actual": "Bưu điện Hà Nội"
+      },
+      {
+        "name": "vehicle preserved",
+        "passed": true,
+        "expected": "CAR_4",
+        "actual": "CAR_4"
+      },
+      {
+        "name": "new confirmation requested",
+        "passed": true,
+        "expected": "CONFIRM",
+        "actual": "CONFIRM"
+      },
+      {
+        "name": "correction semantic flow",
+        "passed": false,
+        "expected": [
+          "update_booking"
+        ],
+        "actual": []
+      },
+      {
+        "name": "route and fare recalculated",
+        "passed": false,
+        "expected": [
+          "search_place",
+          "estimate_fare"
+        ],
+        "actual": []
+      },
+      {
+        "name": "old fare invalidated",
+        "passed": false,
+        "expected": false,
+        "actual": true
+      },
+      {
+        "name": "booking only after reconfirmation",
+        "passed": true,
+        "expected": [
+          "create_booking"
+        ],
+        "actual": [
+          "create_booking"
+        ]
+      },
+      {
+        "name": "final status",
+        "passed": true,
+        "expected": "CONFIRMED",
+        "actual": "CONFIRMED"
+      },
+      {
+        "name": "all scripted decisions consumed",
+        "passed": false,
+        "expected": 0,
+        "actual": 1
+      }
+    ]
+  }
+}

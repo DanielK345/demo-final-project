@@ -1,18 +1,29 @@
-from __future__ import annotations
+"""Compatibility exports for backend code that imports the old state path."""
 
-from typing import TypedDict
+from src.agents.contracts.state import (
+    AgentState,
+    AssistantDeliveryEvent,
+    ConversationMessage,
+    ConversationMessageType,
+    ConversationRole,
+    ConversationSummary,
+    DeliveryStatus,
+)
+from src.agents.contracts.state_types import (
+    ConfirmationStatus,
+    InterruptedWorkflow,
+    InterruptionReason,
+)
 
-
-class AgentState(TypedDict, total=False):
-    """State schema cho LangGraph agent.
-
-    Mỗi node đọc và ghi vào state này.
-    total=False cho phép tất cả fields là optional.
-    """
-
-    query: str
-    context: str
-    analysis: str
-    response: str
-    error: str
-    metadata: dict
+__all__ = [
+    "AgentState",
+    "ConfirmationStatus",
+    "AssistantDeliveryEvent",
+    "ConversationMessage",
+    "ConversationMessageType",
+    "ConversationRole",
+    "ConversationSummary",
+    "DeliveryStatus",
+    "InterruptedWorkflow",
+    "InterruptionReason",
+]

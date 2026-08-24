@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AloSM Voice AI — Architecture Diagrams</title>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+    <script>mermaid.initialize({ startOnLoad: true, theme: 'dark' });</script>
+    <style>
+        body { font-family: "Segoe UI", Roboto, sans-serif; background: #0d1117; color: #c9d1d9; padding: 40px; max-width: 1100px; margin: 0 auto; }
+        h1, h2 { color: #58a6ff; border-bottom: 1px solid #30363d; padding-bottom: 8px; }
+        .box { background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 24px; margin: 20px 0; overflow-x: auto; }
+        .mermaid { display: flex; justify-content: center; }
+    </style>
+</head>
+<body>
+
+<h1>🏗️ AloSM Voice AI — Sơ đồ Kiến trúc</h1>
+
+<h2>1. Kiến trúc tổng quan</h2>
+<div class="box"><pre class="mermaid">
+graph LR
+    A[Khách hàng] --> B[Tổng đài 1555]
+    B --> C[Voice Gateway]
+    C --> D[ASR - Giọng nói sang chữ]
+    D --> E[AI Agent Core]
+    E --> F[TTS - Chữ sang giọng nói]
+    F --> C
+    E --> G[Alo SM Backend]
+    E --> H[Tổng đài viên]
+</pre></div>
+
+<h2>2. Luồng đặt xe thành công</h2>
+<div class="box"><pre class="mermaid">
+sequenceDiagram
+    actor KH as Khách hàng
+    participant GW as Voice Gateway
+    participant ASR as ASR Engine
+    participant AI as AI Agent
+    participant API as Alo SM API
+    participant TTS as TTS Engine
+
+    KH->>GW: Gọi 1555
+    AI->>TTS: "Xin chào, em giúp gì ạ?"
+    TTS->>KH: Phát lời chào
+
+    KH->>GW: "Đặt xe từ Vincom đến Landmark 81"
+    GW->>ASR: Stream âm thanh
+    ASR->>AI: Văn bản + Độ tin cậy
+    AI->>AI: Hiểu ý định = Đặt xe
+    AI->>AI: Trích xuất: Vincom, Landmark 81
+
+    AI->>TTS: "Đặt xe từ Vincom đến Landmark 81, đúng không ạ?"
+    TTS->>KH: Phát câu xác nhận
+
+    KH->>ASR: "Đúng rồi"
+    ASR->>AI: Xác nhận = Đồng ý
+
+    AI->>API: Tạo đơn đặt xe
+    API->>AI: Thành công (mã booking)
+    AI->>TTS: "Đặt xe thành công, đang tìm tài xế ạ"
+    TTS->>KH: Phát kết quả
+</pre></div>
+
+<h2>3. Luồng chuyển tổng đài viên</h2>
+<div class="box"><pre class="mermaid">
+sequenceDiagram
+    actor KH as Khách hàng
+    participant ASR as ASR Engine
+    participant AI as AI Agent
+    participant TTS as TTS Engine
+    participant CRM as Tổng đài viên
+
+    KH->>ASR: Nói không rõ (lần 1)
+    ASR->>AI: Độ tin cậy thấp
+    AI->>AI: Đếm lỗi = 1
+    AI->>TTS: "Xin lỗi, em chưa nghe rõ, nhắc lại ạ?"
+    TTS->>KH: Phát nhắc lại
+
+    KH->>ASR: Nói vẫn không rõ (lần 2)
+    ASR->>AI: Độ tin cậy thấp
+    AI->>AI: Đếm lỗi = 2 → Chuyển tổng đài
+    AI->>CRM: Gửi tóm tắt cuộc gọi
+    AI->>TTS: "Em chuyển sang tổng đài viên ạ"
+    TTS->>KH: Phát thông báo
+    AI->>CRM: Chuyển luồng thoại
+</pre></div>
+
+<h2>4. Luồng xử lý trong AI Agent</h2>
+<div class="box"><pre class="mermaid">
+graph TD
+    A((Bắt đầu)) --> B[Nhận văn bản từ ASR]
+    B --> C{Nghe rõ không?}
+    
+    C -->|Không rõ| D[Đếm lỗi +1]
+    D --> E{Lỗi 2 lần?}
+    E -->|Có| F[Chuyển tổng đài viên]
+    E -->|Chưa| G[Nhắc nói lại]
+    G --> H[Phát giọng nói]
+    
+    C -->|Rõ| I[Phân tích ý định]
+    I --> J{Ý định gì?}
+    
+    J -->|Đặt xe| K{Đủ thông tin?}
+    K -->|Thiếu| L[Hỏi thêm]
+    L --> H
+    K -->|Đủ| M{Đã xác nhận?}
+    M -->|Chưa| N[Đọc xác nhận]
+    N --> H
+    M -->|Rồi| O[Gọi API đặt xe]
+    O --> H
+    
+    J -->|Hỏi vị trí xe| P[Gọi API tra cứu]
+    P --> H
+    
+    J -->|Hỏi thông tin| Q[Tìm trong FAQ]
+    Q --> H
+    
+    J -->|Ngoài phạm vi| F
+    
+    F --> R((Kết thúc))
+    H --> R
+</pre></div>
+
+<h2>5. Vòng đời Session</h2>
+<div class="box"><pre class="mermaid">
+stateDiagram-v2
+    [*] --> Active: Khách gọi đến
+    Active --> Collecting: AI hỏi thông tin
+    Collecting --> Confirming: Đủ thông tin
+    Confirming --> Booking: Khách xác nhận
+    Confirming --> Collecting: Khách sửa thông tin
+    Booking --> Done: Đặt xe thành công
+    
+    Active --> Handoff: AI không hiểu
+    Collecting --> Handoff: Ngoài phạm vi
+    
+    Handoff --> Done: Chuyển tổng đài viên
+    Done --> [*]: Session hết hạn (30 phút)
+</pre></div>
+
+<h2>6. Kiến trúc triển khai</h2>
+<div class="box"><pre class="mermaid">
+graph TB
+    subgraph Internet["Mạng bên ngoài"]
+        Phone["Mạng điện thoại"]
+    end
+    
+    subgraph Server["Cluster ứng dụng"]
+        SIP["SIP Gateway"]
+        Pod1["AI Agent Pod 1"]
+        Pod2["AI Agent Pod 2"]
+        ASR_S["ASR Service"]
+        TTS_S["TTS Service"]
+    end
+    
+    subgraph DB["Cơ sở dữ liệu"]
+        R[("Redis")]
+        PG[("PostgreSQL")]
+        VDB[("ChromaDB")]
+    end
+    
+    subgraph Cloud["Dịch vụ Cloud"]
+        LLM_S["OpenAI / Gemini"]
+        ASM["Alo SM Backend"]
+    end
+    
+    Phone <--> SIP
+    SIP <--> ASR_S
+    SIP <--> TTS_S
+    SIP --> Pod1
+    SIP --> Pod2
+    Pod1 <--> R
+    Pod2 <--> R
+    Pod1 --> PG
+    Pod1 <--> VDB
+    Pod1 <--> LLM_S
+    Pod1 <--> ASM
+    Pod2 <--> LLM_S
+    Pod2 <--> ASM
+</pre></div>
+
+</body>
+</html>

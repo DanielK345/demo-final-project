@@ -1,0 +1,117 @@
+@import "tailwindcss";
+@import "leaflet/dist/leaflet.css";
+
+/* Bật biến thể `dark:` theo class thay vì theo prefers-color-scheme của hệ điều
+   hành — toggle "Giao diện tối" trong Settings là lựa chọn chủ động của người
+   dùng (lưu ở ThemeProvider + localStorage + backend), không phụ thuộc OS. */
+@custom-variant dark (&:where(.dark, .dark *));
+
+@layer base {
+  :root {
+    --font-sans: 'Montserrat', 'Inter', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+
+    /* AloSM Green Mobility Palette — tham khảo tinh thần thiết kế "di chuyển xanh"
+       của GreenSM (màu xanh lá sống động, không sao chép mã màu/asset/logo của họ). */
+    --color-brand-green: #00C9B7;
+    --color-brand-primary: #00C9B7;
+    --color-brand-primary-hover: #008F88;
+    --color-brand-accent: #00C9B7;
+    --color-brand-light: rgba(0, 166, 81, 0.1);
+
+    --color-bg: #F4FBFA;
+    --color-card: #FFFFFF;
+    --color-card-border: rgba(16, 18, 19, 0.08);
+    --color-text-main: #191C1E;
+    --color-text-muted: #5D5E60;
+  }
+
+  /* Giao diện tối toàn site — cùng bảng token, chỉ đổi giá trị. Đặt trên .dark
+     (root <html>) để mọi trang/không phải chỉ AssistantPage đều theo. */
+  :root.dark {
+    --color-bg: #0B0E11;
+    --color-card: #12161A;
+    --color-card-border: rgba(255, 255, 255, 0.08);
+    --color-text-main: #F4F6F7;
+    --color-text-muted: #9AA5AD;
+  }
+}
+
+body {
+  font-family: var(--font-sans);
+  background-color: var(--color-bg);
+  color: var(--color-text-main);
+  min-height: 100vh;
+  margin: 0;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+:root.dark {
+  color-scheme: dark;
+}
+
+.pulse-ring {
+  animation: pulse-ring-anim 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes pulse-ring-anim {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: .5; transform: scale(1.1); }
+}
+
+.glass-panel {
+  background: rgba(255, 255, 255, 0.75);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  box-shadow: 0px 4px 20px rgba(16, 18, 19, 0.05);
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* AloSM mobility UI system — derived from the supplied reference screens. */
+.app-surface {
+  background:
+    radial-gradient(circle at 12% 4%, rgba(84, 180, 232, 0.13), transparent 28rem),
+    radial-gradient(circle at 90% 14%, rgba(0, 209, 193, 0.12), transparent 24rem),
+    var(--color-bg);
+}
+.mobility-card {
+  background: rgba(255, 255, 255, 0.95);
+  border: 1px solid rgba(39, 74, 75, 0.08);
+  border-radius: 1.75rem;
+  box-shadow: 0 12px 36px rgba(0, 143, 136, 0.08);
+}
+.mobility-input {
+  background: rgba(255, 255, 255, 0.97);
+  border: 1px solid rgba(39, 74, 75, 0.1);
+  border-radius: 1.5rem;
+  box-shadow: 0 10px 30px rgba(15, 75, 77, 0.09);
+}
+.mobility-chip {
+  border: 1px solid rgba(39, 74, 75, 0.12);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.92);
+}
+.soft-cyan-panel {
+  background: linear-gradient(135deg, rgba(224, 250, 248, .96), rgba(230, 247, 252, .94) 55%, rgba(255, 249, 222, .88));
+}
+.no-scrollbar { scrollbar-width: none; }
+.no-scrollbar::-webkit-scrollbar { display: none; }
+:root.dark .mobility-card,
+:root.dark .mobility-input,
+:root.dark .mobility-chip { background: rgba(18, 32, 33, 0.95); border-color: rgba(255,255,255,.1); }
